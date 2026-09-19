@@ -1,0 +1,2404 @@
+{
+ "schema": "strategy-desk/prop-firms/v1",
+ "updated": "2026-09-19",
+ "note": "Educational estimates. Rules change often — verify at the firm before relying on them. No affiliate fields by design.",
+ "simCaveat": "Simulation uses trade-close granularity: intraday trailing that counts UNREALIZED highs can breach in ways trade-level data cannot see. Survival numbers for intraday-type accounts are optimistic estimates.",
+ "firms": [
+  {
+   "id": "fundingpips",
+   "name": "FundingPips",
+   "family": "forex",
+   "maxFundedAccounts": null,
+   "sourceNote": "2-Step Standard only in v1; Flex (4% daily / 12% max), Pro (6%/6%, 3% daily, 6% max, 2 days), 1-Step and Zero to be added.",
+   "accounts": [
+    {
+     "id": "fundingpips-5k-2step-standard",
+     "label": "FundingPips 5K 2-Step Standard",
+     "accountSize": 5000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 8.0,
+       "minTradingDays": 3
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 3
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "max(balance,equity) at day start",
+      "resetUtcOffset": 3
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "newsRule": "no open/close within 5 min before/after red-folder FF events (funded stage; profit deducted)",
+     "weekendHolding": "not allowed on Master accounts (temporary, since 2026-01-29)",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 36,
+      "refund": "fee refunded at 4th reward",
+      "verified": "2026-09-19",
+      "confidence": "partial",
+      "source": "proptradingvibes.com summary; help.fundingpips.com returned 403"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "weekly": 60,
+       "biweekly": 80,
+       "monthly": 100,
+       "onDemand": 90
+      },
+      "firstPayoutDays": 7,
+      "payoutCycleDays": 7,
+      "onDemandConsistencyMaxDayPct": 35,
+      "strikeFloatingLossPct": 1.2,
+      "scaling": "Prime after 3rd reward (12.5x, 80% split, 2% trailing max loss)",
+      "confidence": "partial"
+     },
+     "verified": "2026-09-19",
+     "confidence": "partial",
+     "note": null
+    },
+    {
+     "id": "fundingpips-10k-2step-standard",
+     "label": "FundingPips 10K 2-Step Standard",
+     "accountSize": 10000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 8.0,
+       "minTradingDays": 3
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 3
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "max(balance,equity) at day start",
+      "resetUtcOffset": 3
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "newsRule": "no open/close within 5 min before/after red-folder FF events (funded stage; profit deducted)",
+     "weekendHolding": "not allowed on Master accounts (temporary, since 2026-01-29)",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 66,
+      "refund": "fee refunded at 4th reward",
+      "verified": "2026-09-19",
+      "confidence": "partial",
+      "source": "proptradingvibes.com summary; help.fundingpips.com returned 403"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "weekly": 60,
+       "biweekly": 80,
+       "monthly": 100,
+       "onDemand": 90
+      },
+      "firstPayoutDays": 7,
+      "payoutCycleDays": 7,
+      "onDemandConsistencyMaxDayPct": 35,
+      "strikeFloatingLossPct": 1.2,
+      "scaling": "Prime after 3rd reward (12.5x, 80% split, 2% trailing max loss)",
+      "confidence": "partial"
+     },
+     "verified": "2026-09-19",
+     "confidence": "partial",
+     "note": null
+    },
+    {
+     "id": "fundingpips-10k-2step-standard-legacy10",
+     "label": "FundingPips 10K 2-Step Standard (legacy 10%)",
+     "accountSize": 10000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 10.0,
+       "minTradingDays": 3
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 3
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "max(balance,equity) at day start",
+      "resetUtcOffset": 3
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "newsRule": "no open/close within 5 min before/after red-folder FF events (funded stage; profit deducted)",
+     "weekendHolding": "not allowed on Master accounts (temporary, since 2026-01-29)",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 66,
+      "refund": "fee refunded at 4th reward",
+      "verified": "2026-09-19",
+      "confidence": "partial",
+      "source": "proptradingvibes.com summary; help.fundingpips.com returned 403"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "weekly": 60,
+       "biweekly": 80,
+       "monthly": 100,
+       "onDemand": 90
+      },
+      "firstPayoutDays": 7,
+      "payoutCycleDays": 7,
+      "onDemandConsistencyMaxDayPct": 35,
+      "strikeFloatingLossPct": 1.2,
+      "scaling": "Prime after 3rd reward (12.5x, 80% split, 2% trailing max loss)",
+      "confidence": "partial"
+     },
+     "verified": "2026-09-19",
+     "confidence": "partial",
+     "note": "Legacy 10% Phase-1 target withdrawn 2026-07-24; older accounts converted to 2-Step Flex (85% split). Owner's account #5724250 was on legacy 10% as of 2026-08-31 — confirm current status."
+    },
+    {
+     "id": "fundingpips-25k-2step-standard",
+     "label": "FundingPips 25K 2-Step Standard",
+     "accountSize": 25000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 8.0,
+       "minTradingDays": 3
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 3
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "max(balance,equity) at day start",
+      "resetUtcOffset": 3
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "newsRule": "no open/close within 5 min before/after red-folder FF events (funded stage; profit deducted)",
+     "weekendHolding": "not allowed on Master accounts (temporary, since 2026-01-29)",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 177,
+      "refund": "fee refunded at 4th reward",
+      "verified": "2026-09-19",
+      "confidence": "partial",
+      "source": "proptradingvibes.com summary; help.fundingpips.com returned 403"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "weekly": 60,
+       "biweekly": 80,
+       "monthly": 100,
+       "onDemand": 90
+      },
+      "firstPayoutDays": 7,
+      "payoutCycleDays": 7,
+      "onDemandConsistencyMaxDayPct": 35,
+      "strikeFloatingLossPct": 1.2,
+      "scaling": "Prime after 3rd reward (12.5x, 80% split, 2% trailing max loss)",
+      "confidence": "partial"
+     },
+     "verified": "2026-09-19",
+     "confidence": "partial",
+     "note": null
+    },
+    {
+     "id": "fundingpips-50k-2step-standard",
+     "label": "FundingPips 50K 2-Step Standard",
+     "accountSize": 50000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 8.0,
+       "minTradingDays": 3
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 3
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "max(balance,equity) at day start",
+      "resetUtcOffset": 3
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "newsRule": "no open/close within 5 min before/after red-folder FF events (funded stage; profit deducted)",
+     "weekendHolding": "not allowed on Master accounts (temporary, since 2026-01-29)",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 299,
+      "refund": "fee refunded at 4th reward",
+      "verified": "2026-09-19",
+      "confidence": "partial",
+      "source": "proptradingvibes.com summary; help.fundingpips.com returned 403"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "weekly": 60,
+       "biweekly": 80,
+       "monthly": 100,
+       "onDemand": 90
+      },
+      "firstPayoutDays": 7,
+      "payoutCycleDays": 7,
+      "onDemandConsistencyMaxDayPct": 35,
+      "strikeFloatingLossPct": 1.2,
+      "scaling": "Prime after 3rd reward (12.5x, 80% split, 2% trailing max loss)",
+      "confidence": "partial"
+     },
+     "verified": "2026-09-19",
+     "confidence": "partial",
+     "note": null
+    },
+    {
+     "id": "fundingpips-100k-2step-standard",
+     "label": "FundingPips 100K 2-Step Standard",
+     "accountSize": 100000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 8.0,
+       "minTradingDays": 3
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 3
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "max(balance,equity) at day start",
+      "resetUtcOffset": 3
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "newsRule": "no open/close within 5 min before/after red-folder FF events (funded stage; profit deducted)",
+     "weekendHolding": "not allowed on Master accounts (temporary, since 2026-01-29)",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 522,
+      "refund": "fee refunded at 4th reward",
+      "verified": "2026-09-19",
+      "confidence": "partial",
+      "source": "proptradingvibes.com summary; help.fundingpips.com returned 403"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "weekly": 60,
+       "biweekly": 80,
+       "monthly": 100,
+       "onDemand": 90
+      },
+      "firstPayoutDays": 7,
+      "payoutCycleDays": 7,
+      "onDemandConsistencyMaxDayPct": 35,
+      "strikeFloatingLossPct": 1.2,
+      "scaling": "Prime after 3rd reward (12.5x, 80% split, 2% trailing max loss)",
+      "confidence": "partial"
+     },
+     "verified": "2026-09-19",
+     "confidence": "partial",
+     "note": null
+    }
+   ]
+  },
+  {
+   "id": "ftmo-like",
+   "name": "FTMO-style 2-step template",
+   "family": "forex",
+   "maxFundedAccounts": null,
+   "sourceNote": "Generic template for classic 2-step forex evals (10%/5%, 5% daily, 10% max, 4 min days). Numbers are a template, not a verified firm.",
+   "accounts": [
+    {
+     "id": "ftmo-like-10k",
+     "label": "Template 10K 2-step",
+     "accountSize": 10000,
+     "currency": "USD",
+     "phases": [
+      {
+       "name": "Phase 1",
+       "targetPct": 10.0,
+       "minTradingDays": 4
+      },
+      {
+       "name": "Phase 2",
+       "targetPct": 5.0,
+       "minTradingDays": 4
+      }
+     ],
+     "dailyLoss": {
+      "pct": 5.0,
+      "basis": "balance at day start",
+      "resetUtcOffset": 1
+     },
+     "maxLoss": {
+      "pct": 10.0,
+      "type": "static",
+      "includesFloating": true
+     },
+     "consistencyMaxDayPct": null,
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 155,
+      "refund": "first payout",
+      "verified": null,
+      "confidence": "low"
+     },
+     "funded": {
+      "profitSplitByCycle": {
+       "biweekly": 80
+      },
+      "firstPayoutDays": 14,
+      "payoutCycleDays": 14,
+      "confidence": "low"
+     },
+     "verified": null,
+     "confidence": "low"
+    }
+   ]
+  },
+  {
+   "id": "apex",
+   "name": "Apex Trader Funding",
+   "accounts": [
+    {
+     "id": "apex-25k",
+     "label": "Apex 25K",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 4,
+     "minTradingDays": 0,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "windowDays": 30,
+      "evalFull": 199,
+      "renewal": 199,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 1600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 14,
+      "minPayout": 500,
+      "maxPayoutPct": 100,
+      "payoutCap": 1000,
+      "maxPayoutsLifetime": 6,
+      "consistencyMaxDayPct": 50,
+      "activationFee": 79,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "Safety-net balance $26,600 (start + drawdown + $600). 25K cap flat $1,000 across all 6 payouts. Activation $79 intraday / $99 EOD, one-time, no promo codes.",
+      "lifetimePayoutCapUsd": 6000,
+      "lifetimeNote": "25K ladder ≈ 6,000 USD across 6 payouts; PA closes after the 6th."
+     }
+    },
+    {
+     "id": "apex-50k",
+     "label": "Apex 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 6,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "partial",
+     "cost": {
+      "structure": "per30d",
+      "windowDays": 30,
+      "evalFull": 249,
+      "renewal": 249,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "structureNote": "4.0: the fee buys a 30-DAY EVAL WINDOW — pass inside it or repurchase from scratch (progress does not carry). The simulator caps each attempt at ~21 trading days."
+     },
+     "funded": {
+      "bufferAmount": 2600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 14,
+      "minPayout": 500,
+      "maxPayoutPct": 100,
+      "payoutCap": 1500,
+      "maxPayoutsLifetime": 6,
+      "consistencyMaxDayPct": 50,
+      "activationFee": 79,
+      "isSim": true,
+      "verified": "2026-07-09",
+      "confidence": "partial",
+      "note": "Safety Net = drawdown+$600 held for PA life. Payout ladder caps rise per payout (50K ≈ $1,500→$3,000); PA closes after the 6th payout. 5 qualifying days (~$250/day) before each payout. ACTIVATION: one-time $79 intraday / $99 EOD; due within 7 days of passing; promo codes do NOT apply.",
+      "lifetimePayoutCapUsd": 14500,
+      "lifetimeNote": "50K INTRADAY ladder ≈ 14,500 USD across 6 payouts (EOD ≈ 13,000); PA closes after the 6th."
+     }
+    },
+    {
+     "id": "apex-100k",
+     "label": "Apex 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 8,
+     "minTradingDays": 0,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "windowDays": 30,
+      "evalFull": 399,
+      "renewal": 399,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 3600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 14,
+      "minPayout": 500,
+      "maxPayoutPct": 100,
+      "payoutCap": 2000,
+      "maxPayoutsLifetime": 6,
+      "consistencyMaxDayPct": 50,
+      "activationFee": 79,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "Safety-net balance $103,600 (start + $3,000 + $600). Payout ladder starts $2,000 rising to ~$4,000 across 6 payouts. Eval contracts 8; PA scales to 6 until safety net reached.",
+      "lifetimePayoutCapUsd": 18500,
+      "lifetimeNote": "100K INTRADAY ladder ≈ 18,500 USD across 6 payouts; PA closes after the 6th."
+     }
+    },
+    {
+     "id": "apex-150k",
+     "label": "Apex 150K",
+     "accountSize": 150000,
+     "profitTarget": 9000,
+     "drawdown": {
+      "amount": 4000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 17,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "partial",
+     "cost": {
+      "structure": "per30d",
+      "windowDays": 30,
+      "evalFull": 297,
+      "renewal": 297,
+      "verified": "2026-07-20",
+      "confidence": "low",
+      "structureNote": "4.0: 30-day eval window, same as apex-50k — pass inside the window or repurchase from scratch."
+     },
+     "funded": {
+      "bufferAmount": 5100,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 14,
+      "minPayout": 500,
+      "maxPayoutPct": 100,
+      "payoutCap": 2500,
+      "maxPayoutsLifetime": 6,
+      "consistencyMaxDayPct": 50,
+      "activationFee": 79,
+      "isSim": true,
+      "verified": "2026-07-09",
+      "confidence": "partial",
+      "note": "150K ladder ≈ $2,500→$5,000 per payout, lifetime ≈ $20.5k, closes after 6th payout. Activation: one-time $79 (intraday); promo codes do NOT apply."
+     }
+    }
+   ],
+   "maxFundedAccounts": 20,
+   "maxFundedNote": "Up to 20 active PAs simultaneously (EOD/intraday/legacy combined). Not re-verified under 4.0 — confirm.",
+   "maxFundedVerified": "2026-07-20",
+   "maxFundedConfidence": "partial",
+   "family": "futures",
+   "sourceNote": "Apex 4.0 (eff. 2026-03-01): sizes 25K/50K/100K/150K only, each in Intraday (modeled here, no DLL) and EOD (pricier, has DLL) flavors. Evals are a one-time purchase of a 30-DAY WINDOW — modeled per30d because failing the window means repurchasing. OWNER RULE (Tyler 2026-07-21): Apex sells ONLY through affiliates — the DTJ price is EXACTLY whatever Apex is promoting at the time. evalPromo stays null until the current promoted per-size price is captured (the daily watcher reports it; last verified sale 'up to 90% off')."
+  },
+  {
+   "id": "topstep",
+   "name": "Topstep",
+   "maxFundedAccounts": 5,
+   "maxFundedNote": "Up to 5 Express Funded Accounts at once (a 6th holds until one closes); exactly 1 Live Funded Account, and ALL XFAs close on Live call-up (help center, 2026-08-28).",
+   "maxFundedVerified": "2026-08-28",
+   "maxFundedConfidence": "high",
+   "accounts": [
+    {
+     "id": "topstep-50k",
+     "label": "Topstep 50K Combine",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 0
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 5,
+     "minTradingDays": 2,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 49,
+      "renewal": 49,
+      "verified": "2026-08-28",
+      "confidence": "high"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 2000,
+       "type": "eod",
+       "includesUnrealized": true,
+       "stopsTrailing": {
+        "lockAtStartPlus": 0
+       }
+      },
+      "bufferAmount": null,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 125,
+      "maxPayoutPct": 90,
+      "payoutCap": 2000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 149,
+      "isSim": true,
+      "verified": "2026-08-28",
+      "confidence": "high",
+      "note": "XFA (sim): payout cycle = 5 winning days of $150+ (non-consecutive), then request up to 50% of balance, capped $2,000 per request; 90/10 split; MLL locks at breakeven after a payout. Alternative consistency path: 3 trading days + best day ≤40% of net profit, higher cap $3,000. No buffer — winning-day cycles gate payouts instead. Contracts scale with balance (Scaling Plan). Live Funded call-up: sizes averaged from XFAs with ≥1 payout; ALL XFAs close on call-up, 1 LFA max, no per-request cap at Live."
+     }
+    },
+    {
+     "id": "topstep-100k",
+     "label": "Topstep 100K Combine",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 0
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 10,
+     "minTradingDays": 2,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 99,
+      "renewal": 99,
+      "verified": "2026-08-28",
+      "confidence": "high"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 3000,
+       "type": "eod",
+       "includesUnrealized": true,
+       "stopsTrailing": {
+        "lockAtStartPlus": 0
+       }
+      },
+      "bufferAmount": null,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 125,
+      "maxPayoutPct": 90,
+      "payoutCap": 3000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 149,
+      "isSim": true,
+      "verified": "2026-08-28",
+      "confidence": "high",
+      "note": "XFA (sim): payout cycle = 5 winning days of $150+ (non-consecutive), then request up to 50% of balance, capped $3,000 per request; 90/10 split; MLL locks at breakeven after a payout. Alternative consistency path: 3 trading days + best day ≤40% of net profit, higher cap $4,000. No buffer — winning-day cycles gate payouts instead. Contracts scale with balance (Scaling Plan). Live Funded call-up: sizes averaged from XFAs with ≥1 payout; ALL XFAs close on call-up, 1 LFA max, no per-request cap at Live."
+     }
+    },
+    {
+     "id": "topstep-150k",
+     "label": "Topstep 150K Combine",
+     "accountSize": 150000,
+     "profitTarget": 9000,
+     "drawdown": {
+      "amount": 4500,
+      "type": "eod",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 0
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 15,
+     "minTradingDays": 2,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 199,
+      "renewal": 199,
+      "verified": "2026-08-28",
+      "confidence": "high"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 4500,
+       "type": "eod",
+       "includesUnrealized": true,
+       "stopsTrailing": {
+        "lockAtStartPlus": 0
+       }
+      },
+      "bufferAmount": null,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 125,
+      "maxPayoutPct": 90,
+      "payoutCap": 5000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 149,
+      "isSim": true,
+      "verified": "2026-08-28",
+      "confidence": "high",
+      "note": "XFA (sim): payout cycle = 5 winning days of $150+ (non-consecutive), then request up to 50% of balance, capped $5,000 per request; 90/10 split; MLL locks at breakeven after a payout. Alternative consistency path: 3 trading days + best day ≤40% of net profit, higher cap $6,000. No buffer — winning-day cycles gate payouts instead. Contracts scale with balance (Scaling Plan). Live Funded call-up: sizes averaged from XFAs with ≥1 payout; ALL XFAs close on call-up, 1 LFA max, no per-request cap at Live."
+     }
+    }
+   ],
+   "family": "futures",
+   "sourceNote": "Ladder: target 6% of size; MLL 4% (50K $2,000 / 100K $3,000 / 150K $4,500), EOD-trailing but monitored in real time INCLUDING unrealized P&L, locks permanently at the starting balance. Consistency: best day must stay ≤50% of the profit target — exceeding RAISES the target rather than failing you. Min ~2 days (the consistency rule makes 2+ winning days arithmetically necessary). Daily Loss Limit optional in Combine/XFA ($1,000/$2,000/$3,000), automatic at Live. Two purchase paths: Standard (cheaper monthly + $149 activation) or No-Activation (higher monthly). ⚠ NO AFFILIATE LINK YET — Tyler to join Topstep’s program; affiliateUrl null until then."
+  },
+  {
+   "id": "tpt",
+   "name": "Take Profit Trader",
+   "accounts": [
+    {
+     "id": "tpt-25k",
+     "label": "TPT 25K Test",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 3,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 150,
+      "renewal": 90,
+      "verified": "2026-07-20",
+      "confidence": "high"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 1500,
+       "type": "intraday",
+       "includesUnrealized": true,
+       "stopsTrailing": {
+        "lockAtStartPlus": 0
+       }
+      },
+      "bufferAmount": 1500,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "consistencyMaxDayPct": null,
+      "activationFee": 130,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "PRO = sim, intraday trailing $1,500 off peak balance, locks at the $25,000 start. Withdraw only above start+DD ($26,500). 80/20 daily payouts, no cap, no payout-consistency rule; payouts under $250 incur a $50 fee. $130 one-time PRO activation. PRO+ (live, 90/10) exists after ~$5k cumulative."
+     }
+    },
+    {
+     "id": "tpt-50k",
+     "label": "TPT 50K Test",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 6,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 170,
+      "renewal": 102,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 2000,
+       "type": "intraday",
+       "includesUnrealized": true,
+       "stopsTrailing": null
+      },
+      "bufferAmount": 2000,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "consistencyMaxDayPct": null,
+      "activationFee": 130,
+      "isSim": true,
+      "verified": "2026-07-08",
+      "confidence": "partial",
+      "note": "PRO = sim, intraday trailing, withdraw only above the $2,000 buffer (80/20, daily). PRO+ after ~$5k cumulative profits: LIVE account, EOD drawdown, 90/10, no buffer. Buffer profits mostly unrecoverable on termination."
+     }
+    },
+    {
+     "id": "tpt-100k",
+     "label": "TPT 100K Test",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 12,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 330,
+      "renewal": 198,
+      "verified": "2026-07-20",
+      "confidence": "high"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 3000,
+       "type": "intraday",
+       "includesUnrealized": true,
+       "stopsTrailing": {
+        "lockAtStartPlus": 0
+       }
+      },
+      "bufferAmount": 3000,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "consistencyMaxDayPct": null,
+      "activationFee": 130,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "PRO = sim, intraday trailing $3,000 off peak, locks at the $100,000 start. Withdraw above $103,000. 80/20 daily, no cap, no payout-consistency rule; <$250 payouts incur $50 fee. $130 one-time activation."
+     }
+    },
+    {
+     "id": "tpt-150k",
+     "label": "TPT 150K Test",
+     "accountSize": 150000,
+     "profitTarget": 9000,
+     "drawdown": {
+      "amount": 4500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 15,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-08-28",
+     "confidence": "partial",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 360,
+      "renewal": 216,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     },
+     "funded": {
+      "drawdown": {
+       "amount": 4500,
+       "type": "intraday",
+       "includesUnrealized": true,
+       "stopsTrailing": null
+      },
+      "bufferAmount": 4500,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "consistencyMaxDayPct": null,
+      "activationFee": 130,
+      "isSim": true,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     }
+    }
+   ],
+   "maxFundedAccounts": 5,
+   "maxFundedNote": "Up to 5 active PRO/PRO+ combined; unlimited simultaneous tests; max 10 passed-test activations per rolling 30 days (help center, 2026-08-28).",
+   "maxFundedVerified": "2026-08-28",
+   "maxFundedConfidence": "partial",
+   "family": "futures",
+   "sourceNote": "Ladder is linear: target = 6% of size; DD 25K $1,500 / 50K $2,000 / 75K $2,500 / 100K $3,000 / 150K $4,500; contracts = size/12,500 minis. Eval DD is EOD; funded PRO switches to INTRADAY trailing of the same amount. 75K exists but is omitted by owner decision (only firm offering it). MIN DAYS CHANGED 2026-08-24: evals now need 3 trading days (was 5; TPT’s own blog \"3-day evals\", corroborated by multiple secondaries — blog fetch blocked, ⚠ method). Up to 5 PRO/PRO+ active at once; max 10 test activations per 30 days. ⚠ reset fee: secondaries now say $100 flat (feed previously noted $79) — verify vs affiliate dashboard."
+  },
+  {
+   "id": "tradeify",
+   "name": "Tradeify",
+   "accounts": [
+    {
+     "id": "tradeify-select-25k",
+     "label": "Tradeify Select 25K",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 1,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 109,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 1100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 600,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "Select Daily path: $1,100 buffer, daily payouts, $600/day cap (inferred from the $600-$2,500 size ladder — verify), 90/10, 50% profit-release rule on withdrawals. Flex path alternative chosen at funding."
+     }
+    },
+    {
+     "id": "tradeify-select-50k",
+     "label": "Tradeify Select 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 4,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-20",
+     "confidence": "partial",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 165,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 1000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-08",
+      "confidence": "partial",
+      "note": "Daily payout path modeled ($2,100 buffer, daily payouts, $1,000/day cap, 90/10). The alternative Flex path (5 winning days of $150+, no buffer, 50% of profits max $3k/payout) is chosen once at funding. Contracts 4 minis OWNER-CONFIRMED 2026-07-21 (Tyler's capture)."
+     }
+    },
+    {
+     "id": "tradeify-select-100k",
+     "label": "Tradeify Select 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 8,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 265,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2600,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 1500,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "Select Daily: $2,600 buffer, up to $1,500/day, 90/10, 50% profit-release rule; soft funded DLL $1,250 at 100K."
+     }
+    },
+    {
+     "id": "tradeify-select-150k",
+     "label": "Tradeify Select 150K",
+     "accountSize": 150000,
+     "profitTarget": 9000,
+     "drawdown": {
+      "amount": 4500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 12,
+     "minTradingDays": 3,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 369,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 3600,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 2500,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "Select Daily path: $3,600 buffer (size schedule), daily payouts, $2,500/day cap (size ladder — verify), 90/10, 50% profit-release rule. Eval numbers owner-verified; funded mechanics research-based."
+     }
+    },
+    {
+     "id": "tradeify-growth-25k",
+     "label": "Tradeify Growth 25K",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 600,
+     "maxContracts": 1,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 1100,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": 35,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "Growth funded: $1,100 buffer + 5 profitable days of $100+ before payouts, then every 5 days; 35% funded consistency; split 100% on first $15k of payouts then 90%."
+     }
+    },
+    {
+     "id": "tradeify-growth-50k",
+     "label": "Tradeify Growth 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 1250,
+     "maxContracts": 4,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 145,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2100,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": 35,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "⚠ buffer corrected $3,000→$2,100 (2026-07-20 research: current schedule $1,100/$2,100/$2,600/$3,600 by size) — Tyler spot-check. Needs 5 profitable days of $150+ before payouts; 1st payout capped $1,500; 35% funded consistency."
+     }
+    },
+    {
+     "id": "tradeify-growth-100k",
+     "label": "Tradeify Growth 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 2500,
+     "maxContracts": 8,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 255,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": 35,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "Growth funded: $2,600 buffer, 5 profitable days of $100+ first, then every 5 days; 35% consistency; split 100% first $15k then 90%. Note Growth 100K eval DD is $3,500 (vs Select's $3,000)."
+     }
+    },
+    {
+     "id": "tradeify-growth-150k",
+     "label": "Tradeify Growth 150K",
+     "accountSize": 150000,
+     "profitTarget": 9000,
+     "drawdown": {
+      "amount": 5000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 3750,
+     "maxContracts": 12,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 369,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 3600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": 35,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "Growth funded: $3,600 buffer (size schedule), 5 profitable days first, then every 5 days; 35% consistency; split 100% first $15k then 90%. Eval numbers owner-verified; funded mechanics research-based. Note Growth 150K eval DD $5,000 (vs Select's $4,500)."
+     }
+    }
+   ],
+   "maxFundedAccounts": 5,
+   "maxFundedNote": "Max 5 simulated funded accounts in any combination ($750K combined allocation cap); unlimited evaluations.",
+   "maxFundedVerified": "2026-07-20",
+   "maxFundedConfidence": "high",
+   "family": "futures",
+   "sourceNote": "Sizes 25K/50K/100K/150K (no 75K). Lines: Select (pass in 3 days, 40% eval consistency, daily payouts) and Growth (pass in 1 day, DLL, no eval consistency, 35% funded consistency). EVAL PRICES + RULES OWNER-VERIFIED 2026-07-21 from Tyler's pricing capture (code JULY; DTJ matches promoted pricing — owner rule). Funded buffer schedule $1,100/$2,100/$2,600/$3,600 by size (research). Lightning (instant funding) line not modeled."
+  },
+  {
+   "id": "lucid",
+   "name": "Lucid Trading",
+   "accounts": [
+    {
+     "id": "lucid-pro-25k",
+     "label": "LucidPro 25K",
+     "accountSize": 25000,
+     "profitTarget": 1250,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 2,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 135,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 1100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 3,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "payoutCap": 1000,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "Buffer = MLL + $100 ($26,100 level). Payout cap cycle 1 $1,000, cycle 2+ $1,500. Min cycle profit $250. 40% best-day rule per cycle. No eval consistency rule."
+     }
+    },
+    {
+     "id": "lucid-pro-50k",
+     "label": "LucidPro 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 4,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "partial",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 185,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 2100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 3,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "Buffer = initial max-loss limit + $100 (unwithdrawable); payouts every 3 days; 40% best-day rule per payout cycle. minPayout $500 now confirmed official. ⚠ contracts corrected 6→4 (2026-07-20) — Tyler spot-check."
+     }
+    },
+    {
+     "id": "lucid-pro-100k",
+     "label": "LucidPro 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 1800,
+     "maxContracts": 6,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 285,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 3100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 3,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "payoutCap": 2500,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "Buffer $103,100 level. Payout cap cycle 1 $2,500, cycle 2+ $3,000. Min cycle profit $750. Funded fixed DLL $1,800 + scaling DLL 60% of peak EOD."
+     }
+    },
+    {
+     "id": "lucid-flex-25k",
+     "label": "LucidFlex 25K",
+     "accountSize": 25000,
+     "profitTarget": 1250,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 2,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 100,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 0,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 7,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "payoutCap": 1000,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "No buffer; each cycle needs 5 days of $100+ daily profit. Payout = 50% of profit up to $1,000 (does not scale). Up to 5 payouts, then moved live. 50% consistency applies to the EVAL only."
+     }
+    },
+    {
+     "id": "lucid-flex-50k",
+     "label": "LucidFlex 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 4,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-07-20",
+     "confidence": "partial",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 140,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 0,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 7,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "partial",
+      "note": "No buffer; each payout cycle needs 5 days at the minimum required profit (cycle resets on payout). Up to 5 payouts then moved live (added 2026-07-20, official). Contract size scales with sim profit. ⚠ contracts corrected 6→4 — Tyler spot-check."
+     }
+    },
+    {
+     "id": "lucid-flex-100k",
+     "label": "LucidFlex 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 6,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 50,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 225,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 0,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 7,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "payoutCap": 2500,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "No buffer; 5 days of $200+ daily profit per cycle. Payout = 50% of profit up to $2,500 (does not scale). Up to 5 payouts, then moved live."
+     }
+    }
+   ],
+   "maxFundedAccounts": 5,
+   "maxFundedNote": "VERIFIED 2026-07-20 (official 'Maximum Number of Accounts' help article): up to 5 funded accounts per household across all funded types; up to 10 total incl. evals.",
+   "maxFundedVerified": "2026-07-20",
+   "maxFundedConfidence": "high",
+   "family": "futures",
+   "sourceNote": "Sizes 25K/50K/100K/150K (no 75K), lines Pro + Flex. ⚠ 2026-07-20 research corrections applied (official help center): 50K contracts 6→4 both lines; promo now ~40% off (auto-applied checkout coupon; third parties cite code DGT — DTJ exact terms FILL-IN). Funded-account limit now VERIFIED = 5."
+  },
+  {
+   "id": "mff",
+   "name": "MyFundedFutures",
+   "accounts": [
+    {
+     "id": "mff-rapid-25k",
+     "label": "MFF Rapid 25K",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 3,
+     "minTradingDays": 2,
+     "consistencyMaxDayPct": 50,
+     "maxFundedAccounts": 5,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 109,
+      "renewal": 87,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 1100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "$1,100 realized-profit buffer before any payout, then daily payouts (90/10, $500 min; first payout 24h after first trade). Sim-funded switches to intraday trailing (start+$100 lock). 25K/50K cap: 5 accounts."
+     }
+    },
+    {
+     "id": "mff-rapid-50k",
+     "label": "MFF Rapid 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 5,
+     "minTradingDays": 2,
+     "consistencyMaxDayPct": null,
+     "maxFundedAccounts": 5,
+     "verified": "2026-07-20",
+     "confidence": "partial",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 157,
+      "renewal": 126,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 2100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-08",
+      "confidence": "high",
+      "note": "$2,100 realized-profit buffer before any payout, then daily payouts (90/10, $500 min). Intraday-only — holding overnight is a breach. 'Rapid Live' conversion path exists. ⚠ corrections 2026-07-20: contracts 6→5, minTradingDays 1→2 (official) — Tyler spot-check."
+     }
+    },
+    {
+     "id": "mff-rapid-100k",
+     "label": "MFF Rapid 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 8,
+     "minTradingDays": 2,
+     "consistencyMaxDayPct": 50,
+     "maxFundedAccounts": 3,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 267,
+      "renewal": 214,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "bufferAmount": 3100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 500,
+      "maxPayoutPct": 90,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "$3,100 buffer, daily payouts (90/10, $500 min; first 24h after first trade). Holding any 100K/150K caps total sim-funded accounts at 3."
+     }
+    }
+   ],
+   "maxFundedAccounts": 5,
+   "maxFundedNote": "Up to 5 sim-funded at 25K/50K; holding any 100K/150K drops the cap to 3 (acct-level values carry the per-size truth); Builder = 1; 10 total incl. evals.",
+   "maxFundedVerified": "2026-07-20",
+   "maxFundedConfidence": "partial",
+   "family": "futures",
+   "sourceNote": "Current lineup Rapid/Builder/Pro; sizes 25K/50K/100K/150K (no 75K). Rapid modeled here. ⚠ 2026-07-20 research corrections applied (official help center): Rapid 50K contracts 6→5, minTradingDays 1→2 — Tyler spot-check. Account cap varies by size (acct-level maxFundedAccounts, v0.2.78+): 25K/50K → 5; holding any 100K/150K → 3."
+  },
+  {
+   "id": "fundednext",
+   "name": "FundedNext Futures",
+   "accounts": [
+    {
+     "id": "fn-flex-50k",
+     "label": "FundedNext Flex 50K",
+     "accountSize": 50000,
+     "profitTarget": 2500,
+     "drawdown": {
+      "amount": 1500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 3,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 133.99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 1600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "payoutCap": 1500,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "Rewards in 5 days; max single withdrawal $1,500 (owner-verified); 80% share, 95% via paid add-on. Five reward journeys then live-funding review pool. Buffer MODELED at MLL+$100 (Legacy is the advertised no-buffer line) — buffer amount itself unconfirmed.",
+      "lifetimePayoutCapUsd": 7500,
+      "lifetimeNote": "≈ 5 journeys × $1,500 cap (gross, approximate)."
+     }
+    },
+    {
+     "id": "fn-flex-100k",
+     "label": "FundedNext Flex 100K",
+     "accountSize": 100000,
+     "profitTarget": 5000,
+     "drawdown": {
+      "amount": 2500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 5,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 249.99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2600,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "payoutCap": 2500,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "Rewards in 5 days; max single withdrawal $2,500 (owner-verified); 80% share, 95% add-on. Buffer MODELED at MLL+$100 — unconfirmed.",
+      "lifetimePayoutCapUsd": 12500,
+      "lifetimeNote": "≈ 5 journeys × $2,500 cap (gross, approximate)."
+     }
+    },
+    {
+     "id": "fn-flex-150k",
+     "label": "FundedNext Flex 150K",
+     "accountSize": 150000,
+     "profitTarget": 8000,
+     "drawdown": {
+      "amount": 4000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 8,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 483.99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 4100,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "payoutCap": 4000,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "Rewards in 5 days; max single withdrawal $4,000 (owner-verified); 80% share, 95% add-on. Buffer MODELED at MLL+$100 — unconfirmed.",
+      "lifetimePayoutCapUsd": 20000,
+      "lifetimeNote": "≈ 5 journeys × $4,000 cap (gross, approximate)."
+     }
+    },
+    {
+     "id": "fn-legacy-25k",
+     "label": "FundedNext Legacy 25K",
+     "accountSize": 25000,
+     "profitTarget": 1250,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 2,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 79.99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 0,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "payoutCap": 3000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "OPEN-ENDED, NO BUFFER (the line's advertised edge). Rewards in 5 days; max single withdrawal $3,000 (owner-verified); 80% share. Cycle needs benchmark profit days (≈$100+/day at 25K); after 30 benchmark days payouts go 100% and uncapped. Funded contracts bump to 3 minis."
+     }
+    },
+    {
+     "id": "fn-legacy-50k",
+     "label": "FundedNext Legacy 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 3,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 199.99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 0,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "payoutCap": 6000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "OPEN-ENDED, NO BUFFER. Rewards in 5 days; max single withdrawal $6,000 (owner-verified); 80% share. Benchmark-day cycles; after 30 benchmark days 100% and uncapped. Funded contracts bump to 5 minis."
+     }
+    },
+    {
+     "id": "fn-legacy-100k",
+     "label": "FundedNext Legacy 100K",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 5,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": 40,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 239.99,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 0,
+      "minDaysToFirstPayout": 5,
+      "payoutFrequencyDays": 5,
+      "minPayout": 250,
+      "maxPayoutPct": 80,
+      "payoutCap": 6000,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "OPEN-ENDED, NO BUFFER. Rewards in 5 days; max single withdrawal $6,000 (owner-verified); 80% share. Benchmark ≈$200+/day; after 30 benchmark days 100% and uncapped. Funded contracts bump to 7 minis."
+     }
+    },
+    {
+     "id": "fn-rapidpro-25k",
+     "label": "FundedNext Rapid Pro 25K",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 2,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 159.98,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 1100,
+      "minDaysToFirstPayout": 3,
+      "payoutFrequencyDays": 3,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 800,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "CLOSED-END: rewards every 3 days (90%, max single withdrawal $800 owner-verified); no DLL; 40% consistency in FUNDED (none in eval); 5th payout concludes. Buffer MODELED at MLL+$100.",
+      "lifetimePayoutCapUsd": 4000,
+      "lifetimeNote": "≈ 5 × $800 cap (gross, approximate)."
+     }
+    },
+    {
+     "id": "fn-rapidpro-50k",
+     "label": "FundedNext Rapid Pro 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 4,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 299.98,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2100,
+      "minDaysToFirstPayout": 3,
+      "payoutFrequencyDays": 3,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 1200,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "CLOSED-END: rewards every 3 days (90%, max single withdrawal $1,200 owner-verified); no DLL; 40% funded consistency; 5th payout concludes. Buffer MODELED at MLL+$100.",
+      "lifetimePayoutCapUsd": 6000,
+      "lifetimeNote": "≈ 5 × $1,200 cap (gross, approximate)."
+     }
+    },
+    {
+     "id": "fn-rapidpro-100k",
+     "label": "FundedNext Rapid Pro 100K",
+     "accountSize": 100000,
+     "profitTarget": 5000,
+     "drawdown": {
+      "amount": 2500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 6,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 499.98,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2600,
+      "minDaysToFirstPayout": 3,
+      "payoutFrequencyDays": 3,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 2500,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "partial",
+      "note": "CLOSED-END: rewards every 3 days (90%, max single withdrawal $2,500 owner-verified); no DLL; 40% funded consistency; 5th payout concludes. Buffer MODELED at MLL+$100.",
+      "lifetimePayoutCapUsd": 12500,
+      "lifetimeNote": "≈ 5 × $2,500 cap (gross, approximate)."
+     }
+    },
+    {
+     "id": "fn-rapiddaily-25k",
+     "label": "FundedNext Rapid Daily 25K",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "dailySoftLossLimit": 500,
+     "maxContracts": 2,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 159.98,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 1100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 800,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "high",
+      "note": "CLOSED-END: daily rewards (90%, $250 min, max single withdrawal $800 owner-verified); DLL $500; the 5th payout concludes the account. Withdrawal buffer = start+MLL+$100 ($26,100 level). First withdrawal resets MLL.",
+      "lifetimePayoutCapUsd": 4000,
+      "lifetimeNote": "≈ 5 × $800 cap (gross, approximate); concluded after the 5th payout, then buy a new eval."
+     }
+    },
+    {
+     "id": "fn-rapiddaily-50k",
+     "label": "FundedNext Rapid Daily 50K",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "dailySoftLossLimit": 1000,
+     "maxContracts": 4,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 299.98,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2100,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 1200,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "high",
+      "note": "CLOSED-END successor to Bolt 50K (share 90% vs Bolt 80%; DLL $1,000; max single withdrawal $1,200 owner-verified; buffer start+MLL+$100 = $52,100 level). 5th payout concludes the account.",
+      "lifetimePayoutCapUsd": 6000,
+      "lifetimeNote": "≈ 5 × $1,200 cap (gross, approximate); concluded after the 5th payout."
+     }
+    },
+    {
+     "id": "fn-rapiddaily-100k",
+     "label": "FundedNext Rapid Daily 100K",
+     "accountSize": 100000,
+     "profitTarget": 5000,
+     "drawdown": {
+      "amount": 2500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": {
+       "lockAtStartPlus": 100
+      }
+     },
+     "dailyLossLimit": null,
+     "dailySoftLossLimit": 1250,
+     "maxContracts": 6,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-21",
+     "confidence": "high",
+     "cost": {
+      "structure": "onetime",
+      "evalFull": 499.98,
+      "verified": "2026-07-21",
+      "confidence": "high"
+     },
+     "funded": {
+      "bufferAmount": 2600,
+      "minDaysToFirstPayout": 0,
+      "payoutFrequencyDays": 1,
+      "minPayout": 250,
+      "maxPayoutPct": 90,
+      "payoutCap": 2500,
+      "maxPayoutsLifetime": 5,
+      "consistencyMaxDayPct": null,
+      "activationFee": 0,
+      "isSim": true,
+      "verified": "2026-07-21",
+      "confidence": "high",
+      "note": "CLOSED-END: daily rewards (90%, $250 min, max single withdrawal $2,500 owner-verified); DLL $1,250; 5th payout concludes. Buffer = start+MLL+$100 ($102,600 level). First withdrawal resets MLL.",
+      "lifetimePayoutCapUsd": 12500,
+      "lifetimeNote": "≈ 5 × $2,500 cap (gross, approximate); concluded after the 5th payout."
+     }
+    }
+   ],
+   "maxFundedAccounts": 5,
+   "maxFundedNote": "VERIFIED 2026-07-20 (official help article 14261075): up to 5 FundedNext funded accounts simultaneously per user AND household, any size mix; challenge allocation cap $750K.",
+   "maxFundedVerified": "2026-07-20",
+   "maxFundedConfidence": "high",
+   "family": "futures",
+   "sourceNote": "FULL LINEUP modeled from Tyler's own pricing-page capture 2026-07-21 (eval numbers OWNER-VERIFIED): FLEX 50/100/150K (47% off code JLFLEX, buffer line, 80% share w/ 95% add-on) · LEGACY 25/50/100K (the advertised NO-BUFFER line, 80%, open-ended) · RAPID PRO 25/50/100K (no DLL, rewards every 3 days, 40% funded consistency) · RAPID DAILY 25/50/100K (Bolt's closed-end successor: daily rewards, DLL, 5 payouts then concluded). All drawdowns EOD-trailing locking at start+$100. payoutCap = the max SINGLE withdrawal (Tyler 2026-07-21: 'Rapid 25K can't withdraw more than $800 at a single time'). Bolt retired ~2026-07-10."
+  },
+  {
+   "id": "bulenox",
+   "name": "Bulenox",
+   "codeNote": "Bulenox honors both DTJ and DTJ7",
+   "accounts": [
+    {
+     "id": "bulenox-25k-td",
+     "label": "Bulenox 25K (Trailing)",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1500,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 3,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 145,
+      "renewal": 145,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "minDaysToFirstPayout": 10,
+      "payoutFrequencyDays": 7,
+      "minPayout": 1000,
+      "maxPayoutPct": 100,
+      "payoutCap": 1000,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 143,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "Weekly payouts (Wednesdays), $1,000 min, first 3 capped $1,000; first $10k is 100% to trader then 90/10; 40% best-day rule blocks (not breaches) a payout. Master trailing DD locks at start+$100."
+     }
+    },
+    {
+     "id": "bulenox-25k-eod",
+     "label": "Bulenox 25K (EOD + DLL)",
+     "accountSize": 25000,
+     "profitTarget": 1500,
+     "drawdown": {
+      "amount": 1500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 500,
+     "maxContracts": 3,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 145,
+      "renewal": 145,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "minDaysToFirstPayout": 10,
+      "payoutFrequencyDays": 7,
+      "minPayout": 1000,
+      "maxPayoutPct": 100,
+      "payoutCap": 1000,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 143,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "EOD drawdown + $500 daily loss limit + progressive scaling (2 contracts until $1,500 profit, then 3). Same payout rules as the Trailing variant."
+     }
+    },
+    {
+     "id": "bulenox-50k-td",
+     "label": "Bulenox 50K (Trailing)",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2500,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 7,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-07",
+     "confidence": "partial",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 175,
+      "renewal": 125,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     },
+     "funded": {
+      "minDaysToFirstPayout": 10,
+      "payoutFrequencyDays": 7,
+      "minPayout": 1000,
+      "maxPayoutPct": 100,
+      "payoutCap": 1500,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 148,
+      "isSim": null,
+      "verified": "2026-07-08",
+      "confidence": "partial",
+      "note": "Weekly payouts (Wednesdays), $1,000 min, first 3 capped $1,500; first $10k is 100% to trader then 90/10; 40% best-day rule blocks (not breaches) a payout. Sim-vs-live unstated."
+     }
+    },
+    {
+     "id": "bulenox-50k-eod",
+     "label": "Bulenox 50K (EOD + DLL)",
+     "accountSize": 50000,
+     "profitTarget": 3000,
+     "drawdown": {
+      "amount": 2500,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 1100,
+     "maxContracts": 7,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-07",
+     "confidence": "partial",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 175,
+      "renewal": 125,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     },
+     "funded": {
+      "minDaysToFirstPayout": 10,
+      "payoutFrequencyDays": 7,
+      "minPayout": 1000,
+      "maxPayoutPct": 100,
+      "payoutCap": 1500,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 148,
+      "isSim": null,
+      "verified": "2026-07-08",
+      "confidence": "partial"
+     }
+    },
+    {
+     "id": "bulenox-100k-td",
+     "label": "Bulenox 100K (Trailing)",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "intraday",
+      "includesUnrealized": true,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": null,
+     "maxContracts": 12,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 215,
+      "renewal": 155,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "minDaysToFirstPayout": 10,
+      "payoutFrequencyDays": 7,
+      "minPayout": 1000,
+      "maxPayoutPct": 100,
+      "payoutCap": 1750,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 248,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "Weekly payouts (Wednesdays), $1,000 min, first 3 capped $1,750; first $10k 100% then 90/10; 40% best-day rule. Master trailing DD locks at start+$100 ($100,100 floor)."
+     }
+    },
+    {
+     "id": "bulenox-100k-eod",
+     "label": "Bulenox 100K (EOD + DLL)",
+     "accountSize": 100000,
+     "profitTarget": 6000,
+     "drawdown": {
+      "amount": 3000,
+      "type": "eod",
+      "includesUnrealized": false,
+      "stopsTrailing": null
+     },
+     "dailyLossLimit": 2200,
+     "maxContracts": 12,
+     "minTradingDays": 1,
+     "consistencyMaxDayPct": null,
+     "verified": "2026-07-20",
+     "confidence": "high",
+     "cost": {
+      "structure": "per30d",
+      "evalFull": 215,
+      "renewal": 155,
+      "verified": "2026-07-20",
+      "confidence": "partial"
+     },
+     "funded": {
+      "minDaysToFirstPayout": 10,
+      "payoutFrequencyDays": 7,
+      "minPayout": 1000,
+      "maxPayoutPct": 100,
+      "payoutCap": 1750,
+      "consistencyMaxDayPct": 40,
+      "activationFee": 248,
+      "isSim": true,
+      "verified": "2026-07-20",
+      "confidence": "high",
+      "note": "EOD drawdown + $2,200 daily loss limit + four-tier scaling (3→5→8→12 contracts as profit grows). Same payout rules as the Trailing variant."
+     }
+    }
+   ],
+   "maxFundedAccounts": 3,
+   "maxFundedNote": "3 Master accounts active simultaneously; up to 11 lifetime — each extra activates after a prior one builds its drawdown back to start. Size-independent (confirmed 2026-07-20).",
+   "maxFundedVerified": "2026-07-20",
+   "maxFundedConfidence": "high",
+   "family": "futures",
+   "sourceNote": "Sizes 10K/25K/50K/100K/150K/250K — NO 75K. Every size has two variants: Trailing (real-time DD, full contracts day 1) and EOD+DLL (EOD DD + daily loss limit + progressive scaling to the same max contracts). 3 Masters simultaneous / 11 lifetime holds across all sizes."
+  }
+ ],
+ "families": {
+  "futures": "contract-based: $ profit target, $ drawdown (intraday trailing / eod), contracts, per-30d or one-time cost",
+  "forex": "percent-based 2-step: % target per phase, % daily loss with basis, % max loss static/trailing, R-per-trade sizing"
+ }
+}
