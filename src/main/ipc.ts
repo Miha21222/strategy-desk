@@ -1,0 +1,81 @@
+// IPC surface. Every handler is registered once; the renderer reaches them
+// through the typed `window.desk` bridge in src/preload/index.ts.
+import { app, ipcMain, shell, type BrowserWindow } from 'electron';
+import type { ChatEvent, ChatKind, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import { CHAT_KINDS } from '@shared/api';
+import { startChat, stopChat } from './agent';
+import { getStatus, invalidateTvmcpCache } from './status';
+import * as store from './store';
+import { launchTradingView } from './tv-launch';
+
+const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
+
+export function registerIpc(getWindow: () => BrowserWindow | null): void {
+  const emit = (ev: ChatEvent) => {
+    const win = getWindow();
+    if (win && !win.isDestroyed()) win.webContents.send('chat:event', ev);
+  };
+
+  ipcMain.handle('status:get', async () => getStatus(await store.getSettings()));
+
+  ipcMain.handle('tv:launch', async () => {
+    const cfg = await store.getSettings();
+    return launchTradingView(cfg.cdpPort, cfg.tvDesktopExe);
+  });
+
+  ipcMain.handle('settings:get', () => store.getSettings());
+  ipcMain.handle('settings:set', async (_e, patch: SettingsPatch) => {
+    const before = await store.getSettings();
+    const next = await store.setSettings(patch ?? {});
+    if (before.tvmcpPath !== next.tvmcpPath || before.toolsets !== next.toolsets) invalidateTvmcpCache();
+    return next;
+  });
+  ipcMain.handle('settings:setSecret', (_e, name: 'apiKey' | 'oauthToken', value: string) => {
+    if (!SECRET_NAMES.has(name)) throw new Error('unknown secret');
+    return store.setSecret(name, String(value ?? ''));
+  });
+  ipcMain.handle('settings:clearSecret', (_e, name: 'apiKey' | 'oauthToken') => {
+    if (!SECRET_NAMES.has(name)) throw new Error('unknown secret');
+    return store.clearSecret(name);
+  });
+
+  ipcMain.handle('profile:get', () => store.getProfile());
+  ipcMain.handle('profile:set', (_e, p: TraderProfile) => store.setProfile(p));
+
+  ipcMain.handle('chats:list', () => store.listChats());
+  ipcMain.handle('chats:new', (_e, kind?: ChatKind) => store.newChat(kind && CHAT_KINDS.includes(kind) ? kind : 'chat'));
+  ipcMain.handle('chats:open', async (_e, key: string) => {
+    const chat = await store.getChat(key);
+    if (!chat) return null;
+    return { chat, messages: await store.getTranscript(key) };
+  });
+  ipcMain.handle('chats:rename', (_e, key: string, title: string) => store.updateChat(key, { title: String(title ?? '').slice(0, 120) }));
+  ipcMain.handle('chats:delete', async (_e, key: string) => {
+    await stopChat(key);
+    return store.deleteChat(key);
+  });
+  ipcMain.handle('chats:pin', (_e, key: string, pinned: boolean) => store.updateChat(key, { pinned: Boolean(pinned) }));
+  ipcMain.handle('chats:setKind', (_e, key: string, kind: ChatKind) => {
+    if (!CHAT_KINDS.includes(kind)) throw new Error('unknown kind');
+    return store.updateChat(key, { kind });
+  });
+
+  ipcMain.on('chat:send', (_e, args: SendArgs) => {
+    if (!args || typeof args.chatKey !== 'string' || typeof args.text !== 'string') return;
+    const mode = args.mode === 'saver' ? 'saver' : 'full';
+    void startChat({ chatKey: args.chatKey, text: args.text, mode }, emit).catch((e) => {
+      emit({ chatKey: args.chatKey, kind: 'error', message: String((e as Error)?.message ?? e) });
+    });
+  });
+  ipcMain.on('chat:stop', (_e, chatKey: string) => {
+    void stopChat(String(chatKey));
+  });
+
+  ipcMain.handle('open:external', async (_e, url: string) => {
+    if (typeof url !== 'string' || !/^https:\/\//i.test(url)) return false;
+    await shell.openExternal(url);
+    return true;
+  });
+
+  ipcMain.handle('app:version', () => app.getVersion());
+}
