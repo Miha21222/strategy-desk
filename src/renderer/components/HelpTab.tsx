@@ -1,0 +1,40 @@
+// Static help: connection diagram, three steps, troubleshooting.
+import { t } from '../i18n';
+
+export function HelpTab() {
+  return (
+    <section class="page">
+      <h2>{t('help.title')}</h2>
+
+      <h3>{t('help.howTitle')}</h3>
+      <div class="diagram">
+        <div class="box">{t('help.boxApp')}</div>
+        <div class="arrow">→</div>
+        <div class="box">{t('help.boxSdk')}</div>
+        <div class="arrow">→</div>
+        <div class="box">{t('help.boxTvmcp')}</div>
+        <div class="arrow">→</div>
+        <div class="box">
+          {t('help.boxTv')}
+          <small>{t('help.boxTvNote')}</small>
+        </div>
+      </div>
+
+      <h3>{t('help.stepsTitle')}</h3>
+      <ol>
+        <li>{t('help.step1')}</li>
+        <li>{t('help.step2')}</li>
+        <li>{t('help.step3')}</li>
+      </ol>
+
+      <h3>{t('help.troubleTitle')}</h3>
+      <ul>
+        <li>{t('help.t1')}</li>
+        <li>{t('help.t2')}</li>
+        <li>{t('help.t3')}</li>
+        <li>{t('help.t4')}</li>
+        <li>{t('help.t5')}</li>
+      </ul>
+    </section>
+  );
+}
