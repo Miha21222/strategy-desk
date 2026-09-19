@@ -1,0 +1,28 @@
+# electron-builder config stub (stage 0). Packaging is not required to run the
+# app; `npm run dist` builds an unpacked directory under release/.
+appId: dev.strategydesk.app
+productName: Strategy Desk
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+asarUnpack:
+  # The Agent SDK spawns a native Claude Code binary; keep it outside asar.
+  - node_modules/@anthropic-ai/claude-agent-sdk/**
+win:
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+  category: public.app-category.finance
+linux:
+  target:
+    - AppImage
+  category: Office
+publish: null
