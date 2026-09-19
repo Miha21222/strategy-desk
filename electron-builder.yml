@@ -7,10 +7,13 @@ directories:
   buildResources: resources
 files:
   - out/**
+  - prompt/**
   - package.json
 asarUnpack:
-  # The Agent SDK spawns a native Claude Code binary; keep it outside asar.
+  # The Agent SDK spawns a native Claude Code binary (shipped in the platform
+  # package @anthropic-ai/claude-agent-sdk-<os>-<arch>); keep it outside asar.
   - node_modules/@anthropic-ai/claude-agent-sdk/**
+  - node_modules/@anthropic-ai/claude-agent-sdk-*/**
 win:
   target:
     - nsis

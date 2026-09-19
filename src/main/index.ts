@@ -1,9 +1,10 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { stopAll } from './agent';
+import { buildEnv, stopAll } from './agent';
 import { registerIpc } from './ipc';
-import { chatWorkspaceDir } from './store';
+import { getStatus } from './status';
+import { chatWorkspaceDir, getSettings } from './store';
 
 const isDev = !app.isPackaged;
 let mainWindow: BrowserWindow | null = null;
@@ -56,11 +57,38 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+// Headless self-test for CI / agents: DESK_SMOKE=status logs the connection
+// status; DESK_SMOKE=query additionally runs a trivial SDK query with no MCP
+// servers. The app quits by itself afterwards.
+async function runSmoke(kind: string): Promise<void> {
+  const cfg = await getSettings();
+  console.log('[smoke] status', JSON.stringify(await getStatus(cfg)));
+  if (kind === 'query') {
+    const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    let text = '';
+    for await (const m of query({
+      prompt: 'Reply with exactly: pong',
+      options: { systemPrompt: 'Test.', permissionMode: 'dontAsk', maxTurns: 1, settingSources: [], strictMcpConfig: true, mcpServers: {}, env: buildEnv(cfg, { apiKey: null, oauthToken: null }), includePartialMessages: true },
+    })) {
+      if (m.type === 'system' && m.subtype === 'init') console.log('[smoke] init', m.model, m.claude_code_version, m.apiKeySource);
+      if (m.type === 'stream_event' && m.event.type === 'content_block_delta' && m.event.delta.type === 'text_delta') text += m.event.delta.text;
+      if (m.type === 'result') console.log('[smoke] result', m.subtype, 'cost', m.total_cost_usd, 'text', JSON.stringify(text));
+    }
+  }
+}
+
 app.whenReady().then(async () => {
   await fs.mkdir(chatWorkspaceDir(), { recursive: true });
   registerIpc(() => mainWindow);
   mainWindow = createWindow();
   console.log(`[main] Strategy Desk ${app.getVersion()} ready; userData=${app.getPath('userData')}`);
+  mainWindow.webContents.once('did-finish-load', () => console.log('[main] renderer loaded'));
+
+  if (isDev && process.env.DESK_SMOKE) {
+    runSmoke(process.env.DESK_SMOKE)
+      .catch((e) => console.error('[smoke] error', (e as Error)?.message ?? e))
+      .finally(() => setTimeout(() => app.quit(), 1500));
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) mainWindow = createWindow();

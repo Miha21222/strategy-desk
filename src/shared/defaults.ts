@@ -1,6 +1,6 @@
 import type { Settings, TraderProfile } from './api';
 
-export const DEFAULT_TVMCP_PATH = 'C:\Users\Admin\Projects\tradingview-mcp';
+export const DEFAULT_TVMCP_PATH = 'C:\\Users\\Admin\\Projects\\tradingview-mcp';
 export const DEFAULT_CDP_PORT = 9223;
 export const DEFAULT_TOOLSETS = 'hybrid,desktop';
 
