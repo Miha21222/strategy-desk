@@ -1,10 +1,11 @@
 // Left sidebar: connection lights, quick actions and the chat list with
 // shelves, pinned items and date buckets.
 import { useState } from 'preact/hooks';
-import type { ChatKind, ChatMeta, Settings, Status } from '@shared/api';
+import type { ChatKind, ChatMeta, Settings, Status, WorkflowPrompt } from '@shared/api';
 import { CHAT_KINDS } from '@shared/api';
+import { GradeBadge } from '../blocks';
 import { t } from '../i18n';
-import { groupChats, QUICK_PROMPTS, SHELF_KINDS, type Bucket } from '../state';
+import { groupChats, latestReport, QUICK_PROMPTS, SHELF_KINDS, versionCount, type Bucket } from '../state';
 
 export interface SidebarProps {
   status: Status | null;
@@ -16,7 +17,11 @@ export interface SidebarProps {
   onToggleSection: (id: string) => void;
   onLaunchTv: () => void;
   onRefreshStatus: () => void;
+  /** Active workflow's quick prompts; falls back to the built-in list. */
+  quickPrompts: WorkflowPrompt[];
   onQuick: (prompt: string) => void;
+  /** Strategy shelf hover action: send the health-check prompt into that chat. */
+  onHealth: (key: string) => void;
   onNewChat: () => void;
   onOpen: (key: string) => void;
   onRename: (key: string, title: string) => void;
@@ -47,11 +52,13 @@ function Section({ id, title, collapsed, onToggle, children }: { id: string; tit
   );
 }
 
-function ChatRow(p: { chat: ChatMeta; active: boolean; onOpen: () => void; onRename: (title: string) => void; onPin: () => void; onDelete: () => void; onSetKind: (k: ChatKind) => void }) {
+function ChatRow(p: { chat: ChatMeta; active: boolean; onOpen: () => void; onRename: (title: string) => void; onPin: () => void; onDelete: () => void; onSetKind: (k: ChatKind) => void; onHealth: () => void }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(p.chat.title);
   const [confirm, setConfirm] = useState(false);
   const [moving, setMoving] = useState(false);
+  const latest = latestReport(p.chat);
+  const versions = versionCount(p.chat);
 
   const commit = () => {
     setEditing(false);
@@ -80,7 +87,18 @@ function ChatRow(p: { chat: ChatMeta; active: boolean; onOpen: () => void; onRen
           {p.chat.title || t('chat.untitled')}
         </button>
       )}
+      {latest ? <GradeBadge grade={latest.grade} small /> : null}
+      {p.chat.kind === 'strategy' && versions > 0 ? (
+        <span class="versions" title={t('drawer.versions')}>
+          {t('shelfRow.versions', { n: versions })}
+        </span>
+      ) : null}
       <div class="row-actions">
+        {p.chat.kind === 'strategy' && !moving ? (
+          <button type="button" class="health" title={t('shelfRow.health')} onClick={p.onHealth}>
+            +
+          </button>
+        ) : null}
         {moving ? (
           <select
             class="kind-select"
@@ -138,6 +156,7 @@ export function Sidebar(p: SidebarProps) {
       onPin={() => p.onPin(c.key, !c.pinned)}
       onDelete={() => p.onDelete(c.key)}
       onSetKind={(k) => p.onSetKind(c.key, k)}
+      onHealth={() => p.onHealth(c.key)}
     />
   );
 
@@ -171,9 +190,9 @@ export function Sidebar(p: SidebarProps) {
       </Section>
 
       <Section id="quick" title={t('sidebar.quick')} collapsed={collapsed('quick')} onToggle={p.onToggleSection}>
-        {QUICK_PROMPTS.map((q) => (
-          <button type="button" class="quick" key={q.key} onClick={() => p.onQuick(q.prompt)} title={q.prompt}>
-            {t(`quick.${q.key}`)}
+        {(p.quickPrompts.length ? p.quickPrompts : QUICK_PROMPTS.map((q) => ({ id: q.key, label: t(`quick.${q.key}`), prompt: q.prompt }))).map((q) => (
+          <button type="button" class="quick" key={q.id} onClick={() => p.onQuick(q.prompt)} title={q.prompt}>
+            {q.label}
           </button>
         ))}
       </Section>

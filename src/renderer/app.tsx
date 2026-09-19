@@ -1,16 +1,23 @@
-// Application shell: sidebar + tabbed main area. Owns all renderer state and
-// the single chat:event subscription.
-import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import type { AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, TraderProfile } from '@shared/api';
+// Application shell: sidebar + tabbed main area + report drawer. Owns all
+// renderer state, the single chat:event subscription and the card actions.
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import type { AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
+import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
+import { CardActionsContext, type CardActions } from './blocks';
+import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
 import { HelpTab } from './components/HelpTab';
+import { ReportDrawer } from './components/ReportDrawer';
 import { SettingsTab } from './components/SettingsTab';
 import { Sidebar } from './components/Sidebar';
+import { WorkflowsTab } from './components/WorkflowsTab';
 import { t } from './i18n';
+import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
 import type { UiMessage } from './state';
 
-type Tab = 'copilot' | 'settings' | 'help';
+type Tab = 'copilot' | 'workflows' | 'settings' | 'help';
+const TABS: Tab[] = ['copilot', 'workflows', 'settings', 'help'];
 const STATUS_POLL_MS = 20_000;
 
 function applyTheme(theme: Settings['theme']): void {
@@ -26,11 +33,14 @@ export function App() {
   const [profile, setProfile] = useState<TraderProfile>(DEFAULT_PROFILE);
   const [status, setStatus] = useState<Status | null>(null);
   const [chats, setChats] = useState<ChatMeta[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowDef[]>([]);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [init, setInit] = useState<AgentInit | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerReportId, setDrawerReportId] = useState<string | null>(null);
   const [mode, setMode] = useState<ChatMode>(() => {
     try {
       return localStorage.getItem('desk.mode') === 'saver' ? 'saver' : 'full';
@@ -44,6 +54,8 @@ export function App() {
   // Refs so the event handler sees fresh values without resubscribing.
   const currentKeyRef = useRef<string | null>(null);
   currentKeyRef.current = currentKey;
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
 
   const refreshChats = useCallback(async () => setChats(await desk.chats.list()), [desk]);
   const refreshStatus = useCallback(async () => {
@@ -56,9 +68,10 @@ export function App() {
 
   useEffect(() => {
     void (async () => {
-      const [s, p] = await Promise.all([desk.settings.get(), desk.profile.get()]);
+      const [s, p, w] = await Promise.all([desk.settings.get(), desk.profile.get(), desk.workflows.list().catch(() => [] as WorkflowDef[])]);
       setSettings(s);
       setProfile(p);
+      setWorkflows(w);
       applyTheme(s.theme);
       await refreshChats();
       void refreshStatus();
@@ -68,6 +81,8 @@ export function App() {
   }, [desk, refreshChats, refreshStatus]);
 
   const current = chats.find((c) => c.key === currentKey) ?? null;
+  const activeWorkflow = workflows.find((w) => w.id === settings.activeWorkflow) ?? workflows[0] ?? null;
+  const catalog = useMemo(() => (activeWorkflow?.reports.length ? activeWorkflow.reports : REPORT_CATALOG), [activeWorkflow]);
 
   const openChat = useCallback(
     async (key: string) => {
@@ -78,7 +93,33 @@ export function App() {
       setStreaming(false);
       setThinking(false);
       setInit(null);
+      setDrawerOpen(false);
+      setDrawerReportId(null);
       setTab('copilot');
+    },
+    [desk],
+  );
+
+  /** Capture every valid stressreport of a finished assistant message into chats.json; open the drawer on the newest. */
+  const captureReports = useCallback(
+    async (chatKey: string, text: string) => {
+      const found = blocksOfKind(text, 'stressreport');
+      if (!found.length) return;
+      let list: ChatMeta[] | null = null;
+      for (const b of found) {
+        const d = b.data;
+        list = await desk.chats.addReport(chatKey, { kind: 'stressreport', version: d.version, grade: d.grade, strategy: d.strategy, data: d });
+      }
+      if (!list) return;
+      setChats(list);
+      if (chatKey === currentKeyRef.current) {
+        const chat = list.find((c) => c.key === chatKey);
+        const newest = chat?.reports?.[chat.reports.length - 1];
+        if (newest) {
+          setDrawerReportId(newest.id);
+          setDrawerOpen(true);
+        }
+      }
     },
     [desk],
   );
@@ -100,7 +141,9 @@ export function App() {
         // Freeze the live assistant message so the next turn starts a new one.
         setMessages((ms) => {
           const last = ms[ms.length - 1];
-          const frozen = last && last.role === 'assistant' && last.at === -1 ? [...ms.slice(0, -1), { ...last, at: Date.now() }] : ms;
+          const live = last && last.role === 'assistant' && last.at === -1 ? last : null;
+          if (live) void captureReports(ev.chatKey, live.text);
+          const frozen = live ? [...ms.slice(0, -1), { ...live, at: Date.now() }] : ms;
           return ev.stopped ? [...frozen, { role: 'notice', text: t('chat.stopped'), at: Date.now(), level: 'info' }] : frozen;
         });
         void refreshChats();
@@ -136,7 +179,7 @@ export function App() {
       });
     });
     return unsubscribe;
-  }, [desk, refreshChats]);
+  }, [captureReports, desk, refreshChats]);
 
   const send = useCallback(
     (text: string, key = currentKeyRef.current) => {
@@ -150,24 +193,37 @@ export function App() {
   );
 
   const newChat = useCallback(async (): Promise<string> => {
-    const chat = await desk.chats.create('chat');
+    const chat = await desk.chats.create('chat', settings.activeWorkflow || null);
     await refreshChats();
     setCurrentKey(chat.key);
     setMessages([]);
     setInit(null);
     setStreaming(false);
+    setDrawerOpen(false);
     setTab('copilot');
     return chat.key;
-  }, [desk, refreshChats]);
+  }, [desk, refreshChats, settings.activeWorkflow]);
 
   const quick = useCallback(
     async (prompt: string) => {
       if (streaming) return;
       const key = currentKeyRef.current ?? (await newChat());
       currentKeyRef.current = key;
+      setTab('copilot');
       send(prompt, key);
     },
     [newChat, send, streaming],
+  );
+
+  const healthCheck = useCallback(
+    async (key: string) => {
+      const chat = chats.find((c) => c.key === key);
+      if (!chat || streaming) return;
+      if (key !== currentKeyRef.current) await openChat(key);
+      currentKeyRef.current = key;
+      send(healthCheckPrompt(chat.title || t('chat.untitled')), key);
+    },
+    [chats, openChat, send, streaming],
   );
 
   const stop = useCallback(() => {
@@ -222,8 +278,38 @@ export function App() {
       setCurrentKey(null);
       setMessages([]);
       setStreaming(false);
+      setDrawerOpen(false);
     }
   };
+
+  // ----- card actions (nextsteps chips, report drawer) -----
+  const cardActions = useMemo<CardActions>(
+    () => ({
+      busy: streaming,
+      send: (prompt) => void quick(prompt),
+      saveChat: async (kind: ChatKind, name?: string) => {
+        const key = currentKeyRef.current;
+        if (!key) return;
+        let list = await desk.chats.setKind(key, kind);
+        if (name && name.trim()) list = await desk.chats.rename(key, name.trim());
+        setChats(list);
+      },
+      appendProfileStyle: async (text: string) => {
+        const p = profileRef.current;
+        const style = p.style.trim() ? `${p.style.trim()}\n${text.trim()}` : text.trim();
+        setProfile(await desk.profile.set({ ...p, style }));
+      },
+      openReport: (report: StressReport) => {
+        const chat = chats.find((c) => c.key === currentKeyRef.current);
+        const match = (chat?.reports ?? []).find((r) => r.strategy === report.strategy && r.version === report.version && r.grade === report.grade && r.data.headline === report.headline);
+        setDrawerReportId(match?.id ?? null);
+        setDrawerOpen(true);
+      },
+    }),
+    [chats, desk, quick, streaming],
+  );
+
+  const reports: StoredReport[] = current?.reports ?? [];
 
   return (
     <div class="app">
@@ -234,10 +320,12 @@ export function App() {
         currentKey={currentKey}
         launching={launching}
         tvMessage={tvMessage}
+        quickPrompts={activeWorkflow?.quickPrompts ?? []}
         onToggleSection={toggleSection}
         onLaunchTv={launchTv}
         onRefreshStatus={refreshStatus}
         onQuick={quick}
+        onHealth={(k) => void healthCheck(k)}
         onNewChat={() => void newChat()}
         onOpen={(k) => void openChat(k)}
         onRename={(k, title) => void chatOp(desk.chats.rename(k, title))}
@@ -247,19 +335,26 @@ export function App() {
       />
       <main class="main">
         <nav class="tabs">
-          {(['copilot', 'settings', 'help'] as Tab[]).map((id) => (
+          {TABS.map((id) => (
             <button type="button" key={id} class={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
               {t(`tabs.${id}`)}
             </button>
           ))}
         </nav>
-        {tab === 'copilot' ? (
-          <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} init={init} mode={mode} onModeChange={changeMode} onSend={(text) => send(text)} onStop={stop} />
-        ) : tab === 'settings' ? (
-          <SettingsTab settings={settings} profile={profile} status={status} onSettings={(patch) => void patchSettings(patch)} onSecret={(n, v) => void setSecret(n, v)} onProfile={(p) => void desk.profile.set(p).then(setProfile)} />
-        ) : (
-          <HelpTab />
-        )}
+        <CardActionsContext.Provider value={cardActions}>
+          {tab === 'copilot' ? (
+            <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
+          ) : tab === 'workflows' ? (
+            <WorkflowsTab workflows={workflows} activeId={activeWorkflow?.id ?? ''} busy={streaming} onActivate={(id) => void patchSettings({ activeWorkflow: id })} onRun={(p) => void quick(p)} />
+          ) : tab === 'settings' ? (
+            <SettingsTab settings={settings} profile={profile} status={status} onSettings={(patch) => void patchSettings(patch)} onSecret={(n, v) => void setSecret(n, v)} onProfile={(p) => void desk.profile.set(p).then(setProfile)} />
+          ) : (
+            <HelpTab />
+          )}
+          {tab === 'copilot' && current ? (
+            <ReportDrawer open={drawerOpen} reports={reports} selectedId={drawerReportId} onSelect={setDrawerReportId} onDelete={(id) => void chatOp(desk.chats.deleteReport(current.key, id))} onClose={() => setDrawerOpen(false)} />
+          ) : null}
+        </CardActionsContext.Provider>
       </main>
     </div>
   );

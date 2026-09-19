@@ -1,9 +1,11 @@
 // Chat panel: message list with streaming assistant text, collapsed tool
-// rows, thinking indicator, composer, Stop, token/cost meter and mode toggle.
+// rows, thinking indicator, composer (with the `/` report catalog), Stop,
+// token/cost meter, mode toggle and the home chips on an empty chat.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { AgentInit, ChatMeta, ChatMode, ToolCallItem } from '@shared/api';
+import type { AgentInit, ChatMeta, ChatMode, ToolCallItem, WorkflowPrompt } from '@shared/api';
 import { Markdown } from './Markdown';
 import { t } from '../i18n';
+import { filterCatalog, HOME_CHIPS, READ_CHART_VARIANTS, webStrategyPrompt } from '../prompts';
 import type { UiMessage } from '../state';
 
 export interface ChatViewProps {
@@ -13,8 +15,11 @@ export interface ChatViewProps {
   thinking: boolean;
   init: AgentInit | null;
   mode: ChatMode;
+  catalog: WorkflowPrompt[];
   onModeChange: (m: ChatMode) => void;
   onSend: (text: string) => void;
+  /** Send a library prompt; creates a chat first when none is open. */
+  onQuick: (prompt: string) => void;
   onStop: () => void;
 }
 
@@ -65,6 +70,57 @@ function Message({ m }: { m: UiMessage }) {
   );
 }
 
+/** Home chips + the read-chart chooser, shown on an empty chat. */
+function Home({ busy, onQuick }: { busy: boolean; onQuick: (prompt: string) => void }) {
+  const [chooser, setChooser] = useState(false);
+  return (
+    <div class="home">
+      <div class="home-title">{t('home.title')}</div>
+      <div class="chips home-chips">
+        {HOME_CHIPS.map((c) => (
+          <button
+            type="button"
+            class={`chip${c.chooser ? ' action' : ''}`}
+            key={c.id}
+            disabled={busy}
+            title={c.prompt ?? ''}
+            onClick={() => {
+              if (c.chooser) setChooser(true);
+              else if (c.random) onQuick(webStrategyPrompt());
+              else if (c.prompt) onQuick(c.prompt);
+            }}
+          >
+            {t(c.labelKey)}
+          </button>
+        ))}
+      </div>
+      {chooser ? (
+        <div class="chooser">
+          <div class="chooser-title">{t('home.chooserTitle')}</div>
+          {READ_CHART_VARIANTS.map((v) => (
+            <button
+              type="button"
+              class="chooser-item"
+              key={v.id}
+              title={v.prompt}
+              onClick={() => {
+                setChooser(false);
+                onQuick(v.prompt);
+              }}
+            >
+              {t(v.labelKey)}
+            </button>
+          ))}
+          <button type="button" class="small" onClick={() => setChooser(false)}>
+            {t('home.cancel')}
+          </button>
+        </div>
+      ) : null}
+      <div class="muted small-hint">{t('home.catalogHint')}</div>
+    </div>
+  );
+}
+
 function fmtTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
@@ -84,6 +140,15 @@ export function ChatView(p: ChatViewProps) {
     taRef.current?.focus();
   }, [p.chat?.key]);
 
+  // `/query` in the composer opens the report catalog.
+  const slash = draft.startsWith('/') && !draft.includes('\n');
+  const catalog = slash ? filterCatalog(p.catalog, draft.slice(1)) : [];
+
+  const pick = (prompt: string) => {
+    setDraft(prompt);
+    taRef.current?.focus();
+  };
+
   const submit = () => {
     const text = draft.trim();
     if (!text || p.streaming) return;
@@ -92,11 +157,21 @@ export function ChatView(p: ChatViewProps) {
   };
 
   const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && slash) {
+      setDraft('');
+      return;
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      if (slash) {
+        if (catalog.length) pick(catalog[0].prompt);
+        return;
+      }
       submit();
     }
   };
+
+  const showHome = !p.chat || p.messages.length === 0;
 
   return (
     <section class="chat">
@@ -120,6 +195,7 @@ export function ChatView(p: ChatViewProps) {
       <div class="messages" ref={listRef}>
         {!p.chat ? <div class="empty">{t('chat.noChat')}</div> : null}
         {p.chat && p.messages.length === 0 ? <div class="empty">{t('chat.empty')}</div> : null}
+        {showHome ? <Home busy={p.streaming} onQuick={p.onQuick} /> : null}
         {p.messages.map((m, i) => (
           <Message key={i} m={m} />
         ))}
@@ -131,6 +207,21 @@ export function ChatView(p: ChatViewProps) {
       </div>
 
       <footer class="composer">
+        {slash ? (
+          <div class="catalog">
+            <div class="catalog-title">{t('catalog.title')}</div>
+            {catalog.length ? (
+              catalog.map((c) => (
+                <button type="button" class="catalog-item" key={c.id} title={c.prompt} onClick={() => pick(c.prompt)}>
+                  <span>{c.label}</span>
+                  <span class="muted">{t('catalog.insert')} ↵</span>
+                </button>
+              ))
+            ) : (
+              <div class="muted">{t('catalog.empty')}</div>
+            )}
+          </div>
+        ) : null}
         <textarea
           ref={taRef}
           rows={3}

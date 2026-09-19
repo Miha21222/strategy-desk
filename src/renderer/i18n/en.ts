@@ -6,7 +6,7 @@ import type { Dict } from './ru';
 type Widen<T> = { [K in keyof T]?: T[K] extends string ? string : Widen<T[K]> };
 
 export const en: Widen<Dict> = {
-  tabs: { copilot: 'Copilot', settings: 'Settings', help: 'Help' },
+  tabs: { copilot: 'Copilot', workflows: 'Workflows', settings: 'Settings', help: 'Help' },
   sidebar: {
     connections: 'Connections',
     tvRunning: 'TradingView running',

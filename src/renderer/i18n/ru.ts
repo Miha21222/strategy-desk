@@ -2,7 +2,7 @@
 // mirrors this shape as a stub.
 export const ru = {
   app: { title: 'Strategy Desk' },
-  tabs: { copilot: 'Копилот', settings: 'Настройки', help: 'Помощь' },
+  tabs: { copilot: 'Копилот', workflows: 'Воркфлоу', settings: 'Настройки', help: 'Помощь' },
 
   sidebar: {
     connections: 'Соединения',
@@ -38,6 +38,95 @@ export const ru = {
     health: 'Статус соединения',
     studies: 'Индикаторы на графике',
     levels: 'Ключевые уровни',
+  },
+
+  home: {
+    title: 'С чего начнём?',
+    readChart: 'Прочитай мой график',
+    buildTest: 'Собери и протестируй стратегию',
+    findWeb: 'Найди стратегию в сети',
+    demoIb: 'Демо: Initial Balance breakout US500 15m',
+    markLevels: 'Отметь ключевые уровни',
+    premarket: 'Собери pre-market индикатор',
+    smartAlert: 'Умный алерт',
+    chooserTitle: 'Что именно посмотреть?',
+    variantWorked: 'Сделка, которая сработала',
+    variantLost: 'Сделка, которая не сработала',
+    variantStructure: 'Разобрать структуру',
+    variantPattern: 'Посчитать повторяющийся паттерн',
+    variantLook: 'Просто посмотри',
+    cancel: 'Отмена',
+    catalogHint: 'Введите / для каталога отчётов',
+  },
+
+  catalog: {
+    title: 'Каталог отчётов',
+    empty: 'Ничего не найдено',
+    insert: 'вставить',
+  },
+
+  workflows: {
+    title: 'Воркфлоу',
+    intro: 'Воркфлоу = промпт-блок + быстрые действия + каталог отчётов. Активный воркфлоу задаёт быстрые действия в сайдбаре, а его промпт-блок замораживается в системный промпт каждого нового чата.',
+    active: 'Активен',
+    activate: 'Сделать активным',
+    quick: 'Быстрые действия',
+    reports: 'Каталог отчётов',
+    shelves: 'Полки',
+    promptBlock: 'Промпт-блок',
+    empty: 'Папка workflows/ пуста или не найдена.',
+    run: 'Запустить',
+  },
+
+  cards: {
+    nextSteps: 'Что дальше',
+    saved: 'Сохранено ✓',
+    priceNow: 'цена сейчас',
+    openReport: 'Открыть отчёт',
+    changes: 'Изменения',
+    winRate: 'Win rate (взвеш.)',
+    tradesTotal: '{n} сделок',
+    profitFactor: 'Profit factor',
+    netProfit: 'Чистая прибыль',
+    maxDd: 'Макс. просадка',
+    run: 'Прогон',
+    trades: 'Сделки',
+    net: 'Net',
+    baseline: 'база',
+    afterCosts: 'после издержек ({cost}/сделка)',
+    brief: 'Утренний бриф',
+    levelHit: 'отмечен',
+    levelUntouched: 'не тронут',
+    levelIdle: 'ещё не в игре',
+    volume: 'Объём vs типичный',
+    prodata: 'Данные для проп-отчёта',
+    healthdata: 'Данные для проверки здоровья',
+    focus: 'фокус',
+    analyticsPending: 'Полный отчёт появится с модулем аналитики.',
+    rawJson: 'JSON',
+    rawText: 'исходный текст',
+    invalid: 'Блок {kind} не прошёл проверку',
+    streaming: 'Блок {kind} загружается…',
+    biasNone: 'без направления',
+    confidence: 'уверенность',
+    setup: 'Сетап',
+    entry: 'Вход',
+    validUntil: 'Действует до',
+    phase: { verdict: 'вердикт', 'eth-scan': 'скан ETH', or: 'opening range', ib: 'Initial Balance', breakout: 'пробой' },
+  },
+
+  drawer: {
+    title: 'Отчёты',
+    close: 'Закрыть',
+    empty: 'В этом чате ещё нет отчётов.',
+    delete: 'Удалить отчёт',
+    versions: 'версий',
+    latest: 'последний',
+  },
+
+  shelfRow: {
+    health: 'Проверить здоровье',
+    versions: 'v×{n}',
   },
 
   shelf: {
@@ -89,7 +178,7 @@ export const ru = {
     cost: 'стоимость',
   },
 
-  md: { copy: 'Копировать', copied: 'Скопировано', block: 'Блок {lang} (рендер появится на этапе 2)' },
+  md: { copy: 'Копировать', copied: 'Скопировано' },
 
   tv: {
     'running-without-flag':

@@ -1,10 +1,12 @@
 // Minimal markdown renderer: paragraphs, headings, bullet lists, **bold**,
-// `code`, fenced code blocks (with language label + Copy) and placeholder
-// cards for structured block languages (see blocks.ts).
+// `code`, fenced code blocks (language label + Copy, Pine highlighting) and
+// native cards for the structured block languages (see ../blocks).
 import { useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
-import { parseBlocks, prettyCard, type Segment } from './blocks';
+import { CardSegment } from '../blocks';
 import { t } from '../i18n';
+import { parseBlocks, type Segment } from './blocks';
+import { isPineLang, tokenizePine } from './pine';
 
 function renderInline(text: string): ComponentChildren {
   // Tokenize on inline code first so bold markers inside code stay literal.
@@ -69,27 +71,29 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-function CodeBlock({ seg }: { seg: Extract<Segment, { type: 'code' }> }) {
+function PineCode({ code }: { code: string }) {
   return (
-    <div class={`codeblock${seg.open ? ' open' : ''}`}>
-      <div class="codebar">
-        <span class="lang">{seg.lang || 'text'}</span>
-        <CopyButton text={seg.code} />
-      </div>
-      <pre>
-        <code>{seg.code}</code>
-      </pre>
-    </div>
+    <code class="pine">
+      {tokenizePine(code).map((tok, i) =>
+        tok.type === 'text' ? tok.text : (
+          <span class={`tok-${tok.type}`} key={i}>
+            {tok.text}
+          </span>
+        ),
+      )}
+    </code>
   );
 }
 
-function CardBlock({ seg }: { seg: Extract<Segment, { type: 'card' }> }) {
+function CodeBlock({ seg }: { seg: Extract<Segment, { type: 'code' }> }) {
+  const pine = isPineLang(seg.lang);
   return (
-    <div class="card-placeholder">
-      <div class="card-title">{t('md.block', { lang: seg.lang })}</div>
-      <pre>
-        <code>{prettyCard(seg)}</code>
-      </pre>
+    <div class={`codeblock${seg.open ? ' open' : ''}${pine ? ' pine' : ''}`}>
+      <div class="codebar">
+        <span class="lang">{pine ? 'Pine Script' : seg.lang || 'text'}</span>
+        <CopyButton text={seg.code} />
+      </div>
+      <pre>{pine ? <PineCode code={seg.code} /> : <code>{seg.code}</code>}</pre>
     </div>
   );
 }
@@ -101,7 +105,7 @@ export function Markdown({ text }: { text: string }) {
       {segments.map((seg, i) => {
         if (seg.type === 'text') return <div key={i}>{renderText(seg.text)}</div>;
         if (seg.type === 'code') return <CodeBlock key={i} seg={seg} />;
-        return <CardBlock key={i} seg={seg} />;
+        return <CardSegment key={i} seg={seg} />;
       })}
     </div>
   );

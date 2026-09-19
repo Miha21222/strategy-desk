@@ -1,5 +1,5 @@
 // Renderer-local types and helpers (no runtime dependency on the bridge).
-import type { ChatKind, ChatMeta, TranscriptItem } from '@shared/api';
+import type { ChatKind, ChatMeta, StoredReport, TranscriptItem } from '@shared/api';
 
 export type UiMessage = TranscriptItem | { role: 'notice'; text: string; at: number; level: 'error' | 'info' };
 
@@ -13,6 +13,17 @@ export const QUICK_PROMPTS: { key: string; prompt: string }[] = [
   { key: 'studies', prompt: 'List the studies on my chart and summarize their current values.' },
   { key: 'levels', prompt: 'Capture a screenshot of my current chart and describe the key levels.' },
 ];
+
+/** Newest stored report of a chat (grade tag in the chat list). */
+export function latestReport(chat: ChatMeta): StoredReport | null {
+  const reports = chat.reports ?? [];
+  return reports.length ? reports.reduce((a, b) => (b.createdAt >= a.createdAt ? b : a)) : null;
+}
+
+/** Distinct `stressreport.version` values seen in a chat = strategy variants (selection-luck cap later). */
+export function versionCount(chat: ChatMeta): number {
+  return new Set((chat.reports ?? []).map((r) => r.version)).size;
+}
 
 export const SHELF_KINDS: ChatKind[] = ['strategy', 'indicator', 'performance', 'journal', 'ib-day'];
 
