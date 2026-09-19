@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatEvent, ChatKind, DeskApi, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, DeskApi, NewReport, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
 
 const api: DeskApi = {
   status: { get: () => ipcRenderer.invoke('status:get') },
@@ -16,13 +16,16 @@ const api: DeskApi = {
   },
   chats: {
     list: () => ipcRenderer.invoke('chats:list'),
-    create: (kind?: ChatKind) => ipcRenderer.invoke('chats:new', kind),
+    create: (kind?: ChatKind, workflowId?: string | null) => ipcRenderer.invoke('chats:new', kind, workflowId),
     open: (key) => ipcRenderer.invoke('chats:open', key),
     rename: (key, title) => ipcRenderer.invoke('chats:rename', key, title),
     delete: (key) => ipcRenderer.invoke('chats:delete', key),
     pin: (key, pinned) => ipcRenderer.invoke('chats:pin', key, pinned),
     setKind: (key, kind) => ipcRenderer.invoke('chats:setKind', key, kind),
+    addReport: (key, report: NewReport) => ipcRenderer.invoke('chats:addReport', key, report),
+    deleteReport: (key, reportId) => ipcRenderer.invoke('chats:deleteReport', key, reportId),
   },
+  workflows: { list: () => ipcRenderer.invoke('workflows:list') },
   chat: {
     send: (args: SendArgs) => ipcRenderer.send('chat:send', args),
     stop: (chatKey) => ipcRenderer.send('chat:stop', chatKey),

@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   tvDesktopExe: '',
   sidebar: {},
+  activeWorkflow: 'strategy-lab',
 };
 
 export const DEFAULT_PROFILE: TraderProfile = {

@@ -1,12 +1,11 @@
 // Bridge between the renderer chat and the Claude Agent SDK.
 // One query() per chat at a time; SDKMessages are translated into ChatEvents
 // and streamed to the renderer over the `chat:event` channel.
-import { app } from 'electron';
 import { promises as fs } from 'node:fs';
-import path from 'node:path';
 import type { Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { AgentInit, ChatEvent, ChatMode, Settings, TokenUsage, ToolCallItem, TraderProfile } from '@shared/api';
+import type { AgentInit, ChatEvent, ChatMeta, ChatMode, Settings, TokenUsage, ToolCallItem } from '@shared/api';
 import { buildMcpServers } from './mcp';
+import { promptForChat } from './prompt';
 import * as store from './store';
 
 type Send = (ev: ChatEvent) => void;
@@ -25,40 +24,14 @@ const CRASH_CODES = ['3221225477', '3221226505', '3221225725', '-1073741819', '-
 const RETRY_DELAY_MS = 1200;
 const RESULT_TRUNCATE = 1200;
 
-const FALLBACK_PROMPT =
-  'You are a trading research copilot inside Strategy Desk, connected to TradingView Desktop through the `tradingview` MCP server. Call `tv_desktop_status` first when the user asks about their chart. Be concise. Educational only. Answer in the user\'s language.';
-
-async function loadBasePrompt(): Promise<string> {
-  const candidates = [
-    path.join(app.getAppPath(), 'prompt', 'system-prompt.md'),
-    path.join(process.cwd(), 'prompt', 'system-prompt.md'),
-  ];
-  for (const p of candidates) {
-    try {
-      return (await fs.readFile(p, 'utf8')).trim();
-    } catch {
-      /* try next */
-    }
-  }
-  return FALLBACK_PROMPT;
+/** Mode suffix appended AFTER the frozen prompt so the cached prefix stays stable while the mode is unchanged. */
+export function modeSuffix(mode: ChatMode): string {
+  if (mode !== 'saver') return '';
+  return ['', '', '## Mode: saver', 'Keep tool calls minimal: one status check, one screenshot at most, no exploratory calls.'].join('\n');
 }
 
-function profileBlock(p: TraderProfile): string {
-  const lines: string[] = [];
-  if (p.callName) lines.push(`- Call the user: ${p.callName}`);
-  if (p.traderType) lines.push(`- Trader type: ${p.traderType}`);
-  if (p.markets) lines.push(`- Markets: ${p.markets}`);
-  if (p.style) lines.push(`- Style: ${p.style}`);
-  if (p.riskRules) lines.push(`- Risk rules: ${p.riskRules}`);
-  if (p.propFirms) lines.push(`- Prop firms: ${p.propFirms}`);
-  if (p.morningChecklist.length) lines.push(`- Morning checklist:\n${p.morningChecklist.map((s) => `  - ${s}`).join('\n')}`);
-  return lines.length ? `\n\n## Trader profile\n${lines.join('\n')}` : '';
-}
-
-export async function buildSystemPrompt(profile: TraderProfile, mode: ChatMode): Promise<string> {
-  const base = await loadBasePrompt();
-  const saver = mode === 'saver' ? '\n\n## Mode: saver\nKeep tool calls minimal: one status check, one screenshot at most, no exploratory calls.' : '';
-  return `${base}${profileBlock(profile)}${saver}\n\n## Hub\nStrategy Desk app version ${app.getVersion()}.`;
+export async function buildSystemPrompt(chat: ChatMeta, mode: ChatMode): Promise<string> {
+  return `${await promptForChat(chat)}${modeSuffix(mode)}`;
 }
 
 export function buildEnv(cfg: Settings, secrets: { apiKey: string | null; oauthToken: string | null }): Record<string, string | undefined> {
@@ -127,8 +100,8 @@ export async function startChat(args: StartArgs, send: Send): Promise<void> {
     return;
   }
 
-  const [cfg, secrets, profile] = await Promise.all([store.getSettings(), store.getSecrets(), store.getProfile()]);
-  const systemPrompt = await buildSystemPrompt(profile, mode);
+  const [cfg, secrets] = await Promise.all([store.getSettings(), store.getSecrets()]);
+  const systemPrompt = await buildSystemPrompt(chat, mode);
   const cwd = store.chatWorkspaceDir();
   await fs.mkdir(cwd, { recursive: true });
 

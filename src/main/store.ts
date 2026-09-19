@@ -5,7 +5,8 @@ import { app, safeStorage } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ChatKind, ChatMeta, Settings, SettingsPatch, TraderProfile, TranscriptItem } from '@shared/api';
+import type { ChatKind, ChatMeta, NewReport, Settings, SettingsPatch, StoredReport, TraderProfile, TranscriptItem } from '@shared/api';
+import { MAX_REPORTS } from '@shared/api';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 
 interface ConfigFile extends Omit<Settings, 'hasApiKey' | 'hasOauthToken'> {
@@ -162,6 +163,9 @@ export async function newChat(kind: ChatKind = 'chat'): Promise<ChatMeta> {
       kind,
       tokens: { in: 0, out: 0 },
       costUsd: 0,
+      workflowId: null,
+      promptHash: null,
+      reports: [],
     };
     const chats = await readChats();
     chats.push(chat);
@@ -190,6 +194,30 @@ export async function deleteChat(key: string): Promise<ChatMeta[]> {
     const chats = (await readChats()).filter((c) => c.key !== key);
     await writeChats(chats);
     await fs.rm(transcriptPath(key), { force: true }).catch(() => undefined);
+    return chats.sort(byRecent);
+  });
+}
+
+export async function addReport(key: string, report: NewReport): Promise<ChatMeta[]> {
+  return withChatsLock(async () => {
+    const chats = await readChats();
+    const idx = chats.findIndex((c) => c.key === key);
+    if (idx >= 0) {
+      const stored: StoredReport = { ...report, id: randomUUID(), createdAt: Date.now() };
+      const reports = [...(chats[idx].reports ?? []), stored].slice(-MAX_REPORTS);
+      chats[idx] = { ...chats[idx], reports };
+    }
+    await writeChats(chats);
+    return chats.sort(byRecent);
+  });
+}
+
+export async function deleteReport(key: string, reportId: string): Promise<ChatMeta[]> {
+  return withChatsLock(async () => {
+    const chats = await readChats();
+    const idx = chats.findIndex((c) => c.key === key);
+    if (idx >= 0) chats[idx] = { ...chats[idx], reports: (chats[idx].reports ?? []).filter((r) => r.id !== reportId) };
+    await writeChats(chats);
     return chats.sort(byRecent);
   });
 }

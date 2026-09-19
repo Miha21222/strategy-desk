@@ -1,12 +1,15 @@
 // IPC surface. Every handler is registered once; the renderer reaches them
 // through the typed `window.desk` bridge in src/preload/index.ts.
 import { app, ipcMain, shell, type BrowserWindow } from 'electron';
-import type { ChatEvent, ChatKind, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, NewReport, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import { StressReportSchema } from '@shared/blocks';
 import { CHAT_KINDS } from '@shared/api';
 import { startChat, stopChat } from './agent';
+import { freezeForChat } from './prompt';
 import { getStatus, invalidateTvmcpCache } from './status';
 import * as store from './store';
 import { launchTradingView } from './tv-launch';
+import { listWorkflows } from './workflows';
 
 const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
 
@@ -43,7 +46,12 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('profile:set', (_e, p: TraderProfile) => store.setProfile(p));
 
   ipcMain.handle('chats:list', () => store.listChats());
-  ipcMain.handle('chats:new', (_e, kind?: ChatKind) => store.newChat(kind && CHAT_KINDS.includes(kind) ? kind : 'chat'));
+  ipcMain.handle('chats:new', async (_e, kind?: ChatKind, workflowId?: string | null) => {
+    const chat = await store.newChat(kind && CHAT_KINDS.includes(kind) ? kind : 'chat');
+    const wf = typeof workflowId === 'string' ? workflowId : (await store.getSettings()).activeWorkflow;
+    // Freeze the system prompt now so every turn of this chat reuses the same bytes.
+    return freezeForChat(chat, wf || null);
+  });
   ipcMain.handle('chats:open', async (_e, key: string) => {
     const chat = await store.getChat(key);
     if (!chat) return null;
@@ -59,6 +67,15 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     if (!CHAT_KINDS.includes(kind)) throw new Error('unknown kind');
     return store.updateChat(key, { kind });
   });
+
+  ipcMain.handle('chats:addReport', (_e, key: string, report: NewReport) => {
+    if (!report || report.kind !== 'stressreport') throw new Error('unknown report kind');
+    const data = StressReportSchema.parse(report.data);
+    return store.addReport(String(key), { kind: 'stressreport', version: data.version, grade: data.grade, strategy: data.strategy, data });
+  });
+  ipcMain.handle('chats:deleteReport', (_e, key: string, reportId: string) => store.deleteReport(String(key), String(reportId)));
+
+  ipcMain.handle('workflows:list', () => listWorkflows());
 
   ipcMain.on('chat:send', (_e, args: SendArgs) => {
     if (!args || typeof args.chatKey !== 'string' || typeof args.text !== 'string') return;

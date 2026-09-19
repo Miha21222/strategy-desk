@@ -1,0 +1,79 @@
+# Strategy Lab workflow. Labels are Russian (UI), prompts are English (model).
+id: strategy-lab
+title: Лаборатория стратегий
+description: >-
+  Собрать стратегию в Pine v6, задеплоить на график одним вызовом, прогнать
+  бэктест, стресс-тест и проп-проверку. Промпт-блок протокола попадает в
+  системный промпт каждого нового чата, пока воркфлоу активен.
+promptBlock: prompt.md
+shelves: [strategy, indicator, performance]
+
+quickPrompts:
+  - id: readChart
+    label: Прочитать мой график
+    prompt: >-
+      Read my chart: call tv_desktop_status, take one screenshot with tv_desktop_screenshot,
+      Read the image and describe structure, key levels and indicator readings.
+      Show key levels as a `chartcard` of type levels, never a markdown table.
+  - id: buildTest
+    label: Собрать и протестировать стратегию
+    prompt: Build me an EMA pullback strategy for PEPPERSTONE:US500 on the 15-minute chart and backtest it.
+  - id: stress
+    label: Стресс-тест текущей стратегии
+    prompt: >-
+      Run the stress test on the strategy currently on my chart: baseline, higher timeframe, lower timeframe,
+      a correlated symbol and an out-of-sample date split. Emit a `stressreport` block.
+  - id: health
+    label: Статус соединения
+    prompt: Give me a one-line health status of the TradingView connection.
+
+reports:
+  - id: stress
+    label: Стресс-тест
+    prompt: >-
+      Stress-test the strategy currently on my chart: baseline, higher timeframe, lower timeframe, a correlated
+      symbol and an out-of-sample date split tagged role "oos". Grade it honestly and emit a `stressreport` block.
+  - id: costs
+    label: Проверка издержек
+    prompt: >-
+      Cost reality check: rerun the current strategy's backtest with realistic commission and 1-2 ticks of slippage
+      per side, compare net profit and profit factor with the frictionless run, and emit a `stressreport` block
+      with `costs` filled in.
+  - id: propTest
+    label: Проп-тест
+    prompt: >-
+      Prop-firm pass test: fetch the closed trades of the current strategy with tv_desktop_read_strategy(orders=2000)
+      and emit a `prodata` block with focus "survival". Do not compute survival odds in prose; the app does the math.
+  - id: gameplan
+    label: Проп-геймплан
+    prompt: >-
+      Prop-firm gameplan: fetch the closed trades of the current strategy and emit a `prodata` block with focus
+      "gameplan" and the firm from my profile in `gameplan.firm`. The app builds the plan; keep prose to one line.
+  - id: plateau
+    label: Плато параметров
+    prompt: >-
+      Parameter plateau: take the 2-4 levers of the current strategy, vary each one across a sensible range with
+      tv_desktop_set_study_inputs (not rebuilds), re-read results after each change and show net profit per value
+      as a `chartcard` with bars. Say whether the edge sits on a plateau or a spike.
+  - id: regime
+    label: Режим рынка
+    prompt: >-
+      Market regime: split the backtest window of the current strategy into trending and ranging periods
+      (ADX or a simple range/expansion filter), report trades, win rate and profit factor per regime as a
+      `chartcard`, and say in one line which regime carries the edge.
+  - id: healthCheck
+    label: Проверка здоровья
+    prompt: >-
+      Health check of the strategy currently on my chart: fetch its closed trades with tv_desktop_read_strategy
+      and emit a `healthdata` block. The app computes the diagnostics; keep prose to one sentence.
+  - id: brief
+    label: Утренний бриф
+    prompt: >-
+      Morning brief: work through my morning checklist against the live chart, check each level with
+      tv_desktop_check_levels using the right `since`, pull today's calendar, and finish with a `briefreport`
+      block plus a 2-3 line synthesis.
+  - id: full
+    label: Полный отчёт
+    prompt: >-
+      Full report on the current strategy: fetch its closed trades with tv_desktop_read_strategy(orders=2000)
+      and emit a `prodata` block with focus "full". The app renders the report; keep prose to one line.

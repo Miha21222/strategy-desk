@@ -1,28 +1,20 @@
 // Fenced-block parser for assistant markdown. Splits text into plain
-// segments, code blocks and "card" blocks (structured JSON the stage-2 UI
-// will render natively). Tolerates an unterminated fence while streaming.
+// segments, code blocks and "card" blocks (structured JSON validated against
+// the shared zod schemas in src/shared/blocks.ts). Tolerates an unterminated
+// fence while streaming: an open card is not parsed until its fence closes.
+import { BLOCK_KINDS, isBlockKind, parseBlock, type Block, type BlockKind, type ParsedBlock } from '@shared/blocks';
 
-export const CARD_LANGS = ['nextsteps', 'chartcard', 'stressreport', 'prodata', 'briefreport', 'healthdata', 'workflowstate'] as const;
-export type CardLang = (typeof CARD_LANGS)[number];
+export const CARD_LANGS = BLOCK_KINDS;
+export type CardLang = BlockKind;
 
 export type Segment =
   | { type: 'text'; text: string }
   | { type: 'code'; lang: string; code: string; open: boolean }
-  | { type: 'card'; lang: CardLang; raw: string; json: unknown | null; open: boolean };
+  | { type: 'card'; lang: CardLang; raw: string; open: boolean; parsed: ParsedBlock | null };
 
 const FENCE_RE = /^(`{3,}|~{3,})\s*([\w+.#-]*)\s*$/;
 
-export function isCardLang(lang: string): lang is CardLang {
-  return (CARD_LANGS as readonly string[]).includes(lang.toLowerCase());
-}
-
-function tryJson(raw: string): unknown | null {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+export const isCardLang = isBlockKind;
 
 export function parseBlocks(md: string): Segment[] {
   const out: Segment[] = [];
@@ -63,7 +55,8 @@ export function parseBlocks(md: string): Segment[] {
     flushText();
     const code = body.join('\n');
     if (isCardLang(lang)) {
-      out.push({ type: 'card', lang: lang.toLowerCase() as CardLang, raw: code, json: closed ? tryJson(code) : null, open: !closed });
+      const kind = lang.toLowerCase() as CardLang;
+      out.push({ type: 'card', lang: kind, raw: code, open: !closed, parsed: closed ? parseBlock(kind, code) : null });
     } else {
       out.push({ type: 'code', lang, code, open: !closed });
     }
@@ -72,7 +65,21 @@ export function parseBlocks(md: string): Segment[] {
   return out;
 }
 
-/** Pretty-print JSON for the placeholder card; falls back to the raw text. */
+/** Pretty-print the card JSON (for placeholders / error cards); falls back to the raw text. */
 export function prettyCard(seg: Extract<Segment, { type: 'card' }>): string {
-  return seg.json !== null ? JSON.stringify(seg.json, null, 2) : seg.raw;
+  if (seg.parsed?.ok) return JSON.stringify(seg.parsed.block.data, null, 2);
+  try {
+    return JSON.stringify(JSON.parse(seg.raw), null, 2);
+  } catch {
+    return seg.raw;
+  }
+}
+
+/** All successfully parsed blocks of one kind in a message (used for report capture). */
+export function blocksOfKind<K extends BlockKind>(md: string, kind: K): Extract<Block, { kind: K }>[] {
+  const found: Extract<Block, { kind: K }>[] = [];
+  for (const seg of parseBlocks(md)) {
+    if (seg.type === 'card' && seg.lang === kind && seg.parsed?.ok) found.push(seg.parsed.block as Extract<Block, { kind: K }>);
+  }
+  return found;
 }

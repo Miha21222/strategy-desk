@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseBlocks, prettyCard, isCardLang } from './blocks';
+import { blocksOfKind, parseBlocks, prettyCard, isCardLang } from './blocks';
+import { BLOCK_KINDS } from '@shared/blocks';
+import { sampleAssistantMessage } from '@shared/blocks-sample';
 
 describe('parseBlocks', () => {
   it('returns a single text segment for plain markdown', () => {
@@ -15,24 +17,50 @@ describe('parseBlocks', () => {
     expect(segs[2]).toEqual({ type: 'text', text: 'after' });
   });
 
-  it('recognises card languages and parses their JSON', () => {
-    const segs = parseBlocks('```nextsteps\n{"items":[{"title":"Check IB"}]}\n```');
+  it('recognises card languages and validates their JSON', () => {
+    const segs = parseBlocks('```nextsteps\n{"options":[{"label":"Check IB","prompt":"Check the IB"}]}\n```');
     expect(segs).toHaveLength(1);
     const card = segs[0];
     expect(card.type).toBe('card');
     if (card.type !== 'card') return;
     expect(card.lang).toBe('nextsteps');
-    expect(card.json).toEqual({ items: [{ title: 'Check IB' }] });
-    expect(prettyCard(card)).toContain('"title": "Check IB"');
+    expect(card.parsed?.ok).toBe(true);
+    expect(prettyCard(card)).toContain('"label": "Check IB"');
   });
 
-  it('keeps invalid card JSON as raw text', () => {
+  it('reports invalid card JSON as an error and keeps the raw text', () => {
     const segs = parseBlocks('```chartcard\nnot json\n```');
     const card = segs[0];
     expect(card.type).toBe('card');
     if (card.type !== 'card') return;
-    expect(card.json).toBeNull();
+    expect(card.parsed?.ok).toBe(false);
+    if (card.parsed && !card.parsed.ok) expect(card.parsed.error).toContain('invalid JSON');
     expect(prettyCard(card)).toBe('not json');
+  });
+
+  it('reports a schema failure without throwing', () => {
+    const segs = parseBlocks('```stressreport\n{"strategy":"x","grade":"Z","headline":"h","runs":[]}\n```');
+    const card = segs[0];
+    if (card.type !== 'card') throw new Error('expected card');
+    expect(card.parsed?.ok).toBe(false);
+    if (card.parsed && !card.parsed.ok) expect(card.parsed.error).toMatch(/grade|runs/);
+  });
+
+  it('does not parse an open (streaming) card', () => {
+    const segs = parseBlocks('```chartcard\n{"title":"t",');
+    const card = segs[0];
+    if (card.type !== 'card') throw new Error('expected card');
+    expect(card.open).toBe(true);
+    expect(card.parsed).toBeNull();
+  });
+
+  it('parses the canned sample message with zero schema errors', () => {
+    const segs = parseBlocks(sampleAssistantMessage());
+    const cards = segs.filter((s) => s.type === 'card');
+    expect(cards).toHaveLength(BLOCK_KINDS.length);
+    for (const c of cards) if (c.type === 'card') expect(c.parsed?.ok, c.lang).toBe(true);
+    expect(segs.some((s) => s.type === 'code' && s.lang === 'pine')).toBe(true);
+    expect(blocksOfKind(sampleAssistantMessage(), 'stressreport')).toHaveLength(1);
   });
 
   it('treats an unterminated fence as an open code block (streaming)', () => {

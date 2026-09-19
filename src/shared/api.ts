@@ -1,5 +1,6 @@
 // Types shared by the main process, the preload bridge and the renderer.
 // Keep this file free of runtime imports from either side.
+import type { Grade, StressReport } from './blocks';
 
 export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
 export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
@@ -15,6 +16,44 @@ export interface ChatMeta {
   kind: ChatKind;
   tokens: { in: number; out: number };
   costUsd: number;
+  /** Workflow whose prompt block was frozen into this chat's system prompt (null = none). */
+  workflowId?: string | null;
+  /** sha256 prefix of the frozen system prompt; the text lives in userData/prompts/<hash>.md. */
+  promptHash?: string | null;
+  /** Structured reports captured from `stressreport` blocks, newest last (≤ MAX_REPORTS). */
+  reports?: StoredReport[];
+}
+
+export const MAX_REPORTS = 20;
+
+export interface StoredReport {
+  id: string;
+  kind: 'stressreport';
+  version: string;
+  grade: Grade;
+  strategy: string;
+  createdAt: number;
+  data: StressReport;
+}
+
+export type NewReport = Omit<StoredReport, 'id' | 'createdAt'>;
+
+/** A workflow = prompt block + quick prompts + report catalog, loaded from workflows/<id>/workflow.yaml. */
+export interface WorkflowPrompt {
+  id: string;
+  label: string;
+  prompt: string;
+}
+
+export interface WorkflowDef {
+  id: string;
+  title: string;
+  description: string;
+  /** Contents of the promptBlock file (English), appended to the system prompt. */
+  prompt: string;
+  quickPrompts: WorkflowPrompt[];
+  reports: WorkflowPrompt[];
+  shelves: ChatKind[];
 }
 
 export type AuthMode = 'subscription' | 'api-key' | 'setup-token';
@@ -39,6 +78,8 @@ export interface Settings {
   tvDesktopExe: string;
   /** Sidebar sections collapsed state, persisted. */
   sidebar: Record<string, boolean>;
+  /** Workflow whose quick prompts fill the sidebar and whose prompt block new chats inherit. */
+  activeWorkflow: string;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'>>;
@@ -131,13 +172,16 @@ export interface DeskApi {
   profile: { get(): Promise<TraderProfile>; set(p: TraderProfile): Promise<TraderProfile> };
   chats: {
     list(): Promise<ChatMeta[]>;
-    create(kind?: ChatKind): Promise<ChatMeta>;
+    create(kind?: ChatKind, workflowId?: string | null): Promise<ChatMeta>;
     open(key: string): Promise<{ chat: ChatMeta; messages: TranscriptItem[] } | null>;
     rename(key: string, title: string): Promise<ChatMeta[]>;
     delete(key: string): Promise<ChatMeta[]>;
     pin(key: string, pinned: boolean): Promise<ChatMeta[]>;
     setKind(key: string, kind: ChatKind): Promise<ChatMeta[]>;
+    addReport(key: string, report: NewReport): Promise<ChatMeta[]>;
+    deleteReport(key: string, reportId: string): Promise<ChatMeta[]>;
   };
+  workflows: { list(): Promise<WorkflowDef[]> };
   chat: {
     send(args: SendArgs): void;
     stop(chatKey: string): void;
