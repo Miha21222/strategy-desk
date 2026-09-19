@@ -10,6 +10,7 @@ const api: DeskApi = {
     setSecret: (name, value) => ipcRenderer.invoke('settings:setSecret', name, value),
     clearSecret: (name) => ipcRenderer.invoke('settings:clearSecret', name),
   },
+  rules: { get: () => ipcRenderer.invoke('rules:get') },
   profile: {
     get: () => ipcRenderer.invoke('profile:get'),
     set: (p: TraderProfile) => ipcRenderer.invoke('profile:set', p),

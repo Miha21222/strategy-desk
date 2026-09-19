@@ -4,7 +4,8 @@ import type { Segment } from '../chat/blocks';
 import { BriefReportView } from './BriefReport';
 import { ChartCardView } from './ChartCard';
 import { NextStepsCard } from './NextSteps';
-import { ErrorCard, HealthDataCard, ProdataCard, StreamingCard } from './Placeholder';
+import { ErrorCard, HealthDataCard, StreamingCard } from './Placeholder';
+import { ProdataCard } from './Prodata';
 import { StressReportView } from './StressReport';
 import { WorkflowStateView } from './WorkflowState';
 

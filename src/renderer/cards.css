@@ -794,3 +794,32 @@ tr.oos td {
   color: var(--accent);
   font-weight: 700;
 }
+
+/* --- prodata report ------------------------------------------------------- */
+.card.prodata .report-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.card.prodata .grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  line-height: 1.1;
+}
+.card.prodata .grade b { font-size: 20px; }
+.card.prodata .grade span { font-size: 12px; color: var(--muted); }
+.card.prodata .report-sub { font-size: 12px; }
+.card.prodata .report-account { margin-top: 14px; }
+.card.prodata .report-account-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}

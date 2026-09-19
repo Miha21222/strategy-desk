@@ -169,6 +169,8 @@ export interface DeskApi {
     setSecret(name: 'apiKey' | 'oauthToken', value: string): Promise<Settings>;
     clearSecret(name: 'apiKey' | 'oauthToken'): Promise<Settings>;
   };
+  /** The prop-firm rule book (data/prop-firms.json); null when it is missing. */
+  rules: { get(): Promise<unknown | null> };
   profile: { get(): Promise<TraderProfile>; set(p: TraderProfile): Promise<TraderProfile> };
   chats: {
     list(): Promise<ChatMeta[]>;

@@ -6,6 +6,7 @@ import { StressReportSchema } from '@shared/blocks';
 import { CHAT_KINDS } from '@shared/api';
 import { startChat, stopChat } from './agent';
 import { freezeForChat } from './prompt';
+import { getPropFirms } from './rules';
 import { getStatus, invalidateTvmcpCache } from './status';
 import * as store from './store';
 import { launchTradingView } from './tv-launch';
@@ -41,6 +42,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     if (!SECRET_NAMES.has(name)) throw new Error('unknown secret');
     return store.clearSecret(name);
   });
+
+  ipcMain.handle('rules:get', () => getPropFirms());
 
   ipcMain.handle('profile:get', () => store.getProfile());
   ipcMain.handle('profile:set', (_e, p: TraderProfile) => store.setProfile(p));
