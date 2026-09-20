@@ -172,7 +172,8 @@ never fail silently later.
 2. Structured cards: render `nextsteps/chartcard/stressreport/prodata/briefreport/healthdata/workflowstate` natively.
 3. Workflows per shelf: strategy builder, indicator (Pine) builder, performance review, journal, IB day.
 4. The day panel: deterministic CLI polling, the `panel` contract, the IB-day and V1B3 workflows.
-5. Document import (pdf-parse), attachments in chat, exports, packaging: signed installers,
-   electron-updater, official MCP auth flow. Partially done: the setup wizard, the preflight
-   diagnosis and the "Live field notes" prompt section (`data/copilot-notes.md`, overridable
-   with `settings.fieldNotesPath`).
+5. Document import (pdf-parse), attachments in chat, exports, packaging. Done: the setup wizard, the
+   preflight diagnosis, the "Live field notes" prompt section (`data/copilot-notes.md`, overridable
+   with `settings.fieldNotesPath`), and the Windows installer (NSIS per-user, own icon,
+   `npm run dist:check`). Still open: code signing, electron-updater (auto-update is off on
+   purpose — no release channel, no certificate), official MCP auth flow.
