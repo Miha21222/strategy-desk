@@ -2,7 +2,10 @@ import type { Settings, TraderProfile } from './api';
 
 export const DEFAULT_TVMCP_PATH = 'C:\\Users\\Admin\\Projects\\tradingview-mcp';
 export const DEFAULT_CDP_PORT = 9223;
-export const DEFAULT_TOOLSETS = 'hybrid,desktop';
+// `hybrid` already carries scan / journal / calendar / sentinel; `session` is
+// the opt-in account-cookie tier the day panel needs for broker CFDs like
+// PEPPERSTONE:US500 (it also wants TV_SESSIONID in the environment).
+export const DEFAULT_TOOLSETS = 'hybrid,desktop,session';
 
 export const DEFAULT_SETTINGS: Settings = {
   authMode: 'subscription',
@@ -19,6 +22,9 @@ export const DEFAULT_SETTINGS: Settings = {
   tvDesktopExe: '',
   sidebar: {},
   activeWorkflow: 'strategy-lab',
+  shelfWorkflows: {},
+  riskRulesPath: '',
+  journalPath: '',
 };
 
 export const DEFAULT_PROFILE: TraderProfile = {

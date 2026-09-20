@@ -1,9 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatEvent, ChatKind, DeskApi, NewReport, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
 
 const api: DeskApi = {
   status: { get: () => ipcRenderer.invoke('status:get') },
-  tv: { launch: () => ipcRenderer.invoke('tv:launch') },
+  tv: {
+    launch: () => ipcRenderer.invoke('tv:launch'),
+    call: (name: string, args: Record<string, unknown>) => ipcRenderer.invoke('tv:call', name, args),
+  },
+  panel: {
+    get: (workflowId: string, date: string) => ipcRenderer.invoke('panel:get', workflowId, date),
+    set: (state: PanelDayState) => ipcRenderer.invoke('panel:set', state),
+    clear: (workflowId: string, date: string) => ipcRenderer.invoke('panel:clear', workflowId, date),
+  },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     set: (patch: SettingsPatch) => ipcRenderer.invoke('settings:set', patch),

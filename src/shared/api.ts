@@ -1,6 +1,9 @@
 // Types shared by the main process, the preload bridge and the renderer.
 // Keep this file free of runtime imports from either side.
 import type { Grade, StressReport } from './blocks';
+import type { PanelDayState, PanelDef, TvCallResult } from './panel';
+
+export type { PanelDayState, PanelDef, TvCallResult };
 
 export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
 export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
@@ -54,6 +57,8 @@ export interface WorkflowDef {
   quickPrompts: WorkflowPrompt[];
   reports: WorkflowPrompt[];
   shelves: ChatKind[];
+  /** Declares a day panel (session watch / risk desk); absent = no «День» tab content. */
+  panel?: PanelDef | null;
 }
 
 export type AuthMode = 'subscription' | 'api-key' | 'setup-token';
@@ -80,6 +85,12 @@ export interface Settings {
   sidebar: Record<string, boolean>;
   /** Workflow whose quick prompts fill the sidebar and whose prompt block new chats inherit. */
   activeWorkflow: string;
+  /** Per-shelf workflow override: a chat opened on that shelf inherits this workflow. */
+  shelfWorkflows: Partial<Record<ChatKind, string>>;
+  /** Path to the user's own risk rules JSON handed to tv_risk_guard (never numbers in code). */
+  riskRulesPath: string;
+  /** Path to the user's trade journal handed to tv_journal_load / tv_risk_guard. */
+  journalPath: string;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'>>;
@@ -162,7 +173,15 @@ export interface SendArgs {
 
 export interface DeskApi {
   status: { get(): Promise<Status> };
-  tv: { launch(): Promise<TvLaunchResult> };
+  tv: {
+    launch(): Promise<TvLaunchResult>;
+    /**
+     * Deterministic tvmcp call through the `tv` CLI — no model turn, no tokens.
+     * `name` must be in TV_TOOL_ALLOWLIST; anything else is refused in the main
+     * process, so the renderer can never run an arbitrary tool.
+     */
+    call(name: string, args: Record<string, unknown>): Promise<TvCallResult>;
+  };
   settings: {
     get(): Promise<Settings>;
     set(patch: SettingsPatch): Promise<Settings>;
@@ -184,6 +203,12 @@ export interface DeskApi {
     deleteReport(key: string, reportId: string): Promise<ChatMeta[]>;
   };
   workflows: { list(): Promise<WorkflowDef[]> };
+  /** Per workflow + date panel state, so a restart reattaches instead of restarting. */
+  panel: {
+    get(workflowId: string, date: string): Promise<PanelDayState | null>;
+    set(state: PanelDayState): Promise<PanelDayState>;
+    clear(workflowId: string, date: string): Promise<void>;
+  };
   chat: {
     send(args: SendArgs): void;
     stop(chatKey: string): void;

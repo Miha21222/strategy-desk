@@ -14,11 +14,26 @@ export interface HttpServer {
 }
 export type ServerMap = Record<string, StdioServer | HttpServer>;
 
-export function buildMcpServers(cfg: Settings, baseEnv: NodeJS.ProcessEnv = process.env): ServerMap {
+/**
+ * The environment the tvmcp server runs with: the app's own environment plus
+ * the two knobs the settings own. `TV_SESSIONID` (the opt-in account-cookie
+ * feed) and `TV_SENTINEL_DIR` are inherited from the environment when the user
+ * set them — deliberately not app settings, because the cookie must not sit in
+ * config.json.
+ *
+ * `tv-cli.ts` reuses this, so a deterministic CLI poll sees exactly what the
+ * model's own tool call would have seen.
+ */
+export function buildTvEnv(cfg: Settings, baseEnv: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(baseEnv)) if (typeof v === 'string') env[k] = v;
   env.TV_TOOLSETS = cfg.toolsets?.trim() || DEFAULT_TOOLSETS;
   env.TV_CDP_URL = `http://127.0.0.1:${cfg.cdpPort || DEFAULT_CDP_PORT}`;
+  return env;
+}
+
+export function buildMcpServers(cfg: Settings, baseEnv: NodeJS.ProcessEnv = process.env): ServerMap {
+  const env = buildTvEnv(cfg, baseEnv);
 
   const servers: ServerMap = {
     tradingview: {

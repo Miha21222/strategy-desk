@@ -4,11 +4,13 @@ import { app, ipcMain, shell, type BrowserWindow } from 'electron';
 import type { ChatEvent, ChatKind, NewReport, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
 import { StressReportSchema } from '@shared/blocks';
 import { CHAT_KINDS } from '@shared/api';
+import { isAllowedTvTool, type PanelDayState, type TvCallResult } from '@shared/panel';
 import { startChat, stopChat } from './agent';
 import { freezeForChat } from './prompt';
 import { getPropFirms } from './rules';
 import { getStatus, invalidateTvmcpCache } from './status';
 import * as store from './store';
+import { callTool } from './tv-cli';
 import { launchTradingView } from './tv-launch';
 import { listWorkflows } from './workflows';
 
@@ -43,6 +45,22 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return store.clearSecret(name);
   });
 
+  // One channel for every deterministic tvmcp call the day panel makes. The
+  // allowlist is enforced HERE, in the main process: the renderer names a tool,
+  // it does not get to name a command. Nothing in the list draws on the chart,
+  // writes a journal row or touches a script.
+  ipcMain.handle('tv:call', async (_e, name: string, args: Record<string, unknown>): Promise<TvCallResult> => {
+    if (!isAllowedTvTool(name)) {
+      return { ok: false, error: `tool ${String(name).slice(0, 60)} is not in the allowlist`, warnings: [], ms: 0 };
+    }
+    const cfg = await store.getSettings();
+    return callTool(cfg, name, args && typeof args === 'object' ? args : {});
+  });
+
+  ipcMain.handle('panel:get', (_e, workflowId: string, date: string) => store.getPanelState(String(workflowId), String(date)));
+  ipcMain.handle('panel:set', (_e, state: PanelDayState) => store.setPanelState(state));
+  ipcMain.handle('panel:clear', (_e, workflowId: string, date: string) => store.clearPanelState(String(workflowId), String(date)));
+
   ipcMain.handle('rules:get', () => getPropFirms());
 
   ipcMain.handle('profile:get', () => store.getProfile());
@@ -50,8 +68,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
 
   ipcMain.handle('chats:list', () => store.listChats());
   ipcMain.handle('chats:new', async (_e, kind?: ChatKind, workflowId?: string | null) => {
-    const chat = await store.newChat(kind && CHAT_KINDS.includes(kind) ? kind : 'chat');
-    const wf = typeof workflowId === 'string' ? workflowId : (await store.getSettings()).activeWorkflow;
+    const shelf: ChatKind = kind && CHAT_KINDS.includes(kind) ? kind : 'chat';
+    const chat = await store.newChat(shelf);
+    // The caller's choice wins; then the shelf's own workflow, then the active one.
+    const cfg = await store.getSettings();
+    const wf = typeof workflowId === 'string' ? workflowId : (cfg.shelfWorkflows?.[shelf] ?? cfg.activeWorkflow);
     // Freeze the system prompt now so every turn of this chat reuses the same bytes.
     return freezeForChat(chat, wf || null);
   });

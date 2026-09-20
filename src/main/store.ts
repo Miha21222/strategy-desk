@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import type { ChatKind, ChatMeta, NewReport, Settings, SettingsPatch, StoredReport, TraderProfile, TranscriptItem } from '@shared/api';
 import { MAX_REPORTS } from '@shared/api';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
+import { MAX_PANEL_DAYS, MAX_PANEL_EVENTS, type PanelDayState, type SentinelEvent } from '@shared/panel';
 
 interface ConfigFile extends Omit<Settings, 'hasApiKey' | 'hasOauthToken'> {
   /** base64 of safeStorage.encryptString(); absent when not set. */
@@ -239,4 +240,70 @@ export async function appendTranscript(key: string, item: TranscriptItem): Promi
 
 export function chatWorkspaceDir(): string {
   return path.join(userData(), 'chat-workspace');
+}
+
+// ---------- day panel ----------
+//
+// panel.json: { "<workflowId>": { "<YYYY-MM-DD>": PanelDayState } }. Holding
+// the sentinel run id, the seen `last_seq`, the events already rendered and the
+// seqs a chat turn was already spent on is what lets the panel survive an app
+// restart mid-session: it reattaches to the live run instead of starting a
+// second one and never re-asks the model about an event it already asked about.
+
+type PanelFile = Record<string, Record<string, PanelDayState>>;
+
+let panelLock: Promise<unknown> = Promise.resolve();
+function withPanelLock<T>(fn: () => Promise<T>): Promise<T> {
+  const run = panelLock.then(fn, fn);
+  panelLock = run.catch(() => undefined);
+  return run;
+}
+
+async function readPanels(): Promise<PanelFile> {
+  const f = await readJson<PanelFile>(filePath('panel.json'), {});
+  return f && typeof f === 'object' ? f : {};
+}
+
+export async function getPanelState(workflowId: string, date: string): Promise<PanelDayState | null> {
+  const all = await readPanels();
+  return all[workflowId]?.[date] ?? null;
+}
+
+/** Sanity-bound whatever the renderer sends before it reaches the disk. */
+function clean(state: PanelDayState): PanelDayState {
+  const events = Array.isArray(state.events) ? state.events : [];
+  return {
+    workflowId: String(state.workflowId),
+    date: String(state.date),
+    runId: state.runId ? String(state.runId).slice(0, 120) : null,
+    lastSeq: Number.isFinite(state.lastSeq) ? Math.max(0, Math.floor(state.lastSeq)) : 0,
+    events: events.filter((e): e is SentinelEvent => Boolean(e) && Number.isFinite(e.seq)).slice(-MAX_PANEL_EVENTS),
+    asked: (Array.isArray(state.asked) ? state.asked : []).filter((n) => Number.isFinite(n)).slice(-MAX_PANEL_EVENTS),
+    replay: state.replay && state.replay.from && state.replay.to ? { from: String(state.replay.from), to: String(state.replay.to) } : null,
+    updatedAt: Date.now(),
+  };
+}
+
+export async function setPanelState(state: PanelDayState): Promise<PanelDayState> {
+  return withPanelLock(async () => {
+    const next = clean(state);
+    if (!next.workflowId || !next.date) return next;
+    const all = await readPanels();
+    const days = { ...(all[next.workflowId] ?? {}), [next.date]: next };
+    // Keep only the most recent days per workflow: a panel file is a cache,
+    // not an archive — the journal is where a day is kept.
+    const trimmed = Object.fromEntries(Object.entries(days).sort(([a], [b]) => (a < b ? 1 : -1)).slice(0, MAX_PANEL_DAYS));
+    await writeJsonAtomic(filePath('panel.json'), { ...all, [next.workflowId]: trimmed });
+    return next;
+  });
+}
+
+export async function clearPanelState(workflowId: string, date: string): Promise<void> {
+  await withPanelLock(async () => {
+    const all = await readPanels();
+    const days = all[workflowId];
+    if (!days || !(date in days)) return;
+    delete days[date];
+    await writeJsonAtomic(filePath('panel.json'), all);
+  });
 }

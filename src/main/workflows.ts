@@ -4,21 +4,8 @@ import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { z } from 'zod';
 import type { WorkflowDef } from '@shared/api';
-import { CHAT_KINDS } from '@shared/api';
-
-const PromptSchema = z.object({ id: z.string().min(1), label: z.string().min(1), prompt: z.string().min(1) });
-
-const WorkflowFileSchema = z.object({
-  id: z.string().regex(/^[a-z0-9-]+$/),
-  title: z.string().min(1),
-  description: z.string().default(''),
-  promptBlock: z.string().min(1),
-  shelves: z.array(z.enum(CHAT_KINDS as unknown as [string, ...string[]])).default([]),
-  quickPrompts: z.array(PromptSchema).default([]),
-  reports: z.array(PromptSchema).default([]),
-});
+import { describeIssues, WorkflowFileSchema } from '@shared/workflow-schema';
 
 /** Directories that may contain workflows/, in priority order (dev cwd first). */
 export function workflowRoots(): string[] {
@@ -36,7 +23,7 @@ async function loadOne(dir: string): Promise<WorkflowDef | null> {
   }
   const parsed = WorkflowFileSchema.safeParse(parseYaml(raw));
   if (!parsed.success) {
-    console.warn(`[workflows] ${yamlPath}: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+    console.warn(`[workflows] ${yamlPath}: ${describeIssues(parsed.error)}`);
     return null;
   }
   const w = parsed.data;
@@ -60,6 +47,7 @@ async function loadOne(dir: string): Promise<WorkflowDef | null> {
     quickPrompts: w.quickPrompts,
     reports: w.reports,
     shelves: w.shelves as WorkflowDef['shelves'],
+    panel: w.panel ?? null,
   };
 }
 
