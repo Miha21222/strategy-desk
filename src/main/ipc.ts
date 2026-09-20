@@ -1,11 +1,12 @@
 // IPC surface. Every handler is registered once; the renderer reaches them
 // through the typed `window.desk` bridge in src/preload/index.ts.
-import { app, ipcMain, shell, type BrowserWindow } from 'electron';
-import type { ChatEvent, ChatKind, NewReport, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
+import type { ChatEvent, ChatKind, NewReport, PickKind, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
 import { StressReportSchema } from '@shared/blocks';
 import { CHAT_KINDS } from '@shared/api';
 import { isAllowedTvTool, type PanelDayState, type TvCallResult } from '@shared/panel';
 import { startChat, stopChat } from './agent';
+import { runPreflight } from './preflight';
 import { freezeForChat } from './prompt';
 import { getPropFirms } from './rules';
 import { getStatus, invalidateTvmcpCache } from './status';
@@ -16,6 +17,14 @@ import { listWorkflows } from './workflows';
 
 const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
 
+/** What each `dialog:pick` kind opens. The renderer names a kind, not a filter. */
+const PICKERS: Record<PickKind, { properties: ('openFile' | 'openDirectory')[]; filters?: Electron.FileFilter[] }> = {
+  'tvmcp-dir': { properties: ['openDirectory'] },
+  'risk-rules': { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }, { name: 'All', extensions: ['*'] }] },
+  journal: { properties: ['openFile'], filters: [{ name: 'CSV / TSV / JSON', extensions: ['csv', 'tsv', 'json', 'txt'] }, { name: 'All', extensions: ['*'] }] },
+  'field-notes': { properties: ['openFile'], filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }, { name: 'All', extensions: ['*'] }] },
+};
+
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
   const emit = (ev: ChatEvent) => {
     const win = getWindow();
@@ -23,6 +32,20 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   };
 
   ipcMain.handle('status:get', async () => getStatus(await store.getSettings()));
+
+  // The setup diagnosis. Read-only by construction: every fix that would touch
+  // the network or the user's own apps comes back as text for them to run.
+  ipcMain.handle('preflight:run', async () => runPreflight(await store.getSettings()));
+
+  // A native open dialog and nothing else — the renderer gets a path back and
+  // stores it through settings:set like any other field.
+  ipcMain.handle('dialog:pick', async (_e, kind: PickKind): Promise<string> => {
+    const win = getWindow();
+    const spec = PICKERS[kind];
+    if (!spec || !win || win.isDestroyed()) return '';
+    const res = await dialog.showOpenDialog(win, { properties: spec.properties, filters: spec.filters });
+    return res.canceled ? '' : (res.filePaths[0] ?? '');
+  });
 
   ipcMain.handle('tv:launch', async () => {
     const cfg = await store.getSettings();

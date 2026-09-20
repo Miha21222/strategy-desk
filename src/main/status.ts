@@ -5,6 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import type { ClaudeAuthStatus, Settings, Status } from '@shared/api';
 import { DEFAULT_TOOLSETS } from '@shared/defaults';
+import { EMPTY_CDP, type CdpProbe } from '@shared/preflight';
+
+export type { CdpProbe };
 
 const TVMCP_CACHE_MS = 60_000;
 let tvmcpCache: { at: number; key: string; ok: boolean; tools: number; error: string } | null = null;
@@ -52,13 +55,26 @@ async function fetchJson(url: string, timeoutMs = 1500): Promise<unknown | null>
   }
 }
 
+/**
+ * Who answers on a CDP port, not merely whether someone does. A 200 from
+ * /json/version proves only that *some* Chromium-based app owns the port —
+ * 9222 on this machine belongs to a browser panel, and TradingView silently
+ * skips a busy port at launch.
+ */
+export async function cdpProbe(port: number, timeoutMs = 1500): Promise<CdpProbe> {
+  const version = (await fetchJson(`http://127.0.0.1:${port}/json/version`, timeoutMs)) as { Browser?: string } | null;
+  if (!version) return EMPTY_CDP;
+  const list = await fetchJson(`http://127.0.0.1:${port}/json/list`, timeoutMs);
+  const pages = Array.isArray(list) ? (list as { url?: string; title?: string }[]) : [];
+  const targets = pages.slice(0, 8).map((p) => ({ url: String(p.url ?? ''), title: String(p.title ?? '') }));
+  const chartTab = targets.some((p) => /tradingview\.com\/chart/i.test(p.url));
+  const tradingview = chartTab || targets.some((p) => /tradingview/i.test(p.url) || /tradingview/i.test(p.title));
+  return { up: true, browser: String(version.Browser ?? '').trim(), chartTab, tradingview, targets };
+}
+
 export async function cdpStatus(port: number): Promise<{ cdpUp: boolean; chartTab: boolean }> {
-  const version = await fetchJson(`http://127.0.0.1:${port}/json/version`);
-  if (!version) return { cdpUp: false, chartTab: false };
-  const list = await fetchJson(`http://127.0.0.1:${port}/json/list`);
-  const pages = Array.isArray(list) ? (list as { url?: string }[]) : [];
-  const chartTab = pages.some((p) => typeof p.url === 'string' && /tradingview\.com\/chart/i.test(p.url));
-  return { cdpUp: true, chartTab };
+  const probe = await cdpProbe(port);
+  return { cdpUp: probe.up, chartTab: probe.chartTab };
 }
 
 export async function tvmcpStatus(cfg: Settings): Promise<{ ok: boolean; tools: number; error: string }> {

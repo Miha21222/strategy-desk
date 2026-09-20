@@ -16,17 +16,38 @@ export function workflowRoots(): string[] {
   return resourceCandidates('workflows');
 }
 
+/**
+ * Directory names that held a workflow.yaml but did not load, from the last
+ * scan. A yaml typo used to be a console warning nobody reads plus a workflow
+ * silently missing from the list; the preflight check names it instead.
+ */
+let problems: string[] = [];
+
+export function workflowProblems(): string[] {
+  return [...problems];
+}
+
 async function loadOne(dir: string): Promise<WorkflowDef | null> {
   const yamlPath = path.join(dir, 'workflow.yaml');
+  const name = path.basename(dir);
   let raw: string;
   try {
     raw = await fs.readFile(yamlPath, 'utf8');
   } catch {
+    return null; // not a workflow directory at all — not a problem to report
+  }
+  let parsed: ReturnType<typeof WorkflowFileSchema.safeParse>;
+  try {
+    parsed = WorkflowFileSchema.safeParse(parseYaml(raw));
+  } catch (e) {
+    // A yaml syntax error throws out of the parser before the schema sees it.
+    console.warn(`[workflows] ${yamlPath}: ${String((e as Error)?.message ?? e)}`);
+    problems.push(name);
     return null;
   }
-  const parsed = WorkflowFileSchema.safeParse(parseYaml(raw));
   if (!parsed.success) {
     console.warn(`[workflows] ${yamlPath}: ${describeIssues(parsed.error)}`);
+    problems.push(name);
     return null;
   }
   const w = parsed.data;
@@ -34,6 +55,7 @@ async function loadOne(dir: string): Promise<WorkflowDef | null> {
   const promptPath = path.resolve(dir, w.promptBlock);
   if (!promptPath.startsWith(path.resolve(dir))) {
     console.warn(`[workflows] ${w.id}: promptBlock escapes the workflow directory`);
+    problems.push(name);
     return null;
   }
   let prompt = '';
@@ -67,6 +89,7 @@ export function invalidateWorkflows(): void {
 
 async function scan(): Promise<WorkflowDef[]> {
   const seen = new Map<string, WorkflowDef>();
+  problems = [];
   for (const root of workflowRoots()) {
     let entries: string[] = [];
     try {
@@ -79,6 +102,8 @@ async function scan(): Promise<WorkflowDef[]> {
       if (def && !seen.has(def.id)) seen.set(def.id, def);
     }
   }
+  // A directory that failed under one root but loaded under another is fine.
+  problems = [...new Set(problems.filter((name) => !seen.has(name)))];
   return [...seen.values()];
 }
 

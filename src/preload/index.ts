@@ -1,8 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, PickKind, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
 
 const api: DeskApi = {
   status: { get: () => ipcRenderer.invoke('status:get') },
+  preflight: { run: () => ipcRenderer.invoke('preflight:run') },
+  dialog: { pick: (kind: PickKind) => ipcRenderer.invoke('dialog:pick', kind) },
   tv: {
     launch: () => ipcRenderer.invoke('tv:launch'),
     call: (name: string, args: Record<string, unknown>) => ipcRenderer.invoke('tv:call', name, args),

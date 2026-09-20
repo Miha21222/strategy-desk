@@ -2,8 +2,9 @@
 // Keep this file free of runtime imports from either side.
 import type { Grade, StressReport } from './blocks';
 import type { PanelDayState, PanelDef, TvCallResult } from './panel';
+import type { PreflightResult } from './preflight';
 
-export type { PanelDayState, PanelDef, TvCallResult };
+export type { PanelDayState, PanelDef, TvCallResult, PreflightResult };
 
 export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
 export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
@@ -73,6 +74,8 @@ export interface Settings {
   hasApiKey: boolean;
   hasOauthToken: boolean;
   tvmcpPath: string;
+  /** Repository the preflight's `git clone` fix names; the app never runs it. */
+  tvmcpRepo: string;
   cdpPort: number;
   toolsets: string;
   officialMcp: boolean;
@@ -91,6 +94,12 @@ export interface Settings {
   riskRulesPath: string;
   /** Path to the user's trade journal handed to tv_journal_load / tv_risk_guard. */
   journalPath: string;
+  /** Override for data/copilot-notes.md — the "Live field notes" prompt section. */
+  fieldNotesPath: string;
+  /** When the setup wizard was finished; 0 = never, so the wizard opens on start. */
+  setupCompletedAt: number;
+  /** Wizard steps the user chose to skip; the affected feature says why it is limited. */
+  setupSkipped: string[];
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'>>;
@@ -171,8 +180,15 @@ export interface SendArgs {
   mode: ChatMode;
 }
 
+/** What `dialog.pick` should open; the main process owns the filters. */
+export type PickKind = 'tvmcp-dir' | 'risk-rules' | 'journal' | 'field-notes';
+
 export interface DeskApi {
   status: { get(): Promise<Status> };
+  /** The full setup diagnosis; never throws, nothing is cached between runs. */
+  preflight: { run(): Promise<PreflightResult> };
+  /** A native open dialog; returns '' when the user cancels. Never writes anything. */
+  dialog: { pick(kind: PickKind): Promise<string> };
   tv: {
     launch(): Promise<TvLaunchResult>;
     /**

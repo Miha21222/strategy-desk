@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs, statSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { BLOCK_KINDS } from '@shared/blocks';
 import { sampleAssistantMessage } from '@shared/blocks-sample';
@@ -7,7 +8,10 @@ import { adrFromScan, buildSentinelSpec, levelsArgs, levelsFromScan, todayISO } 
 import { parseBlocks } from '../renderer/chat/blocks';
 import { buildEnv, stopAll } from './agent';
 import { registerIpc } from './ipc';
-import { assemblePrompt } from './prompt';
+import { runPreflight } from './preflight';
+import { assemblePrompt, loadBasePrompt, loadFieldNotes } from './prompt';
+import { resourceRoots } from './resources';
+import { getPropFirms } from './rules';
 import { getStatus } from './status';
 import { chatWorkspaceDir, getSettings } from './store';
 import { callTool } from './tv-cli';
@@ -64,16 +68,80 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
+/**
+ * The packaging self-test: does an INSTALLED build still find everything it
+ * ships with? In dev every resource happens to sit in the working directory,
+ * which hides a missing `files:` entry in electron-builder.yml completely — so
+ * this runs against the packaged binary (`npm run dist:check`), with the
+ * project directory renamed away, and prints one `[pack] …` line per resource.
+ */
+async function runPackSmoke(): Promise<void> {
+  const problems: string[] = [];
+  console.log('[pack] app', app.getVersion(), `packaged=${app.isPackaged}`);
+  console.log('[pack] anchors', JSON.stringify({ cwd: process.cwd(), appPath: app.getAppPath(), resourcesPath: process.resourcesPath }));
+  console.log('[pack] roots', JSON.stringify(resourceRoots()));
+
+  const workflows = await listWorkflows();
+  console.log('[pack] workflows', workflows.length, workflows.map((w) => `${w.id}${w.panel ? `[${w.panel.kind}]` : ''}:${w.prompt.length}c`).join(' ') || 'NONE');
+  if (!workflows.length) problems.push('no workflows');
+  if (workflows.some((w) => !w.prompt)) problems.push('a workflow lost its prompt block');
+
+  const firms = await getPropFirms();
+  const accounts = firms ? firms.firms.reduce((n, f) => n + f.accounts.length, 0) : 0;
+  console.log('[pack] rules', firms ? `${firms.firms.length} firms, ${accounts} accounts, updated ${firms.updated}` : 'NOT FOUND');
+  if (!firms || !firms.firms.length) problems.push('no prop-firm rule book');
+
+  const base = await loadBasePrompt();
+  const notes = await loadFieldNotes();
+  console.log('[pack] prompt', `${base.length} chars`, `notes:${notes ? `${notes.length} chars` : 'none'}`);
+  if (base.length < 400) problems.push('the base system prompt fell back to the built-in stub');
+
+  // The Agent SDK resolves the native Claude binary with require.resolve() from
+  // its OWN location, so it must sit next to the SDK in app.asar.unpacked.
+  const exe = process.platform === 'win32' ? 'claude.exe' : 'claude';
+  const spec = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/${exe}`;
+  let claudePath: string | null = null;
+  try {
+    claudePath = createRequire(require.resolve('@anthropic-ai/claude-agent-sdk')).resolve(spec);
+    if (!existsSync(claudePath)) claudePath = null;
+  } catch {
+    claudePath = null;
+  }
+  console.log('[pack] claude', claudePath ? `${claudePath} (${Math.round(statSync(claudePath).size / 1048576)} MB)` : `NOT FOUND (${spec})`);
+  if (!claudePath) problems.push('the Claude binary is not reachable from the packaged SDK');
+
+  if (problems.length) {
+    console.log('[pack] FAILED', problems.join('; '));
+    throw new Error(problems.join('; '));
+  }
+  console.log('[pack] ok');
+}
+
 // Headless self-test for CI / agents: DESK_SMOKE=status logs the connection
 // status; DESK_SMOKE=query additionally runs a trivial SDK query with no MCP
 // servers; DESK_SMOKE=blocks assembles the prompt, loads the workflows and
 // feeds a canned assistant message with one of every block through the
-// parser, failing on any schema error; DESK_SMOKE=panel walks the day panel's
+// parser, failing on any schema error; DESK_SMOKE=preflight prints the real
+// setup check list (id, status, detail key, fix kind); DESK_SMOKE=panel walks the day panel's
 // own deterministic path (levels -> sentinel spec) and checks the tv:call
-// allowlist refuses an unlisted tool. The app quits by itself afterwards.
+// allowlist refuses an unlisted tool; DESK_SMOKE=pack checks that an INSTALLED
+// build still finds everything it ships with — this is what `npm run dist:check`
+// runs against the packaged binary. The app quits by itself afterwards.
 async function runSmoke(kind: string): Promise<void> {
+  if (kind === 'pack') return runPackSmoke();
   const cfg = await getSettings();
   console.log('[smoke] status', JSON.stringify(await getStatus(cfg)));
+  if (kind === 'preflight') {
+    // The real check list on this machine, in the order the wizard shows it.
+    const r = await runPreflight(cfg);
+    console.log(`[smoke] preflight ok=${r.ok} checks=${r.checks.length}`);
+    for (const c of r.checks) {
+      const vars = c.vars ? ` ${JSON.stringify(c.vars)}` : '';
+      const fix = c.fix ? ` fix=${c.fix.kind}${c.fix.kind === 'copy' ? ` «${c.fix.command}»` : c.fix.kind === 'set-port' ? ` ${c.fix.port}` : ''}` : '';
+      console.log(`[smoke] ${c.status.toUpperCase().padEnd(7)} ${c.id.padEnd(11)} ${c.detailKey}${vars}${fix}`);
+    }
+    return;
+  }
   if (kind === 'blocks') {
     const workflows = await listWorkflows();
     console.log('[smoke] workflows', workflows.map((w) => `${w.id} (${w.quickPrompts.length} quick, ${w.reports.length} reports, prompt ${w.prompt.length} chars)`).join('; ') || 'none');
@@ -130,9 +198,15 @@ app.whenReady().then(async () => {
   console.log(`[main] Strategy Desk ${app.getVersion()} ready; userData=${app.getPath('userData')}`);
   mainWindow.webContents.once('did-finish-load', () => console.log('[main] renderer loaded'));
 
-  if (isDev && process.env.DESK_SMOKE) {
+  // Packaged too: DESK_SMOKE=pack is the only way to prove an INSTALLED build
+  // still finds its workflows and its rule book. The variable has to be set on
+  // purpose, and nothing here is reachable without it.
+  if (process.env.DESK_SMOKE) {
     runSmoke(process.env.DESK_SMOKE)
-      .catch((e) => console.error('[smoke] error', (e as Error)?.message ?? e))
+      .catch((e) => {
+        console.error('[smoke] error', (e as Error)?.message ?? e);
+        process.exitCode = 1;
+      })
       .finally(() => setTimeout(() => app.quit(), 1500));
   }
 
