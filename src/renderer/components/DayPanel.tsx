@@ -70,6 +70,9 @@ export function DayPanel(p: DayPanelProps) {
   const [runState, setRunState] = useState<SentinelState | null>(null);
   const [runBusy, setRunBusy] = useState(false);
   const [pollNote, setPollNote] = useState('');
+  // Mirrors the timer so the indicator re-renders; the timer itself is a ref
+  // because the chained loop must not restart on every render.
+  const [polling, setPolling] = useState(false);
 
   // Refs so the chained poll loop always sees fresh values without resubscribing.
   const dayRef = useRef(day);
@@ -86,6 +89,7 @@ export function DayPanel(p: DayPanelProps) {
   const clearTimer = () => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
+    setPolling(false);
   };
 
   // ----- one deterministic call -----
@@ -155,6 +159,7 @@ export function DayPanel(p: DayPanelProps) {
   const schedule = useCallback((ms: number) => {
     clearTimer();
     timer.current = setTimeout(() => void tickRef.current(), ms);
+    setPolling(true);
   }, []);
 
   const tick = useCallback(async () => {
@@ -357,7 +362,6 @@ export function DayPanel(p: DayPanelProps) {
 
   const watched = new Set(panel.levelNames);
   const asked = new Set(day.asked);
-  const polling = timer.current !== null;
   const canAskVerdict = Boolean(panel.prompts.verdict) && !p.busy;
   const canReview = Boolean(panel.prompts.review) && !p.busy && day.events.length > 0;
 
