@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { existsSync, promises as fs, statSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { BLOCK_KINDS } from '@shared/blocks';
@@ -109,6 +110,16 @@ async function runPackSmoke(): Promise<void> {
   }
   console.log('[pack] claude', claudePath ? `${claudePath} (${Math.round(statSync(claudePath).size / 1048576)} MB)` : `NOT FOUND (${spec})`);
   if (!claudePath) problems.push('the Claude binary is not reachable from the packaged SDK');
+  else {
+    // Resolving it is not enough: the path points INTO app.asar and only works
+    // because Electron redirects it to app.asar.unpacked when spawning. Prove
+    // that by actually running it — offline, no tokens.
+    const version = await new Promise<string>((done) => {
+      execFile(claudePath as string, ['--version'], { timeout: 30_000, windowsHide: true }, (err, stdout) => done(err ? `FAILED ${err.message.slice(0, 120)}` : stdout.trim()));
+    });
+    console.log('[pack] claude --version', version || 'no output');
+    if (!version || version.startsWith('FAILED')) problems.push('the Claude binary resolves but will not launch from the packaged location');
+  }
 
   if (problems.length) {
     console.log('[pack] FAILED', problems.join('; '));
