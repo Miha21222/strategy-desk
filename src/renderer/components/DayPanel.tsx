@@ -31,6 +31,7 @@ import {
 } from '@shared/panel';
 import { CalendarBody, Card, EventFeed, emptySlot, JournalBody, LevelsBody, RiskBody, RunSummary, type Slot } from '../panel/cards';
 import { t } from '../i18n';
+import { isSkipped } from '../setup';
 
 export interface DayPanelProps {
   workflow: WorkflowDef | null;
@@ -449,6 +450,9 @@ export function DayPanel(p: DayPanelProps) {
       </div>
 
       {!p.settings.riskRulesPath && panel.risk ? <div class="panel-hint">{t('day.noRulesHint')}</div> : null}
+      {/* A skipped wizard step says so here, instead of the day quietly running on the shipped example. */}
+      {isSkipped(p.settings, 'files') ? <div class="panel-hint">{t('setup.limited.files')}</div> : null}
+      {isSkipped(p.settings, 'tvmcp') ? <div class="panel-hint">{t('setup.limited.tvmcp')}</div> : null}
 
       {panel.kind === 'session-watch' ? (
         <fieldset class="watch">

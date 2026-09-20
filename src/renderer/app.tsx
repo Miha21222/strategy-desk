@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import type { AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
 import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
+import type { PreflightFix, PreflightResult } from '@shared/preflight';
 import { CardActionsContext, type CardActions } from './blocks';
 import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
@@ -11,10 +12,12 @@ import { DayPanel } from './components/DayPanel';
 import { HelpTab } from './components/HelpTab';
 import { ReportDrawer } from './components/ReportDrawer';
 import { SettingsTab } from './components/SettingsTab';
+import { SetupWizard } from './components/SetupWizard';
 import { Sidebar } from './components/Sidebar';
 import { WorkflowsTab } from './components/WorkflowsTab';
 import { t } from './i18n';
 import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
+import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizard, STEP_IDS, type StepId } from './setup';
 import type { UiMessage } from './state';
 
 type Tab = 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
@@ -51,6 +54,11 @@ export function App() {
   });
   const [launching, setLaunching] = useState(false);
   const [tvMessage, setTvMessage] = useState<string | null>(null);
+  // ----- setup wizard / diagnosis -----
+  const [preflight, setPreflight] = useState<PreflightResult | null>(null);
+  const [preflightBusy, setPreflightBusy] = useState(false);
+  const [wizardStep, setWizardStep] = useState<StepId | null>(null);
+  const [skipped, setSkipped] = useState<string[]>([]);
 
   // Refs so the event handler sees fresh values without resubscribing.
   const currentKeyRef = useRef<string | null>(null);
@@ -67,19 +75,40 @@ export function App() {
     }
   }, [desk]);
 
+  /** Re-probe everything; a skipped step that is green again stops being skipped. */
+  const runPreflight = useCallback(async (): Promise<PreflightResult | null> => {
+    setPreflightBusy(true);
+    try {
+      const r = await desk.preflight.run();
+      setPreflight(r);
+      setSkipped((prev) => reconcileSkips(prev, r.checks));
+      return r;
+    } catch {
+      return null;
+    } finally {
+      setPreflightBusy(false);
+    }
+  }, [desk]);
+
   useEffect(() => {
     void (async () => {
       const [s, p, w] = await Promise.all([desk.settings.get(), desk.profile.get(), desk.workflows.list().catch(() => [] as WorkflowDef[])]);
       setSettings(s);
       setProfile(p);
       setWorkflows(w);
+      setSkipped(s.setupSkipped ?? []);
       applyTheme(s.theme);
       await refreshChats();
       void refreshStatus();
+      // A fresh install opens the wizard by itself; afterwards it lives in the settings.
+      if (shouldOpenWizard(s)) {
+        setWizardStep(STEP_IDS[0]);
+        void runPreflight();
+      }
     })();
     const timer = setInterval(() => void refreshStatus(), STATUS_POLL_MS);
     return () => clearInterval(timer);
-  }, [desk, refreshChats, refreshStatus]);
+  }, [desk, refreshChats, refreshStatus, runPreflight]);
 
   const current = chats.find((c) => c.key === currentKey) ?? null;
   const activeWorkflow = workflows.find((w) => w.id === settings.activeWorkflow) ?? workflows[0] ?? null;
@@ -278,6 +307,47 @@ export function App() {
     }
   }, [desk, refreshStatus]);
 
+  /**
+   * Apply one preflight fix. Only the three safe kinds do anything here:
+   * launching TradingView, switching the port setting and opening a native
+   * file picker. `copy` and `explain` are handled inside the list — the app
+   * must not install software, clone a repository or close the user's
+   * TradingView on its own.
+   */
+  const applyFix = useCallback(
+    async (fix: PreflightFix) => {
+      if (fix.kind === 'launch-tv') await launchTv();
+      else if (fix.kind === 'set-port') await patchSettings({ cdpPort: fix.port });
+      else if (fix.kind === 'pick-file') {
+        const picked = await desk.dialog.pick(PICK_FOR_FIELD[fix.field]);
+        if (!picked) return;
+        await patchSettings({ [fix.field]: picked });
+      } else return;
+      await runPreflight();
+    },
+    [desk, launchTv, patchSettings, runPreflight],
+  );
+
+  const openWizard = useCallback(() => {
+    setWizardStep(STEP_IDS[0]);
+    void runPreflight();
+  }, [runPreflight]);
+
+  const skipStep = useCallback((id: StepId, on: boolean) => setSkipped((prev) => applySkip(prev, id, on)), []);
+
+  /** Finishing remembers both the date and the steps that stayed unfinished. */
+  const finishWizard = useCallback(async () => {
+    await patchSettings(finishPatch(skipped));
+    setWizardStep(null);
+    setTab('copilot');
+  }, [patchSettings, skipped]);
+
+  /** Closing without finishing still persists the skips, so nothing is silently lost. */
+  const closeWizard = useCallback(async () => {
+    setWizardStep(null);
+    await patchSettings({ setupSkipped: skipped });
+  }, [patchSettings, skipped]);
+
   const toggleSection = (id: string) => void patchSettings({ sidebar: { ...settings.sidebar, [id]: !settings.sidebar?.[id] } });
 
   const chatOp = (op: Promise<ChatMeta[]>) => op.then(setChats);
@@ -333,6 +403,7 @@ export function App() {
         onToggleSection={toggleSection}
         onLaunchTv={launchTv}
         onRefreshStatus={refreshStatus}
+        onOpenWizard={openWizard}
         onQuick={quick}
         onHealth={(k) => void healthCheck(k)}
         onNewChat={() => void newChat()}
@@ -358,15 +429,42 @@ export function App() {
           ) : tab === 'workflows' ? (
             <WorkflowsTab workflows={workflows} activeId={activeWorkflow?.id ?? ''} busy={streaming} onActivate={(id) => void patchSettings({ activeWorkflow: id })} onRun={(p) => void quick(p)} />
           ) : tab === 'settings' ? (
-            <SettingsTab settings={settings} profile={profile} status={status} workflows={workflows} onSettings={(patch) => void patchSettings(patch)} onSecret={(n, v) => void setSecret(n, v)} onProfile={(p) => void desk.profile.set(p).then(setProfile)} />
+            <SettingsTab
+              settings={settings}
+              profile={profile}
+              status={status}
+              workflows={workflows}
+              preflight={preflight}
+              preflightBusy={preflightBusy}
+              onPreflight={() => void runPreflight()}
+              onFix={(fix) => void applyFix(fix)}
+              onOpenWizard={openWizard}
+              onSettings={(patch) => void patchSettings(patch)}
+              onSecret={(n, v) => void setSecret(n, v)}
+              onProfile={(p) => void desk.profile.set(p).then(setProfile)}
+            />
           ) : (
-            <HelpTab />
+            <HelpTab onOpenWizard={openWizard} />
           )}
           {tab === 'copilot' && current ? (
             <ReportDrawer open={drawerOpen} reports={reports} selectedId={drawerReportId} onSelect={setDrawerReportId} onDelete={(id) => void chatOp(desk.chats.deleteReport(current.key, id))} onClose={() => setDrawerOpen(false)} />
           ) : null}
         </CardActionsContext.Provider>
       </main>
+      {wizardStep ? (
+        <SetupWizard
+          step={wizardStep}
+          result={preflight}
+          busy={preflightBusy}
+          skipped={skipped}
+          onStep={setWizardStep}
+          onSkip={skipStep}
+          onRecheck={() => void runPreflight()}
+          onFix={(fix) => void applyFix(fix)}
+          onFinish={() => void finishWizard()}
+          onClose={() => void closeWizard()}
+        />
+      ) : null}
     </div>
   );
 }

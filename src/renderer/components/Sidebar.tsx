@@ -5,6 +5,7 @@ import type { ChatKind, ChatMeta, Settings, Status, WorkflowPrompt } from '@shar
 import { CHAT_KINDS } from '@shared/api';
 import { GradeBadge } from '../blocks';
 import { t } from '../i18n';
+import { limitationKeys } from '../setup';
 import { groupChats, latestReport, QUICK_PROMPTS, SHELF_KINDS, versionCount, type Bucket } from '../state';
 
 export interface SidebarProps {
@@ -17,6 +18,8 @@ export interface SidebarProps {
   onToggleSection: (id: string) => void;
   onLaunchTv: () => void;
   onRefreshStatus: () => void;
+  /** Reopen the setup wizard, offered next to whatever a skipped step broke. */
+  onOpenWizard: () => void;
   /** Active workflow's quick prompts; falls back to the built-in list. */
   quickPrompts: WorkflowPrompt[];
   onQuick: (prompt: string) => void;
@@ -187,6 +190,17 @@ export function Sidebar(p: SidebarProps) {
           </button>
         </div>
         {p.tvMessage ? <div class="tv-message">{p.tvMessage}</div> : null}
+        {/* A red light the user chose to live with: say why, and how to reopen the wizard. */}
+        {limitationKeys(p.settings).map((key) => (
+          <div class="tv-message" key={key}>
+            {t(key)}
+          </div>
+        ))}
+        {limitationKeys(p.settings).length ? (
+          <button type="button" class="link" onClick={p.onOpenWizard}>
+            {t('setup.open')}
+          </button>
+        ) : null}
       </Section>
 
       <Section id="quick" title={t('sidebar.quick')} collapsed={collapsed('quick')} onToggle={p.onToggleSection}>

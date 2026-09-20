@@ -1,10 +1,22 @@
-// Static help: connection diagram, three steps, troubleshooting.
+// Static help: connection diagram, three steps, troubleshooting — plus the one
+// button that turns "it does not work" into a list of next steps.
 import { t } from '../i18n';
 
-export function HelpTab() {
+export interface HelpTabProps {
+  onOpenWizard: () => void;
+}
+
+export function HelpTab(p: HelpTabProps) {
   return (
     <section class="page">
       <h2>{t('help.title')}</h2>
+
+      <p class="help-wizard">
+        {t('help.wizard')}{' '}
+        <button type="button" class="primary" onClick={p.onOpenWizard}>
+          {t('setup.open')}
+        </button>
+      </p>
 
       <h3>{t('help.howTitle')}</h3>
       <div class="diagram">

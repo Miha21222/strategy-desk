@@ -1,15 +1,24 @@
-// Settings tab: Claude auth, tvmcp, the day/risk files, model/effort,
-// permissions, theme, trader profile.
+// Settings tab: the diagnosis, Claude auth, tvmcp, the day/risk files,
+// model/effort, permissions, theme, trader profile.
 import { useEffect, useState } from 'preact/hooks';
 import type { ChatKind, EffortLevel, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
+import type { PreflightFix, PreflightResult } from '@shared/preflight';
 import { t } from '../i18n';
+import { limitationKeys } from '../setup';
 import { SHELF_KINDS } from '../state';
+import { PreflightList } from './PreflightList';
 
 export interface SettingsTabProps {
   settings: Settings;
   profile: TraderProfile;
   status: Status | null;
   workflows: WorkflowDef[];
+  /** The last diagnosis; null until the user asks for one. */
+  preflight: PreflightResult | null;
+  preflightBusy: boolean;
+  onPreflight: () => void;
+  onFix: (fix: PreflightFix) => void;
+  onOpenWizard: () => void;
   onSettings: (patch: SettingsPatch) => void;
   onSecret: (name: 'apiKey' | 'oauthToken', value: string | null) => void;
   onProfile: (p: TraderProfile) => void;
@@ -59,6 +68,7 @@ export function SettingsTab(p: SettingsTabProps) {
     tvDesktopExe: s.tvDesktopExe,
     riskRulesPath: s.riskRulesPath,
     journalPath: s.journalPath,
+    fieldNotesPath: s.fieldNotesPath,
   });
 
   useEffect(() => {
@@ -75,8 +85,9 @@ export function SettingsTab(p: SettingsTabProps) {
       tvDesktopExe: s.tvDesktopExe,
       riskRulesPath: s.riskRulesPath,
       journalPath: s.journalPath,
+      fieldNotesPath: s.fieldNotesPath,
     });
-  }, [s.tvmcpPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe, s.riskRulesPath, s.journalPath]);
+  }, [s.tvmcpPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
 
   const commitText = (key: keyof typeof text) => {
     const v = text[key].trim();
@@ -116,6 +127,22 @@ export function SettingsTab(p: SettingsTabProps) {
       <h2>{t('settings.title')}</h2>
 
       <fieldset>
+        <legend>{t('preflight.title')}</legend>
+        <div class="muted">{t('preflight.intro')}</div>
+        <PreflightList result={p.preflight} busy={p.preflightBusy} onRecheck={p.onPreflight} onFix={p.onFix} />
+        {limitationKeys(s).map((key) => (
+          <p class="notice warn" key={key}>
+            {t(key)}
+          </p>
+        ))}
+        <div class="btn-row">
+          <button type="button" onClick={p.onOpenWizard}>
+            {t('setup.open')}
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>{t('settings.claude')}</legend>
         <div class="muted">
           {t('settings.currentAuth')}: {p.status ? t(`claude.${p.status.claude}`) : '…'}
@@ -148,6 +175,7 @@ export function SettingsTab(p: SettingsTabProps) {
         <legend>{t('settings.dayDesk')}</legend>
         {textField('riskRulesPath', t('settings.riskRulesPath'), t('settings.riskRulesHint'))}
         {textField('journalPath', t('settings.journalPath'), t('settings.journalHint'))}
+        {textField('fieldNotesPath', t('settings.fieldNotesPath'), t('settings.fieldNotesHint'))}
         <label class="field">
           <span>{t('settings.shelfWorkflows')}</span>
           <div class="shelf-map">

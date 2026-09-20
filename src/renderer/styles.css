@@ -605,3 +605,205 @@ legend {
 .diagram .arrow {
   color: var(--fg-muted);
 }
+
+/* ---------- preflight: the check list, shared by the wizard and the settings ---------- */
+
+.preflight {
+  margin: 8px 0 4px;
+}
+.pf-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pf-row {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--unknown);
+  border-radius: var(--radius);
+}
+.pf-row.ok {
+  border-left-color: var(--ok);
+}
+.pf-row.warn {
+  border-left-color: var(--warn);
+}
+.pf-row.fail {
+  border-left-color: var(--err);
+}
+.pf-mark {
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--unknown);
+}
+.pf-mark.ok {
+  color: var(--ok);
+}
+.pf-mark.warn {
+  color: var(--warn);
+}
+.pf-mark.fail {
+  color: var(--err);
+}
+.pf-body {
+  flex: 1;
+  min-width: 0;
+}
+.pf-title {
+  font-weight: 600;
+}
+.pf-detail {
+  color: var(--fg-muted);
+  margin-top: 2px;
+  word-break: break-word;
+}
+.fix {
+  margin-top: 8px;
+}
+.fix-note {
+  margin: 6px 0;
+  color: var(--fg);
+}
+.fix-copy {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.fix-copy code {
+  flex: 1;
+  min-width: 220px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.fix details summary {
+  cursor: pointer;
+  color: var(--fg-muted);
+  margin-top: 6px;
+}
+.notice.warn {
+  border-left: 3px solid var(--warn);
+  background: var(--bg-elev);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin: 8px 0 0;
+}
+
+/* ---------- the setup wizard ---------- */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: min(760px, 92vw);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal > header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.modal > footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+}
+.modal > footer .spacer {
+  flex: 1;
+}
+.wizard-body {
+  padding: 12px 16px;
+  overflow-y: auto;
+}
+.wizard-summary {
+  padding: 0 16px 12px;
+}
+.wizard-steps {
+  display: flex;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 10px 16px 0;
+  flex-wrap: wrap;
+}
+.wizard-steps button {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-muted);
+  padding: 4px 6px;
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wizard-steps li.on button {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+.wizard-steps .num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 11px;
+}
+.wizard-steps li.ok .num {
+  color: var(--ok);
+}
+.wizard-steps li.skipped .num {
+  color: var(--warn);
+}
+button.link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 0;
+  text-align: left;
+}
+.help-wizard button {
+  margin-left: 6px;
+}
