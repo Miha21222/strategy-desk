@@ -3,7 +3,7 @@
 // assembled = base prompt (prompt/system-prompt.md)
 //           + "## Hub" (app version)
 //           + "## Trader profile" (profile.json)
-//           + "## Live field notes" (data/copilot-notes.md, optional)
+//           + "## Live field notes" (settings.fieldNotesPath, else data/copilot-notes.md — optional)
 //           + workflow prompt block (workflows/<id>/prompt.md, optional)
 //
 // The text is assembled once when a chat is created, written to
@@ -34,7 +34,24 @@ export async function loadBasePrompt(): Promise<string> {
   return (await readResource('prompt', 'system-prompt.md'))?.trim() || FALLBACK_PROMPT;
 }
 
-export async function loadFieldNotes(): Promise<string | null> {
+/**
+ * The "Live field notes" section: the landmines this project has already paid
+ * for, handed to every chat as facts rather than guesses.
+ *
+ * With `fieldNotesPath` set the override wins outright — if the owner points at
+ * a file that is not there, the answer is "no notes", not "quietly the shipped
+ * ones". A missing file is never an error: the prompt simply has no such
+ * section.
+ */
+export async function loadFieldNotes(overridePath?: string): Promise<string | null> {
+  const override = (overridePath ?? '').trim();
+  if (override) {
+    try {
+      return (await fs.readFile(override, 'utf8')).trim() || null;
+    } catch {
+      return null;
+    }
+  }
   return (await readResource('data', 'copilot-notes.md'))?.trim() ?? null;
 }
 
@@ -50,7 +67,7 @@ export function profileBlock(p: TraderProfile): string {
   return lines.length ? `## Trader profile\n${lines.join('\n')}` : '';
 }
 
-function notesBlock(notes: string | null): string {
+export function notesBlock(notes: string | null): string {
   if (!notes) return '';
   // The notes file carries its own "# Live field notes" heading; normalise to h2.
   const body = notes.replace(/^#\s+Live field notes\s*\n/i, '').trim();
@@ -71,8 +88,8 @@ export function hashPrompt(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex').slice(0, 16);
 }
 
-export async function assemblePrompt(profile: TraderProfile, workflow: WorkflowDef | null): Promise<AssembledPrompt> {
-  const [base, notes] = await Promise.all([loadBasePrompt(), loadFieldNotes()]);
+export async function assemblePrompt(profile: TraderProfile, workflow: WorkflowDef | null, fieldNotesPath?: string): Promise<AssembledPrompt> {
+  const [base, notes] = await Promise.all([loadBasePrompt(), loadFieldNotes(fieldNotesPath)]);
   const parts = [base, `## Hub\nStrategy Desk app version ${app.getVersion()}.`, profileBlock(profile), notesBlock(notes), workflowBlock(workflow)].filter(Boolean);
   const text = parts.join('\n\n');
   return { text, hash: hashPrompt(text) };
@@ -105,8 +122,10 @@ export async function loadFrozen(hash: string): Promise<string | null> {
 
 /** Assemble + freeze the prompt for a freshly created chat; returns the updated meta. */
 export async function freezeForChat(chat: ChatMeta, workflowId: string | null): Promise<ChatMeta> {
-  const [profile, workflow] = await Promise.all([store.getProfile(), getWorkflow(workflowId)]);
-  const p = await assemblePrompt(profile, workflow);
+  const [profile, workflow, cfg] = await Promise.all([store.getProfile(), getWorkflow(workflowId), store.getSettings()]);
+  // The freeze happens once per chat, so later edits to the notes reach new
+  // chats only — the cache prefix of an existing chat stays byte-identical.
+  const p = await assemblePrompt(profile, workflow, cfg.fieldNotesPath);
   await saveFrozen(p);
   const chats = await store.updateChat(chat.key, { workflowId: workflow?.id ?? null, promptHash: p.hash });
   return chats.find((c) => c.key === chat.key) ?? { ...chat, workflowId: workflow?.id ?? null, promptHash: p.hash };
