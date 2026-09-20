@@ -1,16 +1,19 @@
 // Workflow loader: reads workflows/<id>/workflow.yaml (+ its promptBlock file)
 // from the app directory, validates the shape and caches the result.
-import { app } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import type { WorkflowDef } from '@shared/api';
 import { describeIssues, WorkflowFileSchema } from '@shared/workflow-schema';
+import { resourceCandidates } from './resources';
 
-/** Directories that may contain workflows/, in priority order (dev cwd first). */
+/**
+ * Directories that may contain workflows/, in priority order. `workflows/**` is
+ * listed under `files:` in electron-builder.yml, so in a packaged build the hit
+ * is inside app.asar; `./resource-paths` explains why cwd is dev-only.
+ */
 export function workflowRoots(): string[] {
-  const roots = [path.join(process.cwd(), 'workflows'), path.join(app.getAppPath(), 'workflows')];
-  return [...new Set(roots)];
+  return resourceCandidates('workflows');
 }
 
 async function loadOne(dir: string): Promise<WorkflowDef | null> {

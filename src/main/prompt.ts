@@ -15,34 +15,27 @@ import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { ChatMeta, TraderProfile, WorkflowDef } from '@shared/api';
+import { readResource, resourceCandidates } from './resources';
 import * as store from './store';
 import { getWorkflow } from './workflows';
 
 const FALLBACK_PROMPT =
   'You are a trading research copilot inside Strategy Desk, connected to TradingView Desktop through the `tradingview` MCP server. Call `tv_desktop_status` first when the user asks about their chart. Be concise. Educational only. Answer in the user\'s language.';
 
-/** Candidate locations for a repo-relative resource (dev cwd first, then the packaged app dir). */
-export function resourceCandidates(...rel: string[]): string[] {
-  return [...new Set([path.join(process.cwd(), ...rel), path.join(app.getAppPath(), ...rel)])];
-}
-
-async function readFirst(candidates: string[]): Promise<string | null> {
-  for (const p of candidates) {
-    try {
-      return (await fs.readFile(p, 'utf8')).trim();
-    } catch {
-      /* try next */
-    }
-  }
-  return null;
-}
+/**
+ * Candidate locations for a repo-relative resource: dev cwd, then the packaged
+ * app dir (app.asar, where `files:` entries land), then process.resourcesPath.
+ * The rule lives in `./resources` for every shipped file at once; see
+ * `./resource-paths` for why each candidate exists.
+ */
+export { resourceCandidates };
 
 export async function loadBasePrompt(): Promise<string> {
-  return (await readFirst(resourceCandidates('prompt', 'system-prompt.md'))) ?? FALLBACK_PROMPT;
+  return (await readResource('prompt', 'system-prompt.md'))?.trim() || FALLBACK_PROMPT;
 }
 
 export async function loadFieldNotes(): Promise<string | null> {
-  return readFirst(resourceCandidates('data', 'copilot-notes.md'));
+  return (await readResource('data', 'copilot-notes.md'))?.trim() ?? null;
 }
 
 export function profileBlock(p: TraderProfile): string {

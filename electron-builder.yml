@@ -7,7 +7,14 @@ directories:
   buildResources: resources
 files:
   - out/**
-  - prompt/**
+  # Everything the app READS AT RUNTIME has to be listed here. It all sits in
+  # the working directory during development, so a missing entry costs nothing
+  # in dev and ships an app with no workflows (empty «День» panel) and no prop
+  # firm rules (empty report cards). src/main/resource-paths.ts holds the
+  # matching lookup order.
+  - prompt/**       # system-prompt.md — the base system prompt
+  - data/**         # prop-firms.json (rule book) + copilot-notes.md (field notes)
+  - workflows/**    # workflow.yaml + prompt.md per strategy; the «День» panel
   - package.json
 asarUnpack:
   # The Agent SDK spawns a native Claude Code binary (shipped in the platform
