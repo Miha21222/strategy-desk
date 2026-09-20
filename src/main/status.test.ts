@@ -6,29 +6,32 @@
 // later with a confusing error. The owner of the port now travels with the
 // status so the light can say what is actually true.
 import { describe, expect, it, vi } from 'vitest';
+import type { CdpProbe } from '@shared/preflight';
 
 vi.mock('electron', () => ({ app: { getPath: () => '/tmp/desk-test' } }));
 
 const { cdpOwnerLabel } = await import('./status');
 
-const probe = (over: Record<string, unknown> = {}) => ({
+const target = (over: Partial<CdpProbe['targets'][number]> = {}) => ({ url: '', title: '', ...over });
+
+const probe = (over: Partial<CdpProbe> = {}): CdpProbe => ({
   up: true,
   browser: 'Chrome/150.0.7871.46',
   chartTab: false,
   tradingview: false,
-  targets: [] as { title?: string; url?: string }[],
+  targets: [],
   ...over,
 });
 
 describe('cdpOwnerLabel', () => {
   it('prefers the tab title, which is what a person recognises', () => {
     expect(
-      cdpOwnerLabel(probe({ targets: [{ title: 'FX Replay - Chart', url: 'https://app.fxreplay.com/' }] })),
+      cdpOwnerLabel(probe({ targets: [target({ title: 'FX Replay - Chart', url: 'https://app.fxreplay.com/' })] })),
     ).toBe('FX Replay - Chart');
   });
 
   it('falls back to the host when the tab has no title', () => {
-    expect(cdpOwnerLabel(probe({ targets: [{ title: '', url: 'https://app.fxreplay.com/chart/1' }] }))).toBe(
+    expect(cdpOwnerLabel(probe({ targets: [target({ url: 'https://app.fxreplay.com/chart/1' })] }))).toBe(
       'app.fxreplay.com',
     );
   });
@@ -43,10 +46,10 @@ describe('cdpOwnerLabel', () => {
 
   it('keeps a long title readable', () => {
     const long = 'x'.repeat(200);
-    expect(cdpOwnerLabel(probe({ targets: [{ title: long }] })).length).toBeLessThanOrEqual(60);
+    expect(cdpOwnerLabel(probe({ targets: [target({ title: long })] })).length).toBeLessThanOrEqual(60);
   });
 
   it('survives a malformed url instead of throwing', () => {
-    expect(cdpOwnerLabel(probe({ targets: [{ title: '', url: 'not a url' }] }))).toBe('not a url');
+    expect(cdpOwnerLabel(probe({ targets: [target({ url: 'not a url' })] }))).toBe('not a url');
   });
 });
