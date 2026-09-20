@@ -120,6 +120,8 @@ export interface Status {
   tvRunning: boolean;
   cdpUp: boolean;
   chartTab: boolean;
+  /** Non-empty when the port answers but the owner is NOT TradingView; names it. */
+  cdpOwner: string;
   /** null = check not finished / uv missing; see tvmcpError. */
   tvmcpOk: boolean | null;
   tvmcpTools: number;

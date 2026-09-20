@@ -11,6 +11,8 @@ export const en: Widen<Dict> = {
     connections: 'Connections',
     tvRunning: 'TradingView running',
     cdpPort: 'CDP port',
+    cdpForeign: 'held by another app',
+    cdpForeignHint: 'Port {port} answers, but its owner is "{owner}", not TradingView. Change the port in settings or close that app - otherwise the chart tools fail quietly.',
     tvmcp: 'tvmcp server',
     claude: 'Claude',
     launchTv: 'Launch TradingView',

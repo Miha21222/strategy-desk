@@ -178,7 +178,15 @@ export function Sidebar(p: SidebarProps) {
     <aside class="sidebar">
       <Section id="connections" title={t('sidebar.connections')} collapsed={collapsed('connections')} onToggle={p.onToggleSection}>
         <Light on={s ? s.tvRunning : null} label={t('sidebar.tvRunning')} />
-        <Light on={s ? s.cdpUp : null} label={`${t('sidebar.cdpPort')} ${p.settings.cdpPort}${s?.chartTab ? ' · chart' : ''}`} />
+        <Light
+          on={s ? s.cdpUp && !s.cdpOwner : null}
+          label={
+            s?.cdpOwner
+              ? `${t('sidebar.cdpPort')} ${p.settings.cdpPort} · ${t('sidebar.cdpForeign')}`
+              : `${t('sidebar.cdpPort')} ${p.settings.cdpPort}${s?.chartTab ? ' · chart' : ''}`
+          }
+          hint={s?.cdpOwner ? t('sidebar.cdpForeignHint', { owner: s.cdpOwner, port: String(p.settings.cdpPort) }) : undefined}
+        />
         <Light on={s ? s.tvmcpOk : null} label={`${t('sidebar.tvmcp')}${s?.tvmcpOk ? ` · ${s.tvmcpTools} ${t('sidebar.tools')}` : ''}`} hint={s?.tvmcpError} />
         <Light on={s ? s.claude !== 'none' : null} label={`${t('sidebar.claude')} · ${s ? t(`claude.${s.claude}`) : '…'}`} />
         <div class="btn-row">

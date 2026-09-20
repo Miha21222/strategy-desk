@@ -221,6 +221,8 @@ export const ru = {
     connections: 'Соединения',
     tvRunning: 'TradingView запущен',
     cdpPort: 'Порт CDP',
+    cdpForeign: 'занят другим приложением',
+    cdpForeignHint: 'На порту {port} отвечает не TradingView, а «{owner}». Смените порт в настройках или закройте это приложение — иначе инструменты графика будут молча не работать.',
     tvmcp: 'Сервер tvmcp',
     claude: 'Claude',
     launchTv: 'Запустить TradingView',

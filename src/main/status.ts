@@ -72,9 +72,32 @@ export async function cdpProbe(port: number, timeoutMs = 1500): Promise<CdpProbe
   return { up: true, browser: String(version.Browser ?? '').trim(), chartTab, tradingview, targets };
 }
 
-export async function cdpStatus(port: number): Promise<{ cdpUp: boolean; chartTab: boolean }> {
+export async function cdpStatus(
+  port: number,
+): Promise<{ cdpUp: boolean; chartTab: boolean; cdpOwner: string }> {
   const probe = await cdpProbe(port);
-  return { cdpUp: probe.up, chartTab: probe.chartTab };
+  // "Something answers on the debug port" is not "TradingView is there": any
+  // Chromium app can own it (FX Replay and browser panels both do on this
+  // machine). Reporting `up` alone made the light green while every desktop
+  // tool failed later, so the owner travels with the status.
+  const owner = probe.up && !probe.tradingview ? cdpOwnerLabel(probe) : '';
+  return { cdpUp: probe.up, chartTab: probe.chartTab, cdpOwner: owner };
+}
+
+/** Best available name for whatever holds the port: tab title, then host, then browser string. */
+export function cdpOwnerLabel(probe: CdpProbe): string {
+  const first = probe.targets[0];
+  const title = String(first?.title ?? '').trim();
+  if (title) return title.slice(0, 60);
+  const url = String(first?.url ?? '').trim();
+  if (url) {
+    try {
+      return new URL(url).host;
+    } catch {
+      return url.slice(0, 60);
+    }
+  }
+  return probe.browser || 'неизвестное приложение';
 }
 
 export async function tvmcpStatus(cfg: Settings): Promise<{ ok: boolean; tools: number; error: string }> {
@@ -122,6 +145,7 @@ export async function getStatus(cfg: Settings): Promise<Status> {
     tvRunning,
     cdpUp: cdp.cdpUp,
     chartTab: cdp.chartTab,
+    cdpOwner: cdp.cdpOwner,
     tvmcpOk: tvmcp.ok,
     tvmcpTools: tvmcp.tools,
     tvmcpError: tvmcp.error,
