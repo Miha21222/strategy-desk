@@ -1,6 +1,6 @@
 {
   "name": "strategy-desk",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Strategy Desk - desktop chat shell over the tradingview MCP server (tvmcp) powered by the Claude Agent SDK",
   "main": "./out/main/index.js",
@@ -11,7 +11,10 @@
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
-    "dist": "electron-vite build && electron-builder --dir"
+    "icons": "node scripts/make-icons.mjs",
+    "dist": "electron-vite build && electron-builder --win nsis",
+    "dist:dir": "electron-vite build && electron-builder --dir",
+    "dist:check": "node scripts/dist-check.mjs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.278",
