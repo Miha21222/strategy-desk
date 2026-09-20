@@ -823,3 +823,173 @@ tr.oos td {
   align-items: baseline;
   margin-bottom: 4px;
 }
+
+/* ---------- «День»: the panel the app drives by itself ---------- */
+.day-panel h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.panel-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.panel-toolbar .spacer {
+  flex: 1;
+}
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.panel-grid .card {
+  margin: 0;
+}
+.panel-card.loading .card-head {
+  color: var(--fg-muted);
+}
+.panel-card.error {
+  border-color: var(--warn-c);
+}
+.panel-card .card-head .spacer {
+  flex: 1;
+}
+.panel-error {
+  font-size: 13px;
+  color: var(--warn-c);
+}
+.panel-warnings {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.panel-hint {
+  font-size: 12px;
+  color: var(--warn-c);
+  border-left: 3px solid var(--warn-c);
+  padding: 4px 8px;
+  margin: 8px 0;
+}
+.panel-stat-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+.panel-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.panel-table td {
+  padding: 3px 6px;
+  border-top: 1px solid var(--border);
+  vertical-align: top;
+}
+.panel-table td.nowrap {
+  white-space: nowrap;
+}
+.panel-table tr.high-impact td {
+  background: color-mix(in srgb, var(--bad) 10%, transparent);
+  font-weight: 600;
+}
+.panel-table tr.risk-stop td {
+  color: var(--bad);
+}
+.panel-table tr.risk-unknown td {
+  color: var(--warn-c);
+}
+.panel-table .dot {
+  display: inline-block;
+  margin-right: 6px;
+}
+.verdict.risk-ok {
+  background: var(--good);
+}
+.verdict.risk-flag {
+  background: var(--warn-c);
+}
+.verdict.risk-stop {
+  background: var(--bad);
+}
+.verdict.risk-unknown {
+  background: var(--unknown);
+}
+.tag.warn {
+  background: var(--warn-c);
+  color: #fff;
+}
+.tag.bad {
+  background: var(--bad);
+  color: #fff;
+}
+fieldset.watch {
+  margin-top: 14px;
+}
+fieldset.watch .btn-row {
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+fieldset.watch .btn-row.replay input {
+  width: auto;
+}
+.feed {
+  max-height: 360px;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+.feed-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 4px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.feed-time {
+  font-family: var(--mono);
+  color: var(--fg-muted);
+  flex: none;
+}
+.feed-type {
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  flex: none;
+  min-width: 132px;
+}
+.feed-payload {
+  font-family: var(--mono);
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+.feed-row.ev-RANGE_CLOSED .feed-type,
+.feed-row.ev-BREAK_CONFIRMED .feed-type {
+  color: var(--accent);
+}
+.feed-row.ev-SWEEP .feed-type {
+  color: var(--warn-c);
+}
+.feed-row.ev-NO_DATA .feed-type,
+.feed-row.ev-STALE_DATA .feed-type {
+  color: var(--bad);
+}
+.shelf-map {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 6px;
+}
+.shelf-map .inline {
+  gap: 6px;
+}
+.shelf-map .shelf-name {
+  min-width: 130px;
+  font-size: 12px;
+  color: var(--fg-muted);
+}

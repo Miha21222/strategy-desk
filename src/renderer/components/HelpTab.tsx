@@ -27,6 +27,13 @@ export function HelpTab() {
         <li>{t('help.step3')}</li>
       </ol>
 
+      <h3>{t('help.dayTitle')}</h3>
+      <ul>
+        <li>{t('help.day1')}</li>
+        <li>{t('help.day2')}</li>
+        <li>{t('help.day3')}</li>
+      </ul>
+
       <h3>{t('help.troubleTitle')}</h3>
       <ul>
         <li>{t('help.t1')}</li>

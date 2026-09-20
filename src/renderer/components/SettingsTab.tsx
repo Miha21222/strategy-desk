@@ -1,12 +1,15 @@
-// Settings tab: Claude auth, tvmcp, model/effort, permissions, theme, trader profile.
+// Settings tab: Claude auth, tvmcp, the day/risk files, model/effort,
+// permissions, theme, trader profile.
 import { useEffect, useState } from 'preact/hooks';
-import type { EffortLevel, Settings, SettingsPatch, Status, TraderProfile } from '@shared/api';
+import type { ChatKind, EffortLevel, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
 import { t } from '../i18n';
+import { SHELF_KINDS } from '../state';
 
 export interface SettingsTabProps {
   settings: Settings;
   profile: TraderProfile;
   status: Status | null;
+  workflows: WorkflowDef[];
   onSettings: (patch: SettingsPatch) => void;
   onSecret: (name: 'apiKey' | 'oauthToken', value: string | null) => void;
   onProfile: (p: TraderProfile) => void;
@@ -48,7 +51,15 @@ export function SettingsTab(p: SettingsTabProps) {
   const [profile, setProfile] = useState<TraderProfile>(p.profile);
   const [checklist, setChecklist] = useState(p.profile.morningChecklist.join('\n'));
   const [savedAt, setSavedAt] = useState(0);
-  const [text, setText] = useState({ tvmcpPath: s.tvmcpPath, cdpPort: String(s.cdpPort), toolsets: s.toolsets, model: s.model, tvDesktopExe: s.tvDesktopExe });
+  const [text, setText] = useState({
+    tvmcpPath: s.tvmcpPath,
+    cdpPort: String(s.cdpPort),
+    toolsets: s.toolsets,
+    model: s.model,
+    tvDesktopExe: s.tvDesktopExe,
+    riskRulesPath: s.riskRulesPath,
+    journalPath: s.journalPath,
+  });
 
   useEffect(() => {
     setProfile(p.profile);
@@ -56,8 +67,16 @@ export function SettingsTab(p: SettingsTabProps) {
   }, [p.profile]);
 
   useEffect(() => {
-    setText({ tvmcpPath: s.tvmcpPath, cdpPort: String(s.cdpPort), toolsets: s.toolsets, model: s.model, tvDesktopExe: s.tvDesktopExe });
-  }, [s.tvmcpPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe]);
+    setText({
+      tvmcpPath: s.tvmcpPath,
+      cdpPort: String(s.cdpPort),
+      toolsets: s.toolsets,
+      model: s.model,
+      tvDesktopExe: s.tvDesktopExe,
+      riskRulesPath: s.riskRulesPath,
+      journalPath: s.journalPath,
+    });
+  }, [s.tvmcpPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe, s.riskRulesPath, s.journalPath]);
 
   const commitText = (key: keyof typeof text) => {
     const v = text[key].trim();
@@ -122,6 +141,40 @@ export function SettingsTab(p: SettingsTabProps) {
         <label class="check">
           <input type="checkbox" checked={s.officialMcp} onChange={(e) => p.onSettings({ officialMcp: (e.target as HTMLInputElement).checked })} />
           <span>{t('settings.officialMcp')}</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>{t('settings.dayDesk')}</legend>
+        {textField('riskRulesPath', t('settings.riskRulesPath'), t('settings.riskRulesHint'))}
+        {textField('journalPath', t('settings.journalPath'), t('settings.journalHint'))}
+        <label class="field">
+          <span>{t('settings.shelfWorkflows')}</span>
+          <div class="shelf-map">
+            {SHELF_KINDS.map((k: ChatKind) => (
+              <label class="inline" key={k}>
+                <span class="shelf-name">{t(`shelf.${k}`)}</span>
+                <select
+                  value={s.shelfWorkflows?.[k] ?? ''}
+                  onChange={(e) => {
+                    const v = (e.target as HTMLSelectElement).value;
+                    const next = { ...(s.shelfWorkflows ?? {}) };
+                    if (v) next[k] = v;
+                    else delete next[k];
+                    p.onSettings({ shelfWorkflows: next });
+                  }}
+                >
+                  <option value="">{t('settings.shelfDefault')}</option>
+                  {p.workflows.map((w) => (
+                    <option value={w.id} key={w.id}>
+                      {w.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))}
+          </div>
+          <small>{t('settings.shelfWorkflowsHint')}</small>
         </label>
       </fieldset>
 

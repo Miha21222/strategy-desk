@@ -1,0 +1,30 @@
+{
+  "_": "EXAMPLE rules for tv_risk_guard, shaped like the owner's account layer (spec note 13, part 1.7). COPY this file, put YOUR own numbers in the copy and point Settings -> «Правила риска (JSON)» at it. The app ships no thresholds of its own and never reads this file unless you select it.",
+  "version": 1,
+
+  "percent_base": "starting_balance",
+
+  "risk_per_r": {
+    "pct_of_account": 1.0,
+    "_": "1R = 1 % of the account, as the spec states. Set to null and any R <-> money conversion reports 'unknown' instead of guessing."
+  },
+
+  "session": {
+    "trading_days": [0, 1, 2, 3, 4],
+    "week_start": "monday",
+    "session_calendar": "weekdays"
+  },
+
+  "checks": {
+    "daily_loss": { "enabled": true, "limit": { "pct": 2.0 }, "status": "stop", "_": "E1" },
+    "weekly_loss": { "enabled": true, "limit": { "pct": 3.0 }, "window": "calendar", "status": "stop", "_": "E7" },
+    "monthly_loss": { "enabled": true, "limit": { "pct": 6.0 }, "window": "calendar", "status": "stop", "_": "E8" },
+    "max_losses_per_day": { "enabled": true, "max": 1, "status": "stop", "_": "E3 — one attempt a day" },
+    "max_trades_per_day": { "enabled": true, "max": 1, "status": "flag", "_": "E5 — one position" },
+    "max_trades_per_week": { "enabled": true, "max": 3, "status": "flag", "_": "E6 — the course expects 1–2 a week" },
+    "consecutive_losses": { "enabled": true, "losses": 2, "cooldown_sessions": 1, "status": "stop", "_": "E9" },
+    "floor_buffer": { "enabled": true, "buffer": { "pct": 2.0 }, "status": "stop", "_": "E2 — room left above the prop floor; the floor itself comes from the account block in the workflow yaml" },
+    "idle": { "enabled": true, "sessions": 20, "status": "flag", "_": "E10 — the prop closes an account after 30 days without a trade" },
+    "min_rest": { "enabled": false, "minutes": 60, "status": "flag" }
+  }
+}

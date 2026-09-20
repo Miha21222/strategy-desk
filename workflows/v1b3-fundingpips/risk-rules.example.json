@@ -1,0 +1,38 @@
+{
+  "_": "EXAMPLE rules for tv_risk_guard on a FundingPips 2 Step Standard $10K account (audit note 09, section 5). COPY this file, put YOUR own numbers in the copy and point Settings -> «Правила риска (JSON)» at it. The app ships no thresholds of its own. The floor itself ($9,000 static) is account geometry and lives in the workflow yaml's panel.risk.account, not here.",
+  "version": 1,
+
+  "percent_base": "starting_balance",
+
+  "risk_per_r": {
+    "currency": 50,
+    "_": "1R = 0.5 % of $10,000 = $50, the risk actually used from trade 4 on."
+  },
+
+  "session": {
+    "trading_days": [0, 1, 2, 3, 4],
+    "week_start": "monday",
+    "session_calendar": "weekdays"
+  },
+
+  "checks": {
+    "daily_loss": {
+      "enabled": true,
+      "limit": { "pct": 5.0 },
+      "status": "stop",
+      "_": "The prop's own daily limit: 5 % of the greater of balance/equity at the day's open, reset 00:00 UTC+3, floating counted. Tighten it in YOUR copy if you want a personal limit below the prop's."
+    },
+    "floor_buffer": {
+      "enabled": true,
+      "buffer": { "pct": 2.0 },
+      "status": "stop",
+      "_": "Room left above the static $9,000 floor. Breach counts at the moment of touch, even if the trade later closes green."
+    },
+    "max_trades_per_day": { "enabled": true, "max": 1, "status": "flag", "_": "The realised pace is 0.29 trades a day; more than one is a change of behaviour worth noticing." },
+    "consecutive_losses": { "enabled": true, "losses": 2, "cooldown_sessions": 1, "status": "flag", "_": "After 20.07 and 23.07 the user stopped for twelve days on their own. Written down, it becomes a rule instead of a mood." },
+    "idle": { "enabled": true, "sessions": 20, "status": "flag", "_": "The account closes after 30 days without a closed trade; flag well before that." },
+    "weekly_loss": { "enabled": false, "limit": { "pct": 3.0 }, "window": "calendar", "status": "stop" },
+    "monthly_loss": { "enabled": false, "limit": { "pct": 6.0 }, "window": "calendar", "status": "stop" },
+    "profit_target_week": { "enabled": false, "target": { "pct": 4.0 }, "status": "flag" }
+  }
+}

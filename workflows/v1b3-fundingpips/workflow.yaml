@@ -1,0 +1,116 @@
+# «V1B3 на FundingPips» — the owner's own SMC system on a two-step prop account.
+#
+# This workflow exists to prove the panel layer is not shaped around one day: a
+# forex/CFD strategy with no session-range watch, whose panel is a risk desk.
+# Every number below is the owner's, taken from the audit note; none of it lives
+# in TypeScript, and the account limits that change (balance, phase progress)
+# belong in the rules JSON the user points the settings at.
+id: v1b3-fundingpips
+title: V1B3 на FundingPips
+description: >-
+  Торговля по своей ТС (H4 KL → H1 VC → m15 VC, плюс IDM Direct) на проп-счёте
+  FundingPips 2 Step Standard $10K. Панель — риск-деск: правила риска, календарь
+  дня и сводка журнала. Без сторожа сессии: сетап ищется руками по плану.
+promptBlock: prompt.md
+shelves: [journal, performance, strategy]
+
+quickPrompts:
+  - id: planSetup
+    label: Разобрать сетап
+    prompt: >-
+      Walk a setup with me on the pair I name. Top down: D1 dealing range and where we sit in it,
+      H4 key level, H1 volume confirmation, m15 entry. Tell me which of S1 (cascade VC) or S2
+      (IDM direct) this is, where point B is, what the FTA between entry and B is, and what
+      invalidates it. Stop first, then RR, then the decision — never RR first.
+  - id: premiumDiscount
+    label: Premium / Discount
+    prompt: >-
+      Check the hard filter on the pair I name: draw the dealing range from the last completed
+      high-to-low swing on the timeframe I give you, and tell me whether the key level I am looking
+      at sits in Premium, in Discount or near equilibrium. A short is only valid from Premium, a
+      long only from Discount, and a level near equilibrium is not a setup.
+  - id: logTrade
+    label: Записать сделку
+    prompt: >-
+      Log the trade I just closed. Ask me for what you cannot know: pair, model (S1 / S2), entry
+      timeframe, session, entry / stop / exit prices, the actual R, whether it hit break-even or a
+      partial, the SL variant (2A m15 VC / 2B H1 VC / 2C H4 KL), whether an m15 VC formed at all,
+      the time in the trade, and whether H1 KL was reached before H4 KL. Then give me the row as
+      plain text I can paste, and one line on what it says about the axes under test.
+  - id: riskToday
+    label: Можно ли торговать
+    prompt: >-
+      Read the risk verdict the «День» panel already fetched and tell me in one sentence whether I
+      am allowed to trade today, and if not, which of my own rules says no. Do not re-fetch it;
+      if a check reads "unknown", name the missing number instead of calling it fine.
+  - id: journalHoles
+    label: Дыры в журнале
+    prompt: >-
+      From the journal summary the panel loaded, tell me which fields are still missing for the
+      questions I actually want answered: actual R (not planned), time in the trade, break-even and
+      partials, missed setups with a reason, and the SL variant. Say what I cannot compute without them.
+
+reports:
+  - id: propPace
+    label: Темп по фазе
+    prompt: >-
+      Phase pace report from the journal summary: realised result, how much of the phase target is
+      left, the average per trading day so far, and how many trading days that implies at the same
+      rate. State the sample size out loud and say where the estimate stops being meaningful.
+  - id: axisReview
+    label: Разбор осей
+    prompt: >-
+      Review the three axes under test from the journal: axis 1 (is the m15 VC needed), axis 2
+      (where the stop sits), axis 3 (how to exit). For each, say how many setups the journal can
+      actually speak for, and refuse to declare a winner below 30. Emit a `prodata` block with the
+      trades so the app does the arithmetic.
+  - id: modelSplit
+    label: Статистика по моделям
+    prompt: >-
+      Split the journal by model (S1 cascade VC vs S2 IDM direct) and by entry timeframe, and report
+      count, win rate and total R per bucket as a `chartcard`. Say plainly which buckets are too
+      small to read, and never average them back into one number.
+  - id: rulesCheck
+    label: Сверка с правилами пропа
+    prompt: >-
+      Compare what the journal shows against the account rules: the static floor, the daily loss
+      limit, the phase target and its minimum trading days, the inactivity window, the weekend-flat
+      rule and the news window. Say which limits have never actually been tested by real trading.
+
+panel:
+  kind: risk-desk
+
+  # tv_risk_guard: `today`, `journal` and `rules_path` come from the settings.
+  # The account block is the geometry of the owner's FundingPips 2 Step Standard
+  # $10K legacy account (audit note, section 5): the floor is static at $9,000
+  # (10 % of the starting balance, it does not trail), 1R = 0.5 % = $50.
+  risk:
+    account:
+      starting_balance: 10000
+      currency: USD
+      max_loss_pct: 10
+      floor_type: static
+      risk_per_r: 50
+
+  # tv_journal_load: the file itself comes from the settings.
+  journal:
+    currency: USD
+    risk_per_r: 50
+    limit: 200
+
+  # The trading window is the London/New York overlap, where the US releases land.
+  calendar:
+    countries: [US, GB, EU]
+    min_impact: high
+
+  askModelOn: []
+
+  prompts:
+    verdict: >-
+      Pre-trading check for the FundingPips account, from the panel's own numbers.
+      Risk verdict: {risk_json}
+      Journal summary: {journal_json}
+      Calendar: {calendar_json}
+      Tell me in three lines whether I trade today, which rule decides it, and what would change
+      that. Name any check that reads "unknown" and the number it is missing — an unknown is never
+      an ok. Finish with one `workflowstate` block, phase "verdict".

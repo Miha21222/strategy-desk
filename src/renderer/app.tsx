@@ -7,6 +7,7 @@ import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 import { CardActionsContext, type CardActions } from './blocks';
 import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
+import { DayPanel } from './components/DayPanel';
 import { HelpTab } from './components/HelpTab';
 import { ReportDrawer } from './components/ReportDrawer';
 import { SettingsTab } from './components/SettingsTab';
@@ -16,8 +17,8 @@ import { t } from './i18n';
 import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
 import type { UiMessage } from './state';
 
-type Tab = 'copilot' | 'workflows' | 'settings' | 'help';
-const TABS: Tab[] = ['copilot', 'workflows', 'settings', 'help'];
+type Tab = 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
+const TABS: Tab[] = ['copilot', 'day', 'workflows', 'settings', 'help'];
 const STATUS_POLL_MS = 20_000;
 
 function applyTheme(theme: Settings['theme']): void {
@@ -192,24 +193,32 @@ export function App() {
     [desk, mode],
   );
 
-  const newChat = useCallback(async (): Promise<string> => {
-    const chat = await desk.chats.create('chat', settings.activeWorkflow || null);
-    await refreshChats();
-    setCurrentKey(chat.key);
-    setMessages([]);
-    setInit(null);
-    setStreaming(false);
-    setDrawerOpen(false);
-    setTab('copilot');
-    return chat.key;
-  }, [desk, refreshChats, settings.activeWorkflow]);
+  const newChat = useCallback(
+    async (focus = true): Promise<string> => {
+      const chat = await desk.chats.create('chat', settings.activeWorkflow || null);
+      await refreshChats();
+      setCurrentKey(chat.key);
+      setMessages([]);
+      setInit(null);
+      setStreaming(false);
+      setDrawerOpen(false);
+      if (focus) setTab('copilot');
+      return chat.key;
+    },
+    [desk, refreshChats, settings.activeWorkflow],
+  );
 
+  /**
+   * Send one library / panel prompt, creating a chat first when none is open.
+   * `focus` is false for a turn the day panel fired by itself: yanking the user
+   * out of the panel mid-session because an event arrived would be rude.
+   */
   const quick = useCallback(
-    async (prompt: string) => {
+    async (prompt: string, focus = true) => {
       if (streaming) return;
-      const key = currentKeyRef.current ?? (await newChat());
+      const key = currentKeyRef.current ?? (await newChat(focus));
       currentKeyRef.current = key;
-      setTab('copilot');
+      if (focus) setTab('copilot');
       send(prompt, key);
     },
     [newChat, send, streaming],
@@ -344,10 +353,12 @@ export function App() {
         <CardActionsContext.Provider value={cardActions}>
           {tab === 'copilot' ? (
             <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
+          ) : tab === 'day' ? (
+            <DayPanel workflow={activeWorkflow} settings={settings} busy={streaming} onAsk={(prompt, focus) => void quick(prompt, focus)} />
           ) : tab === 'workflows' ? (
             <WorkflowsTab workflows={workflows} activeId={activeWorkflow?.id ?? ''} busy={streaming} onActivate={(id) => void patchSettings({ activeWorkflow: id })} onRun={(p) => void quick(p)} />
           ) : tab === 'settings' ? (
-            <SettingsTab settings={settings} profile={profile} status={status} onSettings={(patch) => void patchSettings(patch)} onSecret={(n, v) => void setSecret(n, v)} onProfile={(p) => void desk.profile.set(p).then(setProfile)} />
+            <SettingsTab settings={settings} profile={profile} status={status} workflows={workflows} onSettings={(patch) => void patchSettings(patch)} onSecret={(n, v) => void setSecret(n, v)} onProfile={(p) => void desk.profile.set(p).then(setProfile)} />
           ) : (
             <HelpTab />
           )}
