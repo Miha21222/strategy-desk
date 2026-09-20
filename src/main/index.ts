@@ -3,12 +3,14 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { BLOCK_KINDS } from '@shared/blocks';
 import { sampleAssistantMessage } from '@shared/blocks-sample';
+import { adrFromScan, buildSentinelSpec, levelsArgs, levelsFromScan, todayISO } from '@shared/panel';
 import { parseBlocks } from '../renderer/chat/blocks';
 import { buildEnv, stopAll } from './agent';
 import { registerIpc } from './ipc';
 import { assemblePrompt } from './prompt';
 import { getStatus } from './status';
 import { chatWorkspaceDir, getSettings } from './store';
+import { callTool } from './tv-cli';
 import { listWorkflows } from './workflows';
 
 const isDev = !app.isPackaged;
@@ -66,7 +68,9 @@ function createWindow(): BrowserWindow {
 // status; DESK_SMOKE=query additionally runs a trivial SDK query with no MCP
 // servers; DESK_SMOKE=blocks assembles the prompt, loads the workflows and
 // feeds a canned assistant message with one of every block through the
-// parser, failing on any schema error. The app quits by itself afterwards.
+// parser, failing on any schema error; DESK_SMOKE=panel walks the day panel's
+// own deterministic path (levels -> sentinel spec) and checks the tv:call
+// allowlist refuses an unlisted tool. The app quits by itself afterwards.
 async function runSmoke(kind: string): Promise<void> {
   const cfg = await getSettings();
   console.log('[smoke] status', JSON.stringify(await getStatus(cfg)));
@@ -81,6 +85,28 @@ async function runSmoke(kind: string): Promise<void> {
     const errors = cards.flatMap((s) => (s.type === 'card' && s.parsed && !s.parsed.ok ? [`${s.lang}: ${s.parsed.error}`] : []));
     console.log('[smoke] blocks', `${cards.length}/${BLOCK_KINDS.length} cards`, errors.length ? `ERRORS ${errors.join(' | ')}` : 'ok');
     if (errors.length || cards.length !== BLOCK_KINDS.length) throw new Error('block smoke failed');
+    return;
+  }
+  if (kind === 'panel') {
+    // The day panel's own path, without a window: load the workflows, build the
+    // sentinel spec the way the renderer does, run the deterministic calls.
+    for (const w of await listWorkflows()) {
+      if (!w.panel) continue;
+      console.log(`[smoke] panel ${w.id} kind=${w.panel.kind} askModelOn=${w.panel.askModelOn.join(',') || 'none'}`);
+      if (!w.panel.levels) continue;
+      const day = todayISO();
+      const scan = await callTool(cfg, 'tv_scan_levels', levelsArgs(w.panel, day) ?? {});
+      if (!scan.ok) {
+        console.log(`[smoke] panel ${w.id} levels FAILED ${scan.error}`);
+        continue;
+      }
+      const levels = levelsFromScan(scan.data, w.panel.levelNames);
+      const spec = buildSentinelSpec(w.panel, { day, levels, adr: adrFromScan(scan.data) });
+      console.log(`[smoke] panel ${w.id} levels ${levels.length} adr ${adrFromScan(scan.data) ?? '—'} spec ${JSON.stringify(spec).length} chars in ${scan.ms} ms`);
+    }
+    const refused = await callTool(cfg, 'tv_desktop_draw', {});
+    console.log('[smoke] allowlist', refused.ok ? 'LEAKED' : 'ok');
+    if (refused.ok) throw new Error('the allowlist let an unlisted tool through');
     return;
   }
   if (kind === 'query') {

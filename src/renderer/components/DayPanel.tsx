@@ -16,6 +16,7 @@ import {
   emptyPanelDay,
   eventPromptVars,
   eventsNeedingModel,
+  levelsArgs,
   levelsFromScan,
   mergeEvents,
   nextPollDelayMs,
@@ -120,7 +121,8 @@ export function DayPanel(p: DayPanelProps) {
     const jobs: Promise<unknown>[] = [];
     // Three parallel spawns: each pays the same ~2.5 s interpreter floor, so
     // doing them in sequence would cost three times as much for nothing.
-    if (pn.levels) jobs.push(fill(setLevels, 'tv_scan_levels', { ...pn.levels, date }));
+    const scanArgs = levelsArgs(pn, date);
+    if (scanArgs) jobs.push(fill(setLevels, 'tv_scan_levels', scanArgs));
     if (pn.calendar) jobs.push(fill(setCalendar, 'tv_calendar_check', { ...pn.calendar, date }));
     if (pn.risk) {
       const riskArgs: Record<string, unknown> = { ...pn.risk, today: date };
@@ -241,8 +243,9 @@ export function DayPanel(p: DayPanelProps) {
         // The watch wants the levels it is going to watch, so fetch them first
         // when the pre-session block has not run yet.
         let scan = levels.status === 'ok' ? levels.data : null;
-        if (!scan && pn.levels) {
-          const r = await fill(setLevels, 'tv_scan_levels', { ...pn.levels, date });
+        const scanArgs = levelsArgs(pn, date);
+        if (!scan && scanArgs) {
+          const r = await fill(setLevels, 'tv_scan_levels', scanArgs);
           scan = r.ok ? r.data : null;
         }
         const spec = buildSentinelSpec(pn, {
@@ -420,7 +423,7 @@ export function DayPanel(p: DayPanelProps) {
 
       <div class="panel-grid">
         {panel.levels ? (
-          <Card title={t('day.levels')} slot={levels} onRefresh={() => void fill(setLevels, 'tv_scan_levels', { ...panel.levels, date })}>
+          <Card title={t('day.levels')} slot={levels} onRefresh={() => void fill(setLevels, 'tv_scan_levels', levelsArgs(panel, date) ?? {})}>
             <LevelsBody data={levels.data} watched={watched} />
           </Card>
         ) : null}

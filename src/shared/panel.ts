@@ -155,6 +155,21 @@ export function adrFromScan(scan: unknown): number | null {
   return finite(v) && v > 0 ? v : null;
 }
 
+/**
+ * The arguments for `tv_scan_levels`: the yaml's `levels` section, the date
+ * being looked at, and — unless the workflow named its own — the symbol and
+ * provider the watch itself uses, so the levels and the run cannot drift onto
+ * two different feeds by accident.
+ */
+export function levelsArgs(panel: PanelDef, date: string): Record<string, unknown> | null {
+  if (!panel.levels) return null;
+  const sentinel = (panel.sentinel ?? {}) as Record<string, unknown>;
+  const args: Record<string, unknown> = { ...panel.levels, date };
+  if (args.symbol === undefined && typeof sentinel.symbol === 'string') args.symbol = sentinel.symbol;
+  if (args.provider === undefined && typeof sentinel.provider === 'string') args.provider = sentinel.provider;
+  return args;
+}
+
 export interface BuildSpecOptions {
   day: string;
   levels?: SentinelLevel[];
