@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ddClass, donutDash, fmtDistance, fmtValue, isNegativeText, levelsLadder, pfClass, positiveBar, signedBar } from './format';
+import { ddClass, donutDash, fmtDistance, fmtValue, isNegativeText, levelsLadder, pfClass, positiveBar, samePrice, signedBar } from './format';
 
 describe('fmtValue', () => {
   it('formats money with sign in front of the currency', () => {
@@ -90,5 +90,35 @@ describe('svg geometry', () => {
     expect(positiveBar(2, 1, 100)).toBe(100);
     expect(positiveBar(0.5, 1, 100)).toBe(50);
     expect(positiveBar(-1, 1, 100)).toBe(0);
+  });
+});
+
+describe('levelsLadder drops a level that is the current price again', () => {
+  const items = [
+    { label: 'Текущая цена', price: 7763.75 },
+    { label: 'rth.IB+1x', price: 7744.25 },
+    { label: 'PDH', price: 7740 },
+  ];
+
+  it('keeps one row for that price: the highlighted "now" row', () => {
+    const rows = levelsLadder(items, 7763.75);
+    expect(rows.filter((r) => r.kind === 'now')).toHaveLength(1);
+    expect(rows.some((r) => r.kind === 'level' && r.label === 'Текущая цена')).toBe(false);
+    expect(rows[0].kind).toBe('now');
+    expect(rows).toHaveLength(3);
+  });
+
+  it('keeps the levels that are not the current price', () => {
+    const rows = levelsLadder(items, 7763.75).filter((r) => r.kind === 'level');
+    expect(rows.map((r) => (r.kind === 'level' ? r.label : ''))).toEqual(['rth.IB+1x', 'PDH']);
+  });
+
+  it('without `last` nothing is dropped', () => {
+    expect(levelsLadder(items, undefined)).toHaveLength(3);
+  });
+
+  it('samePrice tolerates float noise but not a real gap', () => {
+    expect(samePrice(7763.750000001, 7763.75)).toBe(true);
+    expect(samePrice(7763.5, 7763.75)).toBe(false);
   });
 });

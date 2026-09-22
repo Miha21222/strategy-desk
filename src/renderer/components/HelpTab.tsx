@@ -11,12 +11,12 @@ export function HelpTab(p: HelpTabProps) {
     <section class="page">
       <h2>{t('help.title')}</h2>
 
-      <p class="help-wizard">
-        {t('help.wizard')}{' '}
+      <div class="help-wizard">
+        <p>{t('help.wizard')}</p>
         <button type="button" class="primary" onClick={p.onOpenWizard}>
           {t('setup.open')}
         </button>
-      </p>
+      </div>
 
       <h3>{t('help.howTitle')}</h3>
       <div class="diagram">

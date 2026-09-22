@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Settings } from './api';
 import { DEFAULT_SETTINGS } from './defaults';
-import { buildChecks, CHECK_IDS, cdpOwner, EMPTY_CDP, resultOf, worstStatus, type CdpProbe, type CheckId, type CheckStatus, type PreflightFacts } from './preflight';
+import { buildChecks, CHECK_IDS, cdpOwner, EMPTY_CDP, resultOf, worstStatus, type CdpProbe, type CheckId, type CheckStatus, type KbFact, type PreflightFacts, type RuntimeFact } from './preflight';
 
 const cfg: Settings = { ...DEFAULT_SETTINGS };
 
@@ -18,13 +18,57 @@ const tvCdp: CdpProbe = {
   targets: [{ url: 'https://www.tradingview.com/chart/abc/', title: 'US500 · 15 · PEPPERSTONE' }],
 };
 
+/** A dev run's runtime: nothing shipped, so `uv` and the clone are the story. */
+const externalRuntime: RuntimeFact = {
+  mode: 'external',
+  tvmcpDir: 'C:\\tvmcp',
+  payloadOk: false,
+  projectName: '',
+  provisioned: false,
+  stale: false,
+  pythonPath: '',
+  uvPath: '',
+  lockHash: '',
+  chromium: null,
+};
+
+/** A packaged install whose environment is already provisioned. */
+const bundledRuntime: RuntimeFact = {
+  mode: 'bundled',
+  tvmcpDir: 'C:\\app\\resources\\tvmcp',
+  payloadOk: true,
+  projectName: 'tvmcp',
+  provisioned: true,
+  stale: false,
+  pythonPath: 'C:\\userData\\py\\venv\\Scripts\\python.exe',
+  uvPath: 'C:\\app\\resources\\uv.exe',
+  lockHash: 'abc123',
+  chromium: true,
+};
+
+/** The knowledge base as a working bundled install has it. */
+const seededKb: KbFact = {
+  mode: 'bundled',
+  enabled: true,
+  dir: 'C:\app\resources\gt-rag',
+  payloadOk: true,
+  seeded: true,
+  stale: false,
+  model: true,
+  modelShipped: true,
+  pages: 109,
+};
+
 /** A machine where literally everything is in place. */
 function healthyFacts(): PreflightFacts {
   return {
     uv: { found: true, version: '0.9.7' },
     clone: { path: 'C:\\tvmcp', repo: 'https://example.invalid/tvmcp.git', dirExists: true, pyproject: 'ok', projectName: 'tvmcp' },
+    runtime: { ...externalRuntime },
+    kb: { ...seededKb },
     boot: { ran: true, ok: true, tools: 59, error: '' },
     claude: 'subscription',
+    official: { enabled: true, registered: true, scope: 'User config', status: 'connected', url: 'https://mcp.tradingview.com/mcp', raw: 'Connected' },
     tv: { running: true, port: 9223, cdp: tvCdp },
     freePort: null,
     workflows: { loaded: ['ib-es', 'strategy-lab'], failed: [] },
@@ -39,10 +83,26 @@ function statusOf(checks: ReturnType<typeof buildChecks>, id: CheckId): CheckSta
   return c.status;
 }
 
+/** Every id that can appear, minus the ones belonging to the other runtime mode. */
+function idsFor(mode: 'bundled' | 'external'): CheckId[] {
+  const drop: CheckId[] = mode === 'bundled' ? ['uv', 'tvmcpClone'] : ['tvmcpRuntime', 'chromium'];
+  return CHECK_IDS.filter((id) => !drop.includes(id));
+}
+
 describe('the check list', () => {
-  it('returns every check exactly once, in the declared order', () => {
+  it('shows the user toolchain in a dev run, in the declared order', () => {
     const checks = buildChecks(cfg, healthyFacts());
-    expect(checks.map((c) => c.id)).toEqual([...CHECK_IDS]);
+    expect(checks.map((c) => c.id)).toEqual(idsFor('external'));
+  });
+
+  // A packaged install owns its Python: asking the user about `uv` or about a
+  // clone they never made would be asking about someone else's machine.
+  it('replaces uv and the clone with one runtime check in a packaged install', () => {
+    const f = healthyFacts();
+    f.runtime = { ...bundledRuntime };
+    const checks = buildChecks(cfg, f);
+    expect(checks.map((c) => c.id)).toEqual(idsFor('bundled'));
+    expect(statusOf(checks, 'tvmcpRuntime')).toBe('ok');
   });
 
   it('is all green on a healthy machine, and the run is ok', () => {
@@ -64,12 +124,15 @@ describe('the check list', () => {
     }
   });
 
-  it('marks only the two optional file checks optional, so they never fail the run', () => {
+  // The official MCP, the knowledge base and the two files are optional for the
+  // same reason: the desk works without them, so a missing one must not paint
+  // the run red.
+  it('marks the optional checks optional, so they never fail the run', () => {
     const f = healthyFacts();
     f.files.riskRules = { path: 'C:\\gone.json', exists: false };
     f.files.journal = { path: 'C:\\gone.csv', exists: false };
     const checks = buildChecks(cfg, f);
-    expect(checks.filter((c) => c.optional).map((c) => c.id)).toEqual(['riskRules', 'journal']);
+    expect(checks.filter((c) => c.optional).map((c) => c.id)).toEqual(['knowledgeBase', 'kbModel', 'officialMcp', 'riskRules', 'journal']);
     expect(statusOf(checks, 'riskRules')).toBe('fail');
     expect(resultOf(checks).ok).toBe(true);
   });
@@ -263,5 +326,115 @@ describe('worstStatus', () => {
     expect(worstStatus([...checks, { id: 'uv', status: 'warn', detailKey: 'x' }])).toBe('warn');
     expect(worstStatus([...checks, { id: 'uv', status: 'warn', detailKey: 'x' }, { id: 'uv', status: 'fail', detailKey: 'y' }])).toBe('fail');
     expect(worstStatus([])).toBe('ok');
+  });
+});
+
+// The app's own Python environment. The button that builds it is the only
+// thing on this list that installs anything, so each state has to be told
+// apart: nothing built, built from an older lock, and a broken installation
+// (which no button can repair).
+describe('the bundled runtime', () => {
+  const bundledFacts = () => {
+    const f = healthyFacts();
+    f.runtime = { ...bundledRuntime };
+    return f;
+  };
+
+  it('offers to provision when there is no environment yet', () => {
+    const f = bundledFacts();
+    f.runtime = { ...bundledRuntime, provisioned: false };
+    f.boot = { ran: false, ok: false, tools: 0, error: '' };
+    const c = buildChecks(cfg, f).find((x) => x.id === 'tvmcpRuntime')!;
+    expect(c.status).toBe('fail');
+    expect(c.fix).toMatchObject({ kind: 'run-task', task: 'provision-runtime' });
+  });
+
+  it('only warns when the environment is there but was built from another lock', () => {
+    const f = bundledFacts();
+    f.runtime = { ...bundledRuntime, provisioned: false, stale: true };
+    const c = buildChecks(cfg, f).find((x) => x.id === 'tvmcpRuntime')!;
+    expect(c.status).toBe('warn');
+    expect(c.detailKey).toBe('preflight.runtime.stale');
+    expect(resultOf(buildChecks(cfg, f)).ok).toBe(true);
+  });
+
+  // A damaged installation is not the user's doing and not theirs to repair:
+  // offering a button that cannot help would waste their time twice.
+  it('explains a broken payload instead of offering to run something', () => {
+    const f = bundledFacts();
+    f.runtime = { ...bundledRuntime, payloadOk: false, projectName: '' };
+    const c = buildChecks(cfg, f).find((x) => x.id === 'tvmcpRuntime')!;
+    expect(c.status).toBe('fail');
+    expect(c.fix?.kind).toBe('explain');
+  });
+
+  // The browser is a separate 270 MB download that only chart images and
+  // backtest reports need, so a missing one warns and never blocks.
+  it('offers the browser download when the environment has none, and never fails the run', () => {
+    const f = bundledFacts();
+    f.runtime = { ...bundledRuntime, chromium: false };
+    const c = buildChecks(cfg, f).find((x) => x.id === 'chromium')!;
+    expect(c.status).toBe('warn');
+    expect(c.optional).toBe(true);
+    expect(c.fix).toMatchObject({ kind: 'run-task', task: 'install-chromium' });
+    expect(resultOf(buildChecks(cfg, f)).ok).toBe(true);
+  });
+
+  // Nothing to install it into yet: asking about a browser before there is an
+  // environment would be a second red row for one problem.
+  it('says nothing about the browser until the environment exists', () => {
+    const f = bundledFacts();
+    f.runtime = { ...bundledRuntime, provisioned: false, chromium: null };
+    expect(buildChecks(cfg, f).some((x) => x.id === 'chromium')).toBe(false);
+  });
+
+  it('sends a failed boot to the provisioning button, not to a uv command the user has no uv for', () => {
+    const f = bundledFacts();
+    f.boot = { ran: true, ok: false, tools: 0, error: 'ModuleNotFoundError: numba' };
+    const c = buildChecks(cfg, f).find((x) => x.id === 'tvmcpBoot')!;
+    expect(c.fix).toMatchObject({ kind: 'run-task', task: 'provision-runtime' });
+  });
+});
+
+// The official TradingView MCP: registered in Claude Code's own store, because
+// that is where its OAuth token lives.
+describe('the official MCP', () => {
+  const withOfficial = (patch: Partial<PreflightFacts['official']>) => {
+    const f = healthyFacts();
+    f.official = { ...f.official, ...patch };
+    return buildChecks(cfg, f).find((x) => x.id === 'officialMcp')!;
+  };
+
+  it('offers to register it when claude has never heard of it', () => {
+    const c = withOfficial({ registered: false, status: 'absent' });
+    expect(c.status).toBe('warn');
+    expect(c.fix).toMatchObject({ kind: 'run-task', task: 'official-mcp-add' });
+  });
+
+  it('offers to log in when it is registered but not authenticated', () => {
+    const c = withOfficial({ status: 'needs-auth', raw: 'Needs authentication' });
+    expect(c.fix).toMatchObject({ kind: 'run-task', task: 'official-mcp-login' });
+    expect(c.vars?.raw).toBe('Needs authentication');
+  });
+
+  // Connected but switched off is the confusing one: everything on the machine
+  // is fine and the chat still cannot see the tools.
+  it('offers the settings switch when it works but the chat is not told to use it', () => {
+    const c = withOfficial({ enabled: false });
+    expect(c.fix).toEqual({ kind: 'set-flag', labelKey: 'preflight.fix.officialEnable', field: 'officialMcp', value: true, noteKey: 'preflight.official.enableNote' });
+  });
+
+  it('says "not checked" rather than "not installed" when claude could not be asked', () => {
+    const c = withOfficial({ status: 'unknown', registered: false });
+    expect(c.status).toBe('unknown');
+    expect(c.fix).toBeUndefined();
+  });
+
+  it('never fails the run, whatever state it is in', () => {
+    for (const status of ['absent', 'needs-auth', 'error', 'unknown'] as const) {
+      const f = healthyFacts();
+      f.official = { ...f.official, status, registered: status !== 'absent' };
+      expect(resultOf(buildChecks(cfg, f)).ok, status).toBe(true);
+    }
   });
 });

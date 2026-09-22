@@ -1,13 +1,16 @@
-// First-run wizard: Claude -> uv and tvmcp -> TradingView and the port ->
-// files -> done. Opens by itself when `setupCompletedAt` is unset, and from
-// «Мастер настройки» in the settings at any time.
+// First-run wizard: Claude -> the market server -> the official MCP ->
+// TradingView and the port -> files -> done. Opens by itself when
+// `setupCompletedAt` is unset, and from «Мастер настройки» in the settings at
+// any time.
 //
 // Every step shows its own slice of the preflight list, so the fixes are the
-// same objects the diagnosis hands out: a button where the app may act, a
-// copyable command where it may not. A step can be skipped, and the skip is
-// remembered in the settings — the features it weakens say so instead of
-// failing mysteriously later.
+// same objects the diagnosis hands out: a button where the app may act (up to
+// and including provisioning its own Python environment, which the step shows
+// the command for and streams), a copyable command where it may not. A step can
+// be skipped, and the skip is remembered in the settings — the features it
+// weakens say so instead of failing mysteriously later.
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
+import type { TaskId, TaskState } from '@shared/tasks';
 import { t } from '../i18n';
 import { isSkipped, stepDone, STEP_IDS, WIZARD_STEPS, type StepId } from '../setup';
 import { PreflightList } from './PreflightList';
@@ -22,6 +25,10 @@ export interface SetupWizardProps {
   onSkip: (id: StepId, on: boolean) => void;
   onRecheck: () => void;
   onFix: (fix: PreflightFix) => void;
+  /** Live state and the command of each long operation a step may start. */
+  tasks?: Partial<Record<TaskId, TaskState>>;
+  taskCommands?: Partial<Record<TaskId, string>>;
+  onTaskStop?: (id: TaskId) => void;
   onFinish: () => void;
   onClose: () => void;
 }
@@ -62,7 +69,16 @@ export function SetupWizard(p: SetupWizardProps) {
         <div class="wizard-body">
           <div class="muted">{t('setup.step', { n: index + 1, total: STEP_IDS.length })}</div>
           <p>{t(`setup.stepIntro.${step.id}`)}</p>
-          <PreflightList result={p.result} busy={p.busy} only={step.checks} onRecheck={p.onRecheck} onFix={p.onFix} />
+          <PreflightList
+            result={p.result}
+            busy={p.busy}
+            only={step.checks}
+            tasks={p.tasks}
+            taskCommands={p.taskCommands}
+            onRecheck={p.onRecheck}
+            onFix={p.onFix}
+            onTaskStop={p.onTaskStop}
+          />
           {skipped ? <p class="notice warn">{t(`setup.limited.${step.id}`)}</p> : p.result ? <p class="muted">{done ? t('setup.stepOk') : t('setup.stepProblems')}</p> : null}
         </div>
 

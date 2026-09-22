@@ -31,9 +31,40 @@ asarUnpack:
   # is ~230 MB, which is most of the installer.
   - node_modules/@anthropic-ai/claude-agent-sdk/**
   - node_modules/@anthropic-ai/claude-agent-sdk-*/**
-# tvmcp is NOT bundled: the app runs it as `uv --directory <path> run …`, and
-# that path is a setting the first-run wizard fills in. Nothing in this file may
-# assume the clone exists.
+extraResources:
+  # tvmcp IS bundled — as sources plus a `uv` to build them with. It cannot ride
+  # in `files:` like the rest: everything listed there lands inside app.asar,
+  # and only Electron's own fs layer reads through that archive. `uv` is a
+  # separate process and would get ENOENT. extraResources copies verbatim next
+  # to app.asar, which is what src/main/resource-paths.ts calls `binaryRoots`
+  # and what the app hands to uv.
+  #
+  # The environment itself is NOT shipped: a Windows venv is not relocatable
+  # (Scripts/python.exe is a stub that reads `home=` out of pyvenv.cfg), so the
+  # app provisions one into userData on first run — from the button in the
+  # wizard, never by itself.
+  #
+  # `npm run stage:tvmcp` fills build/ before this file is read, and it refuses
+  # to stage a uv.lock that has drifted from pyproject.toml: `uv sync --frozen`
+  # on the user's machine cannot resolve, so that drift would ship as an install
+  # nobody on the receiving end can repair.
+  #
+  # Windows-shaped: `build/uv.exe`. The mac and linux targets below are
+  # configured but never built here, and they will need `build/uv` instead —
+  # `scripts/stage-tvmcp.mjs` already writes the right name per platform, this
+  # list is the part that has to grow when someone builds there.
+  - from: build/tvmcp-payload
+    to: tvmcp
+  - from: build/uv.exe
+    to: uv.exe
+  # The course knowledge base (gt-rag): the server, the course markdown, the
+  # chart images and the prebuilt ChromaDB store. Same reason it cannot ride in
+  # `files:` — Python opens these by path, and app.asar is not a filesystem.
+  # `npm run stage:gtrag` fills it; SD_BUNDLE_KB=0 builds an installer without
+  # it, and the directory is then absent, which the app reads as "no knowledge
+  # base" and says so in the setup wizard.
+  - from: build/gtrag-payload
+    to: gt-rag
 win:
   target:
     - nsis

@@ -69,6 +69,7 @@ describe('the assembled system prompt', () => {
     const p = await assemblePrompt(profile, null, missingFile);
     expect(p.text).not.toContain('## Live field notes');
     // ...and the rest of the prompt is still there.
+    expect(p.text).toContain('## Who you are');
     expect(p.text).toContain('## Trader profile');
     expect(p.text).toContain('## Hub');
   });

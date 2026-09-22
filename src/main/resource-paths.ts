@@ -52,3 +52,25 @@ export function resourceRoots(a: ResourceAnchors): string[] {
 export function resourceCandidates(a: ResourceAnchors, ...rel: string[]): string[] {
   return resourceRoots(a).map((root) => path.join(root, ...rel));
 }
+
+/**
+ * Anchors for something that must be a REAL FILE ON DISK: an executable, or a
+ * directory another process is pointed at (the bundled uv, the tvmcp payload
+ * `uv sync` reads). `app.getAppPath()` is dropped here — packaged, it names
+ * `app.asar`, and nothing outside Electron's own fs layer reads through an
+ * archive: a spawn against a path inside it fails with ENOENT.
+ *
+ * `process.resourcesPath` is therefore the only packaged anchor, and it is also
+ * where `extraResources:` lands. In a dev run the repo root still wins, so a
+ * developer's own staging directory is picked up without a rebuild.
+ */
+export function binaryRoots(a: ResourceAnchors): string[] {
+  const roots: string[] = [];
+  if (!a.packaged && a.cwd) roots.push(a.cwd);
+  if (a.resourcesPath) roots.push(a.resourcesPath);
+  return [...new Set(roots)];
+}
+
+export function binaryCandidates(a: ResourceAnchors, ...rel: string[]): string[] {
+  return binaryRoots(a).map((root) => path.join(root, ...rel));
+}

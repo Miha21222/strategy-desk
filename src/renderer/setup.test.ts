@@ -19,17 +19,21 @@ describe('the wizard steps', () => {
     expect(new Set(covered).size).toBe(covered.length);
   });
 
-  it('runs Claude -> uv and tvmcp -> TradingView and the port -> files', () => {
-    expect(STEP_IDS).toEqual(['claude', 'tvmcp', 'tradingview', 'files']);
+  it('runs Claude -> the market server -> the knowledge base -> the official MCP -> TradingView -> files', () => {
+    expect(STEP_IDS).toEqual(['claude', 'tvmcp', 'knowledge', 'official', 'tradingview', 'files']);
     expect(nextStep('claude')).toBe('tvmcp');
     expect(nextStep('files')).toBeNull();
     expect(prevStep('claude')).toBeNull();
-    expect(prevStep('tradingview')).toBe('tvmcp');
+    expect(prevStep('tradingview')).toBe('official');
   });
 
+  // The tvmcp step lists the checks of BOTH runtime modes; a run produces only
+  // one mode's worth, and the step shows exactly what it got.
   it('shows a step its own checks, in list order, skipping ones the run did not produce', () => {
-    expect(checksOfStep('tvmcp', allOk()).map((c) => c.id)).toEqual(['uv', 'tvmcpClone', 'tvmcpBoot']);
+    expect(checksOfStep('tvmcp', allOk()).map((c) => c.id)).toEqual(['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium']);
     expect(checksOfStep('tvmcp', [check('tvmcpBoot', 'ok')]).map((c) => c.id)).toEqual(['tvmcpBoot']);
+    const packaged = [check('tvmcpRuntime', 'ok'), check('tvmcpBoot', 'ok'), check('chromium', 'warn')];
+    expect(checksOfStep('tvmcp', packaged).map((c) => c.id)).toEqual(['tvmcpRuntime', 'tvmcpBoot', 'chromium']);
   });
 
   it('a step is done on ok or warn, and not on fail or unknown', () => {
@@ -91,7 +95,7 @@ describe('a skipped step is remembered', () => {
 
 describe('the pick-file fixes', () => {
   it('maps every settings path field to a dialog kind', () => {
-    expect(Object.keys(PICK_FOR_FIELD).sort()).toEqual(['fieldNotesPath', 'journalPath', 'riskRulesPath', 'tvmcpPath']);
+    expect(Object.keys(PICK_FOR_FIELD).sort()).toEqual(['fieldNotesPath', 'gtRagPath', 'journalPath', 'riskRulesPath', 'tvmcpPath']);
     expect(PICK_FOR_FIELD.tvmcpPath).toBe('tvmcp-dir');
   });
 });

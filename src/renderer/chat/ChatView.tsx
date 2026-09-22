@@ -13,6 +13,8 @@ export interface ChatViewProps {
   messages: UiMessage[];
   streaming: boolean;
   thinking: boolean;
+  /** Sent, but the session has not reported in yet: CLI boot + MCP connect. */
+  connecting: boolean;
   init: AgentInit | null;
   mode: ChatMode;
   catalog: WorkflowPrompt[];
@@ -76,6 +78,7 @@ function Home({ busy, onQuick }: { busy: boolean; onQuick: (prompt: string) => v
   return (
     <div class="home">
       <div class="home-title">{t('home.title')}</div>
+      <div class="muted small-hint">{t('home.subtitle')}</div>
       <div class="chips home-chips">
         {HOME_CHIPS.map((c) => (
           <button
@@ -149,6 +152,7 @@ export function ChatView(p: ChatViewProps) {
     taRef.current?.focus();
   };
 
+  // No chat open is fine: onSend creates one and sends into it.
   const submit = () => {
     const text = draft.trim();
     if (!text || p.streaming) return;
@@ -193,15 +197,14 @@ export function ChatView(p: ChatViewProps) {
       </header>
 
       <div class="messages" ref={listRef}>
-        {!p.chat ? <div class="empty">{t('chat.noChat')}</div> : null}
-        {p.chat && p.messages.length === 0 ? <div class="empty">{t('chat.empty')}</div> : null}
+        {showHome ? <div class="empty">{t('chat.empty')}</div> : null}
         {showHome ? <Home busy={p.streaming} onQuick={p.onQuick} /> : null}
         {p.messages.map((m, i) => (
           <Message key={i} m={m} />
         ))}
         {p.streaming ? (
           <div class="msg indicator">
-            <span class="pulse" /> {p.thinking ? t('chat.thinking') : t('chat.working')}
+            <span class="pulse" /> {p.connecting ? t('chat.connecting') : p.thinking ? t('chat.thinking') : t('chat.working')}
           </div>
         ) : null}
       </div>
@@ -227,7 +230,6 @@ export function ChatView(p: ChatViewProps) {
           rows={3}
           placeholder={t('composer.placeholder')}
           value={draft}
-          disabled={!p.chat}
           onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
           onKeyDown={onKey}
         />
@@ -251,7 +253,7 @@ export function ChatView(p: ChatViewProps) {
               {t('composer.stop')}
             </button>
           ) : (
-            <button type="button" class="primary" disabled={!p.chat || !draft.trim()} onClick={submit}>
+            <button type="button" class="primary" disabled={!draft.trim()} onClick={submit}>
               {t('composer.send')}
             </button>
           )}

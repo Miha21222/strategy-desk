@@ -9,7 +9,7 @@
 import type { PickKind, Settings, SettingsPatch } from '@shared/api';
 import { worstStatus, type CheckId, type CheckStatus, type PathField, type PreflightCheck } from '@shared/preflight';
 
-export type StepId = 'claude' | 'tvmcp' | 'tradingview' | 'files';
+export type StepId = 'claude' | 'tvmcp' | 'knowledge' | 'official' | 'tradingview' | 'files';
 
 export interface WizardStep {
   id: StepId;
@@ -17,10 +17,20 @@ export interface WizardStep {
   checks: CheckId[];
 }
 
-/** Claude first (nothing works without it), then the toolchain, then the chart, then the files. */
+/**
+ * Claude first (nothing works without it), then the market server, then the
+ * optional official MCP, then the chart, then the files.
+ *
+ * The tvmcp step lists both shapes of the same question: `uv` and `tvmcpClone`
+ * exist only in a development run, `tvmcpRuntime` only in a packaged one, and
+ * `checksOfStep` drops whichever the diagnosis did not produce — so the step
+ * shows two rows or three, never an empty one.
+ */
 export const WIZARD_STEPS: WizardStep[] = [
   { id: 'claude', checks: ['claude'] },
-  { id: 'tvmcp', checks: ['uv', 'tvmcpClone', 'tvmcpBoot'] },
+  { id: 'tvmcp', checks: ['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium'] },
+  { id: 'knowledge', checks: ['knowledgeBase', 'kbModel'] },
+  { id: 'official', checks: ['officialMcp'] },
   { id: 'tradingview', checks: ['tvDesktop', 'cdpPort'] },
   { id: 'files', checks: ['workflows', 'riskRules', 'journal'] },
 ];
@@ -101,6 +111,7 @@ export function limitationKeys(settings: Pick<Settings, 'setupSkipped'>): string
 /** Which native dialog a `pick-file` fix opens for each settings field. */
 export const PICK_FOR_FIELD: Record<PathField, PickKind> = {
   tvmcpPath: 'tvmcp-dir',
+  gtRagPath: 'gt-rag-dir',
   riskRulesPath: 'risk-rules',
   journalPath: 'journal',
   fieldNotesPath: 'field-notes',

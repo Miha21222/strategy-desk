@@ -5,6 +5,8 @@ import type { AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, Sett
 import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
+import { applyTaskEvent, emptyTask, TASK_IDS, type TaskId, type TaskState } from '@shared/tasks';
+import { nextZoom } from '@shared/zoom';
 import { CardActionsContext, type CardActions } from './blocks';
 import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
@@ -14,11 +16,13 @@ import { ReportDrawer } from './components/ReportDrawer';
 import { SettingsTab } from './components/SettingsTab';
 import { SetupWizard } from './components/SetupWizard';
 import { Sidebar } from './components/Sidebar';
+import { Toasts } from './components/Toasts';
 import { WorkflowsTab } from './components/WorkflowsTab';
 import { t } from './i18n';
 import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
 import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizard, STEP_IDS, type StepId } from './setup';
 import type { UiMessage } from './state';
+import { addToast, TOAST_MS, type Toast, type ToastLevel } from './toasts';
 
 type Tab = 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
 const TABS: Tab[] = ['copilot', 'day', 'workflows', 'settings', 'help'];
@@ -42,6 +46,10 @@ export function App() {
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [thinking, setThinking] = useState(false);
+  // True between "sent" and the session's init frame: that gap is the CLI
+  // booting and tvmcp connecting, which is worth naming instead of showing
+  // "думаю" for three seconds.
+  const [connecting, setConnecting] = useState(false);
   const [init, setInit] = useState<AgentInit | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerReportId, setDrawerReportId] = useState<string | null>(null);
@@ -53,12 +61,17 @@ export function App() {
     }
   });
   const [launching, setLaunching] = useState(false);
-  const [tvMessage, setTvMessage] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
   // ----- setup wizard / diagnosis -----
   const [preflight, setPreflight] = useState<PreflightResult | null>(null);
   const [preflightBusy, setPreflightBusy] = useState(false);
   const [wizardStep, setWizardStep] = useState<StepId | null>(null);
   const [skipped, setSkipped] = useState<string[]>([]);
+  // The long operations the diagnosis can start, and the command each of them
+  // runs. Held here rather than inside the list so the output survives moving
+  // between the wizard and the settings while a 15-minute sync is in flight.
+  const [tasks, setTasks] = useState<Partial<Record<TaskId, TaskState>>>({});
+  const [taskCommands, setTaskCommands] = useState<Partial<Record<TaskId, string>>>({});
 
   // Refs so the event handler sees fresh values without resubscribing.
   const currentKeyRef = useRef<string | null>(null);
@@ -66,7 +79,22 @@ export function App() {
   const profileRef = useRef(profile);
   profileRef.current = profile;
 
+  const dismissToast = useCallback((id: number) => setToasts((list) => list.filter((x) => x.id !== id)), []);
+
+  /** Show a system notice in the corner; it clears itself after TOAST_MS. */
+  const pushToast = useCallback(
+    (text: string, level: ToastLevel = 'info') => {
+      const id = Date.now() + Math.random();
+      setToasts((list) => addToast(list, { id, text, level }));
+      setTimeout(() => dismissToast(id), TOAST_MS[level]);
+    },
+    [dismissToast],
+  );
+
   const refreshChats = useCallback(async () => setChats(await desk.chats.list()), [desk]);
+
+  /** Ask the main process to boot the session this chat's next turn will use. */
+  const prewarm = useCallback((chatKey: string | null) => desk.chat.prewarm({ chatKey, mode }), [desk, mode]);
   const refreshStatus = useCallback(async () => {
     try {
       setStatus(await desk.status.get());
@@ -90,6 +118,39 @@ export function App() {
     }
   }, [desk]);
 
+  // One subscription for the whole app: a task started in the wizard keeps
+  // streaming into the same state when the user closes it and opens the
+  // settings, and the reducer is the one the main process uses.
+  useEffect(() => {
+    const off = desk.tasks.onEvent((ev) => {
+      setTasks((prev) => ({ ...prev, [ev.id]: applyTaskEvent(prev[ev.id] ?? emptyTask(ev.id), ev) }));
+    });
+    void (async () => {
+      try {
+        const [states, commands] = await Promise.all([
+          desk.tasks.list(),
+          Promise.all(TASK_IDS.map(async (id) => [id, await desk.tasks.command(id).catch(() => '')] as const)),
+        ]);
+        setTasks(Object.fromEntries(states.map((s) => [s.id, s])));
+        setTaskCommands(Object.fromEntries(commands));
+      } catch {
+        /* the list stays empty; every button still works */
+      }
+    })();
+    return off;
+  }, [desk]);
+
+  /** Start one of the four operations, then re-probe: the fix only counts if it took. */
+  const runTask = useCallback(
+    async (id: TaskId) => {
+      const state = await desk.tasks.run(id);
+      setTasks((prev) => ({ ...prev, [id]: state }));
+      await runPreflight();
+      if (!state.ok) pushToast(t('preflight.task.failed', { error: state.error || '—' }), 'error');
+    },
+    [desk, pushToast, runPreflight],
+  );
+
   useEffect(() => {
     void (async () => {
       const [s, p, w] = await Promise.all([desk.settings.get(), desk.profile.get(), desk.workflows.list().catch(() => [] as WorkflowDef[])]);
@@ -98,8 +159,10 @@ export function App() {
       setWorkflows(w);
       setSkipped(s.setupSkipped ?? []);
       applyTheme(s.theme);
+      void desk.ui.zoom(s.uiScale ?? 1);
       await refreshChats();
       void refreshStatus();
+      desk.chat.prewarm({ chatKey: null, mode });
       // A fresh install opens the wizard by itself; afterwards it lives in the settings.
       if (shouldOpenWizard(s)) {
         setWizardStep(STEP_IDS[0]);
@@ -126,8 +189,10 @@ export function App() {
       setDrawerOpen(false);
       setDrawerReportId(null);
       setTab('copilot');
+      setConnecting(false);
+      prewarm(key);
     },
-    [desk],
+    [desk, prewarm],
   );
 
   /** Capture every valid stressreport of a finished assistant message into chats.json; open the drawer on the newest. */
@@ -163,11 +228,15 @@ export function App() {
       }
       if (ev.kind === 'init') {
         setInit(ev.init);
+        setConnecting(false);
         return;
       }
       if (ev.kind === 'done') {
         setStreaming(false);
         setThinking(false);
+        setConnecting(false);
+        // The session id moved on with this turn; prepare the next one now.
+        prewarm(ev.chatKey);
         // Freeze the live assistant message so the next turn starts a new one.
         setMessages((ms) => {
           const last = ms[ms.length - 1];
@@ -180,6 +249,7 @@ export function App() {
         return;
       }
       if (ev.kind === 'error') {
+        setConnecting(false);
         const text = ev.message === 'busy' ? t('chat.busy') : `${t('chat.error')}: ${ev.message}`;
         setMessages((ms) => [...ms, { role: 'notice', text, at: Date.now(), level: 'error' }]);
         return;
@@ -191,6 +261,7 @@ export function App() {
         return;
       }
       // text / thinking / tool / tool-result mutate the trailing assistant message.
+      setConnecting(false);
       setThinking(ev.kind === 'thinking');
       // A live (still streaming) assistant message is marked with at === -1.
       setMessages((ms) => {
@@ -211,17 +282,6 @@ export function App() {
     return unsubscribe;
   }, [captureReports, desk, refreshChats]);
 
-  const send = useCallback(
-    (text: string, key = currentKeyRef.current) => {
-      if (!key) return;
-      setMessages((ms) => [...ms, { role: 'user', text, at: Date.now() }]);
-      setStreaming(true);
-      setThinking(false);
-      desk.chat.send({ chatKey: key, text, mode });
-    },
-    [desk, mode],
-  );
-
   const newChat = useCallback(
     async (focus = true): Promise<string> => {
       const chat = await desk.chats.create('chat', settings.activeWorkflow || null);
@@ -238,6 +298,24 @@ export function App() {
   );
 
   /**
+   * Send one turn. With no chat open the chat is created first: the composer is
+   * right there under the cursor, so typing into it must work without a trip to
+   * the "new chat" button in the sidebar.
+   */
+  const send = useCallback(
+    async (text: string, key = currentKeyRef.current) => {
+      const chatKey = key ?? (await newChat());
+      currentKeyRef.current = chatKey;
+      setMessages((ms) => [...ms, { role: 'user', text, at: Date.now() }]);
+      setStreaming(true);
+      setThinking(false);
+      setConnecting(true);
+      desk.chat.send({ chatKey, text, mode });
+    },
+    [desk, mode, newChat],
+  );
+
+  /**
    * Send one library / panel prompt, creating a chat first when none is open.
    * `focus` is false for a turn the day panel fired by itself: yanking the user
    * out of the panel mid-session because an event arrived would be rude.
@@ -248,7 +326,7 @@ export function App() {
       const key = currentKeyRef.current ?? (await newChat(focus));
       currentKeyRef.current = key;
       if (focus) setTab('copilot');
-      send(prompt, key);
+      await send(prompt, key);
     },
     [newChat, send, streaming],
   );
@@ -259,7 +337,7 @@ export function App() {
       if (!chat || streaming) return;
       if (key !== currentKeyRef.current) await openChat(key);
       currentKeyRef.current = key;
-      send(healthCheckPrompt(chat.title || t('chat.untitled')), key);
+      await send(healthCheckPrompt(chat.title || t('chat.untitled')), key);
     },
     [chats, openChat, send, streaming],
   );
@@ -270,6 +348,8 @@ export function App() {
 
   const changeMode = (m: ChatMode) => {
     setMode(m);
+    // The mode is part of the system prompt, so the waiting session no longer fits.
+    desk.chat.prewarm({ chatKey: currentKeyRef.current, mode: m });
     try {
       localStorage.setItem('desk.mode', m);
     } catch {
@@ -282,10 +362,30 @@ export function App() {
       const next = await desk.settings.set(patch);
       setSettings(next);
       if (patch.theme) applyTheme(next.theme);
+      if ('uiScale' in patch) void desk.ui.zoom(next.uiScale);
+      prewarm(currentKeyRef.current);
       if ('tvmcpPath' in patch || 'toolsets' in patch || 'cdpPort' in patch || 'authMode' in patch) void refreshStatus();
     },
     [desk, refreshStatus],
   );
+
+  // Ctrl +/-/0 walks the same zoom steps the settings offer, so the keyboard
+  // and the dropdown can never disagree about the stored value.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      const scale = settings.uiScale ?? 1;
+      let next: number | null = null;
+      if (e.key === '+' || e.key === '=') next = nextZoom(scale, 1);
+      else if (e.key === '-' || e.key === '_') next = nextZoom(scale, -1);
+      else if (e.key === '0') next = 1;
+      if (next === null || next === scale) return;
+      e.preventDefault();
+      void patchSettings({ uiScale: next });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [patchSettings, settings.uiScale]);
 
   const setSecret = useCallback(
     async (name: 'apiKey' | 'oauthToken', value: string | null) => {
@@ -297,36 +397,54 @@ export function App() {
 
   const launchTv = useCallback(async () => {
     setLaunching(true);
-    setTvMessage(null);
     try {
       const r = await desk.tv.launch();
-      setTvMessage(r.ok ? t('tv.ok') : t(`tv.${r.error ?? 'spawn-failed'}`, { detail: r.detail ?? '' }));
+      if (r.ok) pushToast(t('tv.ok'), 'info');
+      else pushToast(t(`tv.${r.error ?? 'spawn-failed'}`, { detail: r.detail ?? '' }), 'error');
     } finally {
       setLaunching(false);
       void refreshStatus();
     }
-  }, [desk, refreshStatus]);
+  }, [desk, pushToast, refreshStatus]);
 
   /**
-   * Apply one preflight fix. Only the three safe kinds do anything here:
-   * launching TradingView, switching the port setting and opening a native
-   * file picker. `copy` and `explain` are handled inside the list — the app
-   * must not install software, clone a repository or close the user's
-   * TradingView on its own.
+   * Apply one preflight fix. What the app may do for the user: launch
+   * TradingView, switch the port, open a file picker, flip one of its own
+   * settings, and run one of the four operations it owns end to end. `copy` and
+   * `explain` are handled inside the list — installing a toolchain into the
+   * user's system, cloning into their folders and closing their TradingView
+   * stay theirs to do.
    */
   const applyFix = useCallback(
     async (fix: PreflightFix) => {
       if (fix.kind === 'launch-tv') await launchTv();
       else if (fix.kind === 'set-port') await patchSettings({ cdpPort: fix.port });
-      else if (fix.kind === 'pick-file') {
+      else if (fix.kind === 'set-flag') await patchSettings({ [fix.field]: fix.value });
+      else if (fix.kind === 'run-task') {
+        // runTask re-probes by itself, and it must not be raced by a second one.
+        await runTask(fix.task);
+        return;
+      } else if (fix.kind === 'pick-file') {
         const picked = await desk.dialog.pick(PICK_FOR_FIELD[fix.field]);
         if (!picked) return;
         await patchSettings({ [fix.field]: picked });
       } else return;
       await runPreflight();
     },
-    [desk, launchTv, patchSettings, runPreflight],
+    [desk, launchTv, patchSettings, runPreflight, runTask],
   );
+
+  /**
+   * Delete the provisioned Python environment. Destructive and not undoable in
+   * place (the next provisioning downloads it again), so it asks first — and it
+   * is the only reason this confirm exists anywhere in the app.
+   */
+  const clearRuntime = useCallback(async () => {
+    if (!window.confirm(t('settings.clearRuntimeConfirm'))) return;
+    const r = await desk.runtime.clear();
+    pushToast(t('settings.clearRuntimeDone', { path: r.removed }), 'info');
+    await runPreflight();
+  }, [desk, pushToast, runPreflight]);
 
   const openWizard = useCallback(() => {
     setWizardStep(STEP_IDS[0]);
@@ -398,7 +516,6 @@ export function App() {
         chats={chats}
         currentKey={currentKey}
         launching={launching}
-        tvMessage={tvMessage}
         quickPrompts={activeWorkflow?.quickPrompts ?? []}
         onToggleSection={toggleSection}
         onLaunchTv={launchTv}
@@ -423,7 +540,7 @@ export function App() {
         </nav>
         <CardActionsContext.Provider value={cardActions}>
           {tab === 'copilot' ? (
-            <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
+            <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
           ) : tab === 'day' ? (
             <DayPanel workflow={activeWorkflow} settings={settings} busy={streaming} onAsk={(prompt, focus) => void quick(prompt, focus)} />
           ) : tab === 'workflows' ? (
@@ -436,12 +553,17 @@ export function App() {
               workflows={workflows}
               preflight={preflight}
               preflightBusy={preflightBusy}
+              tasks={tasks}
+              taskCommands={taskCommands}
+              onTaskStop={(id) => desk.tasks.stop(id)}
               onPreflight={() => void runPreflight()}
               onFix={(fix) => void applyFix(fix)}
               onOpenWizard={openWizard}
+              onClearRuntime={() => void clearRuntime()}
               onSettings={(patch) => void patchSettings(patch)}
               onSecret={(n, v) => void setSecret(n, v)}
               onProfile={(p) => void desk.profile.set(p).then(setProfile)}
+              onToast={pushToast}
             />
           ) : (
             <HelpTab onOpenWizard={openWizard} />
@@ -451,12 +573,16 @@ export function App() {
           ) : null}
         </CardActionsContext.Provider>
       </main>
+      <Toasts items={toasts} onDismiss={dismissToast} />
       {wizardStep ? (
         <SetupWizard
           step={wizardStep}
           result={preflight}
           busy={preflightBusy}
           skipped={skipped}
+          tasks={tasks}
+          taskCommands={taskCommands}
+          onTaskStop={(id) => desk.tasks.stop(id)}
           onStep={setWizardStep}
           onSkip={skipStep}
           onRecheck={() => void runPreflight()}

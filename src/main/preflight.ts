@@ -9,15 +9,19 @@
 // and it caches nothing: `invalidateTvmcpCache()` runs first, because a user
 // pressing "проверить заново" expects a real re-check.
 //
-// It never runs a network or destructive command by itself. `git clone`, the uv
-// installer, `claude` login and "close TradingView" are handed back as copyable
-// text; the user presses the button.
+// It never CHANGES anything: every probe here reads. Where something must be
+// installed, provisioned or logged in to, the diagnosis hands back either
+// copyable text (the user's own toolchain and apps) or a `run-task` fix (what
+// the app itself owns: its bundled Python environment, the official MCP
+// registration). Tasks live in `tasks.ts` and run only when a button is pressed.
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Settings } from '@shared/api';
 import { DEFAULT_CDP_PORT, DEFAULT_TVMCP_REPO } from '@shared/defaults';
+import { emptyOfficialFact, OFFICIAL_MCP_NAME, parseMcpGet, type OfficialMcpFact } from '@shared/official-mcp';
 import { buildChecks, firstLine, PORT_CANDIDATES, resultOf, type FileFact, type PreflightFacts, type PreflightResult } from '@shared/preflight';
+import { claudeBin, initRuntimePaths, kbFact, runtimeFact } from './runtime';
 import { cdpProbe, claudeAuthStatus, invalidateTvmcpCache, isTradingViewRunning, tvmcpStatus } from './status';
 
 function run(cmd: string, args: string[], timeout: number): Promise<{ ok: boolean; notFound: boolean; out: string }> {
@@ -93,15 +97,37 @@ async function fileFact(p: string): Promise<FileFact> {
   return { path: clean, exists: clean ? await exists(clean) : false };
 }
 
+/**
+ * Is the official TradingView MCP registered in Claude Code's own store, and is
+ * it authenticated?
+ *
+ * Read-only: `claude mcp get` prints the registration and health-checks it. It
+ * runs with the bundled Claude binary, because on a packaged install there may
+ * be no `claude` on PATH and an ENOENT would otherwise read as "you have not
+ * set it up" — a lie that would push the user into registering it twice.
+ */
+async function officialFact(cfg: Settings): Promise<OfficialMcpFact> {
+  const enabled = Boolean(cfg.officialMcp);
+  const r = await run(claudeBin(), ['mcp', 'get', OFFICIAL_MCP_NAME], 20_000);
+  if (r.notFound) return { ...emptyOfficialFact(enabled), status: 'unknown' };
+  return { ...parseMcpGet(r.out, r.ok), enabled };
+}
+
 export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   const port = cfg.cdpPort || DEFAULT_CDP_PORT;
   const repo = (cfg.tvmcpRepo || DEFAULT_TVMCP_REPO).trim();
   invalidateTvmcpCache();
+  // Cheap, and it must happen before the runtime fact: a fresh install has not
+  // resolved its paths yet when the wizard opens on the very first frame.
+  const paths = await initRuntimePaths();
 
-  const [uv, clone, claude, running, cdp, workflows, riskRules, journal] = await Promise.all([
+  const [uv, clone, runtime, kb, claude, official, running, cdp, workflows, riskRules, journal] = await Promise.all([
     uvFact(),
     cloneFact((cfg.tvmcpPath || '').trim(), repo),
+    runtimeFact(cfg, paths),
+    kbFact(cfg, paths),
     claudeAuthStatus(cfg),
+    officialFact(cfg),
     isTradingViewRunning(),
     cdpProbe(port),
     workflowFacts(),
@@ -110,11 +136,13 @@ export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   ]);
 
   // The boot probe is the expensive one (~2.5 s of Python) and is pointless
-  // when uv is missing or the clone is not tvmcp.
-  const boot = uv.found && clone.pyproject === 'ok' ? { ran: true, ...(await tvmcpStatus(cfg)) } : { ran: false, ok: false, tools: 0, error: '' };
+  // before there is anything to boot: a provisioned environment in bundled
+  // mode, uv plus a real tvmcp checkout in external mode.
+  const bootable = runtime.mode === 'bundled' ? runtime.provisioned || runtime.stale : uv.found && clone.pyproject === 'ok';
+  const boot = bootable ? { ran: true, ...(await tvmcpStatus(cfg)) } : { ran: false, ok: false, tools: 0, error: '' };
   const freePort = cdp.up && !cdp.tradingview ? await findFreePort(port) : null;
 
-  return { uv, clone, boot, claude, tv: { running, port, cdp }, freePort, workflows, files: { riskRules, journal }, platform: process.platform };
+  return { uv, clone, runtime, kb, boot, claude, official, tv: { running, port, cdp }, freePort, workflows, files: { riskRules, journal }, platform: process.platform };
 }
 
 /** The whole diagnosis: probe everything, map it, never throw. */

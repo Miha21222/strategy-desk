@@ -3,7 +3,7 @@
 // is installed somewhere else.
 import { describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { resourceCandidates, resourceRoots, type ResourceAnchors } from './resource-paths';
+import { binaryCandidates, binaryRoots, resourceCandidates, resourceRoots, type ResourceAnchors } from './resource-paths';
 
 const dev: ResourceAnchors = {
   cwd: path.join('C:', 'repo'),
@@ -63,5 +63,25 @@ describe('resourceCandidates', () => {
       expect(c).toHaveLength(2);
       expect(c[0].startsWith(packaged.appPath)).toBe(true);
     }
+  });
+});
+
+// A spawned process opens a path by name. app.asar is an archive that only
+// Electron's own fs layer can read through, so offering a path inside it as a
+// candidate would hand `uv` something that fails with ENOENT.
+describe('binaryRoots', () => {
+  it('never offers app.asar for something another process has to open', () => {
+    const roots = binaryRoots(packaged);
+    expect(roots).toEqual([packaged.resourcesPath]);
+    expect(roots.some((r) => r.includes('app.asar'))).toBe(false);
+  });
+
+  it('still prefers the working directory in dev, so a local payload is picked up', () => {
+    expect(binaryRoots(dev)).toEqual([dev.cwd]);
+  });
+
+  it('resolves the two things the installer carries next to app.asar', () => {
+    expect(binaryCandidates(packaged, 'uv.exe')).toEqual([path.join(String(packaged.resourcesPath), 'uv.exe')]);
+    expect(binaryCandidates(packaged, 'tvmcp', 'uv.lock')).toEqual([path.join(String(packaged.resourcesPath), 'tvmcp', 'uv.lock')]);
   });
 });

@@ -6,7 +6,7 @@
 // order and one place to look when a packaged build cannot find something.
 import { app } from 'electron';
 import { promises as fs } from 'node:fs';
-import { resourceCandidates as candidatesFrom, resourceRoots as rootsFrom, type ResourceAnchors } from './resource-paths';
+import { binaryCandidates as binariesFrom, resourceCandidates as candidatesFrom, resourceRoots as rootsFrom, type ResourceAnchors } from './resource-paths';
 
 export function anchors(): ResourceAnchors {
   return {
@@ -26,6 +26,15 @@ export function resourceRoots(): string[] {
 /** Full paths to one shipped resource, best candidate first. */
 export function resourceCandidates(...rel: string[]): string[] {
   return candidatesFrom(anchors(), ...rel);
+}
+
+/**
+ * Full paths to a shipped file that another process must open by name — an
+ * executable, or a directory handed to `uv`. Drops the asar anchor; see
+ * `binaryRoots` for why.
+ */
+export function binaryCandidates(...rel: string[]): string[] {
+  return binariesFrom(anchors(), ...rel);
 }
 
 /** The text of the first candidate that reads, or null when none does. */

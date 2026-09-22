@@ -3,8 +3,9 @@
 import type { Grade, StressReport } from './blocks';
 import type { PanelDayState, PanelDef, TvCallResult } from './panel';
 import type { PreflightResult } from './preflight';
+import type { TaskEvent, TaskId, TaskState } from './tasks';
 
-export type { PanelDayState, PanelDef, TvCallResult, PreflightResult };
+export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent, TaskId, TaskState };
 
 export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
 export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
@@ -66,6 +67,8 @@ export type AuthMode = 'subscription' | 'api-key' | 'setup-token';
 export type EffortLevel = '' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 export type PermissionPreset = 'standard' | 'extended';
 export type Theme = 'system' | 'dark' | 'light';
+/** Language the copilot must answer in; 'auto' = follow the user's own message. */
+export type AnswerLang = 'auto' | 'ru' | 'en';
 export type ChatMode = 'saver' | 'full';
 
 /** Settings as seen by the renderer. Secrets never cross the bridge; only presence flags do. */
@@ -79,10 +82,18 @@ export interface Settings {
   cdpPort: number;
   toolsets: string;
   officialMcp: boolean;
+  /** Offer the bundled course knowledge base to the model as the `gt-database` server. */
+  knowledgeBase: boolean;
+  /** A gt-rag checkout for a dev run; ignored once the installer carries the knowledge base. */
+  gtRagPath: string;
   model: string;
   effort: EffortLevel;
   permissionPreset: PermissionPreset;
   theme: Theme;
+  /** Zoom factor of the whole window (Electron webContents zoom), 0.8-2.0. */
+  uiScale: number;
+  /** Language rule appended to the system prompt every turn. */
+  answerLang: AnswerLang;
   tvDesktopExe: string;
   /** Sidebar sections collapsed state, persisted. */
   sidebar: Record<string, boolean>;
@@ -183,7 +194,7 @@ export interface SendArgs {
 }
 
 /** What `dialog.pick` should open; the main process owns the filters. */
-export type PickKind = 'tvmcp-dir' | 'risk-rules' | 'journal' | 'field-notes';
+export type PickKind = 'tvmcp-dir' | 'gt-rag-dir' | 'risk-rules' | 'journal' | 'field-notes';
 
 export interface DeskApi {
   status: { get(): Promise<Status> };
@@ -206,6 +217,29 @@ export interface DeskApi {
     setSecret(name: 'apiKey' | 'oauthToken', value: string): Promise<Settings>;
     clearSecret(name: 'apiKey' | 'oauthToken'): Promise<Settings>;
   };
+  /**
+   * The four operations the app may perform for the user, each on one press:
+   * provisioning the bundled Python runtime, fetching the headless browser,
+   * registering and authenticating the official TradingView MCP.
+   *
+   * The renderer names a task id and gets a state back; the command lives in
+   * the main process. `command()` is what the UI shows before the press, so
+   * nothing is ever run without the user seeing what it is.
+   */
+  tasks: {
+    run(id: TaskId): Promise<TaskState>;
+    stop(id: TaskId): void;
+    state(id: TaskId): Promise<TaskState>;
+    list(): Promise<TaskState[]>;
+    command(id: TaskId): Promise<string>;
+    onEvent(cb: (ev: TaskEvent) => void): () => void;
+  };
+  /**
+   * Delete the provisioned Python environment (~600 MB in userData). The
+   * uninstaller leaves it behind on purpose — it sits next to the chats and
+   * journals it must not touch — so this is the only way to reclaim it.
+   */
+  runtime: { clear(): Promise<{ removed: string }> };
   /** The prop-firm rule book (data/prop-firms.json); null when it is missing. */
   rules: { get(): Promise<unknown | null> };
   profile: { get(): Promise<TraderProfile>; set(p: TraderProfile): Promise<TraderProfile> };
@@ -230,8 +264,12 @@ export interface DeskApi {
   chat: {
     send(args: SendArgs): void;
     stop(chatKey: string): void;
+    /** Start the session this chat's next turn will need, before the text exists. */
+    prewarm(args: { chatKey: string | null; mode: ChatMode }): void;
     onEvent(cb: (ev: ChatEvent) => void): () => void;
   };
+  /** Applies the window zoom factor (settings.uiScale); returns the clamped value. */
+  ui: { zoom(factor: number): Promise<number> };
   open: { external(url: string): Promise<boolean> };
   app: { version(): Promise<string> };
 }

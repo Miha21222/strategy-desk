@@ -6,19 +6,40 @@
 // `src/main/preflight.ts`.
 //
 // Two rules the whole feature keeps:
-//   * the app NEVER runs a network or destructive command by itself. `git
-//     clone`, the uv installer, `claude /login` and "close TradingView" come
-//     back as copyable text with one sentence saying what will happen;
+//   * the app NEVER acts on its own initiative, and never hides what it will
+//     run. Installing a toolchain, cloning into the user's folders, logging in
+//     to Claude or closing their TradingView stays copyable text. What the app
+//     itself OWNS — the Python environment it ships and provisions inside its
+//     own userData, and the registration of the official TradingView MCP — is a
+//     button (a `run-task` fix): one press, the command shown, the output
+//     streamed. Nothing here ever starts by itself at launch;
 //   * nothing is cached. "Проверить заново" means a real re-probe.
 import type { ClaudeAuthStatus, Settings } from './api';
+import type { OfficialMcpFact } from './official-mcp';
+import type { TaskId } from './tasks';
 
-export const CHECK_IDS = ['uv', 'tvmcpClone', 'tvmcpBoot', 'claude', 'tvDesktop', 'cdpPort', 'workflows', 'riskRules', 'journal'] as const;
+export const CHECK_IDS = [
+  'uv',
+  'tvmcpClone',
+  'tvmcpRuntime',
+  'tvmcpBoot',
+  'chromium',
+  'knowledgeBase',
+  'kbModel',
+  'claude',
+  'officialMcp',
+  'tvDesktop',
+  'cdpPort',
+  'workflows',
+  'riskRules',
+  'journal',
+] as const;
 export type CheckId = (typeof CHECK_IDS)[number];
 
 export type CheckStatus = 'ok' | 'warn' | 'fail' | 'unknown';
 
 /** Settings fields a `pick-file` fix may write. */
-export type PathField = 'tvmcpPath' | 'riskRulesPath' | 'journalPath' | 'fieldNotesPath';
+export type PathField = 'tvmcpPath' | 'gtRagPath' | 'riskRulesPath' | 'journalPath' | 'fieldNotesPath';
 
 /**
  * What the UI may offer for a broken check.
@@ -36,7 +57,17 @@ export type PreflightFix =
   | { kind: 'launch-tv'; labelKey: string }
   | { kind: 'set-port'; labelKey: string; port: number }
   | { kind: 'pick-file'; labelKey: string; field: PathField; directory?: boolean }
-  | { kind: 'explain'; labelKey: string; noteKey: string };
+  | { kind: 'explain'; labelKey: string; noteKey: string }
+  // Something the app owns and may do, once asked: provision its own Python
+  // environment, fetch the headless browser, register or authenticate the
+  // official MCP. The renderer sends the id; the main process owns the command.
+  | { kind: 'run-task'; labelKey: string; task: TaskId; noteKey?: string }
+  // A settings switch the diagnosis can flip, because the check just proved the
+  // thing behind it works.
+  | { kind: 'set-flag'; labelKey: string; field: FlagField; value: boolean; noteKey?: string };
+
+/** Settings booleans a `set-flag` fix may write. */
+export type FlagField = 'officialMcp' | 'knowledgeBase';
 
 export interface PreflightCheck {
   id: CheckId;
@@ -80,12 +111,74 @@ export interface FileFact {
   exists: boolean;
 }
 
+/**
+ * How tvmcp is going to be started, and whether it can be.
+ *
+ * `bundled` — the installer shipped the payload and the app provisions its own
+ * environment in userData; `uv` and a clone of the repository are then the
+ * app's business, not the user's, and the `uv` / `tvmcpClone` checks are not
+ * shown at all. `external` — a dev run or a user with their own checkout: the
+ * old two checks apply and this one is not shown.
+ */
+export interface RuntimeFact {
+  mode: 'bundled' | 'external';
+  tvmcpDir: string;
+  /** The shipped payload is intact (pyproject named tvmcp + uv.lock present). */
+  payloadOk: boolean;
+  projectName: string;
+  /** An environment exists and was built from exactly this uv.lock. */
+  provisioned: boolean;
+  /** An environment exists but was built from a different uv.lock. */
+  stale: boolean;
+  pythonPath: string;
+  uvPath: string;
+  lockHash: string;
+  /**
+   * The headless browser is installed separately and on demand: it is ~270 MB
+   * and only three tvmcp modules use it (chart rendering, the backtest report,
+   * the doctor). `null` = not applicable, i.e. there is no environment of ours
+   * to install it into.
+   */
+  chromium: boolean | null;
+}
+
+/**
+ * The course knowledge base (gt-rag): a second MCP server, shipped in the same
+ * installer and run out of the same Python environment as tvmcp.
+ *
+ * `bundled` — the app carries the content and seeds its writable half into
+ * userData; `external` — a developer's own clone named in the settings, with
+ * its own data and its own venv; `off` — neither, or switched off, and the
+ * model simply has no `gt-database` tools.
+ */
+export interface KbFact {
+  mode: 'bundled' | 'external' | 'off';
+  /** The settings switch. `enabled` with mode `off` means "nothing to enable". */
+  enabled: boolean;
+  dir: string;
+  /** The payload (or the clone) holds what the server needs in order to start. */
+  payloadOk: boolean;
+  /** The store was copied into userData from exactly this payload. */
+  seeded: boolean;
+  /** A store is there, but it came from a different payload. */
+  stale: boolean;
+  /** The embedding model is in the cache the server will use. */
+  model: boolean;
+  /** The installer carried a model to seed from, so no download is needed. */
+  modelShipped: boolean;
+  /** Course pages in the payload — the one number worth showing. */
+  pages: number;
+}
+
 export interface PreflightFacts {
   uv: { found: boolean; version: string };
   clone: { path: string; repo: string; dirExists: boolean; pyproject: 'ok' | 'missing' | 'wrong-name'; projectName: string };
-  /** `ran: false` = uv or the clone is broken, so booting was not attempted. */
+  runtime: RuntimeFact;
+  kb: KbFact;
+  /** `ran: false` = the runtime is not usable yet, so booting was not attempted. */
   boot: { ran: boolean; ok: boolean; tools: number; error: string };
   claude: ClaudeAuthStatus;
+  official: OfficialMcpFact;
   tv: { running: boolean; port: number; cdp: CdpProbe };
   /** A port nobody answers on, so "switch the port" is a real offer. */
   freePort: number | null;
@@ -127,7 +220,46 @@ export function buildChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] 
   const checks: PreflightCheck[] = [];
   const isWin = f.platform === 'win32';
 
-  // 1. uv — everything tvmcp does starts here.
+  // 1-2. Where tvmcp comes from. Bundled: one check about the app's own
+  // environment. External: the two old ones about the user's uv and clone.
+  if (f.runtime.mode === 'bundled') checks.push(runtimeCheck(f.runtime));
+  else checks.push(...externalToolchainChecks(f, isWin));
+
+  // 3. does it boot — where a missing dependency or the wrong Python shows up.
+  checks.push(bootCheck(cfg, f));
+
+  // 3b. the headless browser, in bundled mode only: in a dev run the developer
+  // owns their own playwright install and we have no business reporting on it.
+  if (f.runtime.mode === 'bundled' && f.runtime.chromium !== null) checks.push(chromiumCheck(f.runtime));
+
+  // 3c. the course knowledge base — optional like the browser: without it the
+  // copilot still reads charts and runs scans, it just cannot cite the course.
+  checks.push(...kbChecks(f.kb));
+
+  // 4. Claude — the SDK spawns the user's own Claude Code binary.
+  if (f.claude === 'none') {
+    checks.push({
+      id: 'claude',
+      status: 'fail',
+      detailKey: 'preflight.claude.none',
+      // Logging in is an interactive terminal flow; a button here would lie.
+      fix: { kind: 'copy', labelKey: 'preflight.fix.copyLogin', command: 'claude', noteKey: 'preflight.claude.note' },
+    });
+  } else {
+    checks.push({ id: 'claude', status: 'ok', detailKey: `preflight.claude.${f.claude}` });
+  }
+
+  // 5. the official TradingView MCP — optional, and the app can set it up.
+  checks.push(officialCheck(f.official));
+
+  checks.push(...chartChecks(cfg, f));
+  return checks;
+}
+
+/** The old pair: a `uv` on PATH and a directory that really holds tvmcp. */
+function externalToolchainChecks(f: PreflightFacts, isWin: boolean): PreflightCheck[] {
+  const checks: PreflightCheck[] = [];
+
   checks.push(
     f.uv.found
       ? { id: 'uv', status: 'ok', detailKey: 'preflight.uv.ok', vars: { version: f.uv.version } }
@@ -184,33 +316,210 @@ export function buildChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] 
     checks.push({ id: 'tvmcpClone', status: 'ok', detailKey: 'preflight.clone.ok', vars: { path: c.path } });
   }
 
-  // 3. does it boot — where a missing dependency or the wrong Python shows up.
-  if (!f.boot.ran) {
-    checks.push({ id: 'tvmcpBoot', status: 'unknown', detailKey: 'preflight.boot.skipped' });
-  } else if (f.boot.ok) {
-    checks.push({ id: 'tvmcpBoot', status: 'ok', detailKey: 'preflight.boot.ok', vars: { tools: f.boot.tools, toolsets: cfg.toolsets || '—' } });
+  return checks;
+}
+
+/**
+ * The app's own Python environment: shipped payload, provisioned venv, and
+ * whether the venv still matches the uv.lock that shipped with this version.
+ *
+ * A broken payload is not something a button can repair — the installation
+ * itself is damaged — so it explains instead of offering a fix.
+ */
+function runtimeCheck(r: RuntimeFact): PreflightCheck {
+  if (!r.payloadOk) {
+    return {
+      id: 'tvmcpRuntime',
+      status: 'fail',
+      detailKey: 'preflight.runtime.payloadBroken',
+      vars: { path: r.tvmcpDir, name: r.projectName || '—' },
+      fix: { kind: 'explain', labelKey: 'preflight.fix.how', noteKey: 'preflight.runtime.payloadNote' },
+    };
+  }
+  if (r.provisioned) {
+    return { id: 'tvmcpRuntime', status: 'ok', detailKey: 'preflight.runtime.ok', vars: { python: r.pythonPath, lock: r.lockHash } };
+  }
+  return {
+    id: 'tvmcpRuntime',
+    status: r.stale ? 'warn' : 'fail',
+    detailKey: r.stale ? 'preflight.runtime.stale' : 'preflight.runtime.missing',
+    vars: { path: r.tvmcpDir },
+    fix: { kind: 'run-task', labelKey: 'preflight.fix.provision', task: 'provision-runtime', noteKey: 'preflight.runtime.note' },
+  };
+}
+
+/**
+ * The knowledge base, in two checks: is the content usable at all, and is the
+ * embedding model there. They are split because they fail for different reasons
+ * and are fixed by different presses — a copy the app owns, and a download.
+ *
+ * Every one of them is `optional`: a desk with no course behind it is a smaller
+ * product, not a broken one.
+ */
+function kbChecks(kb: KbFact): PreflightCheck[] {
+  if (!kb.enabled) {
+    return [
+      {
+        id: 'knowledgeBase',
+        status: 'warn',
+        optional: true,
+        detailKey: 'preflight.kb.disabled',
+        fix: { kind: 'set-flag', labelKey: 'preflight.fix.enableKb', field: 'knowledgeBase', value: true, noteKey: 'preflight.kb.disabledNote' },
+      },
+    ];
+  }
+  if (kb.mode === 'off') {
+    // Nothing shipped and no clone named: offer to point at one, which is the
+    // only thing that can make this check pass on a build without the payload.
+    return [
+      {
+        id: 'knowledgeBase',
+        status: 'warn',
+        optional: true,
+        detailKey: 'preflight.kb.absent',
+        fix: { kind: 'pick-file', labelKey: 'preflight.fix.pickDir', field: 'gtRagPath', directory: true },
+      },
+    ];
+  }
+  if (kb.mode === 'external') {
+    return [
+      kb.payloadOk
+        ? { id: 'knowledgeBase', status: 'ok', optional: true, detailKey: 'preflight.kb.external', vars: { path: kb.dir } }
+        : {
+            id: 'knowledgeBase',
+            status: 'warn',
+            optional: true,
+            detailKey: 'preflight.kb.externalBroken',
+            vars: { path: kb.dir },
+            fix: { kind: 'pick-file', labelKey: 'preflight.fix.pickDir', field: 'gtRagPath', directory: true },
+          },
+    ];
+  }
+
+  const checks: PreflightCheck[] = [];
+  if (!kb.payloadOk) {
+    checks.push({
+      id: 'knowledgeBase',
+      status: 'warn',
+      optional: true,
+      detailKey: 'preflight.kb.payloadBroken',
+      vars: { path: kb.dir },
+      fix: { kind: 'explain', labelKey: 'preflight.fix.how', noteKey: 'preflight.kb.payloadNote' },
+    });
+    return checks;
+  }
+  if (kb.seeded) {
+    checks.push({ id: 'knowledgeBase', status: 'ok', optional: true, detailKey: 'preflight.kb.ok', vars: { pages: kb.pages } });
   } else {
     checks.push({
-      id: 'tvmcpBoot',
-      status: 'fail',
-      detailKey: 'preflight.boot.failed',
-      vars: { error: firstLine(f.boot.error) },
-      fix: { kind: 'copy', labelKey: 'preflight.fix.copySync', command: `uv --directory "${c.path}" sync`, noteKey: 'preflight.boot.note' },
+      id: 'knowledgeBase',
+      status: 'warn',
+      optional: true,
+      detailKey: kb.stale ? 'preflight.kb.stale' : 'preflight.kb.unseeded',
+      vars: { pages: kb.pages },
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.seedKb', task: 'kb-import', noteKey: 'preflight.kb.seedNote' },
     });
   }
 
-  // 4. Claude — the SDK spawns the user's own Claude Code binary.
-  if (f.claude === 'none') {
+  // The model is the half that may need the network, so it says so itself.
+  if (kb.model) {
+    checks.push({ id: 'kbModel', status: 'ok', optional: true, detailKey: 'preflight.kbModel.ok' });
+  } else if (kb.modelShipped) {
     checks.push({
-      id: 'claude',
-      status: 'fail',
-      detailKey: 'preflight.claude.none',
-      // Logging in is an interactive terminal flow; a button here would lie.
-      fix: { kind: 'copy', labelKey: 'preflight.fix.copyLogin', command: 'claude', noteKey: 'preflight.claude.note' },
+      id: 'kbModel',
+      status: 'warn',
+      optional: true,
+      detailKey: 'preflight.kbModel.shipped',
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.seedKb', task: 'kb-import', noteKey: 'preflight.kbModel.shippedNote' },
     });
   } else {
-    checks.push({ id: 'claude', status: 'ok', detailKey: `preflight.claude.${f.claude}` });
+    checks.push({
+      id: 'kbModel',
+      status: 'warn',
+      optional: true,
+      detailKey: 'preflight.kbModel.missing',
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.fetchModel', task: 'kb-model', noteKey: 'preflight.kbModel.note' },
+    });
   }
+  return checks;
+}
+
+/**
+ * The headless browser. Optional on purpose: the desk reads levels, calendars,
+ * the journal and the chart through TradingView itself without it — only
+ * rendered chart images and backtest reports need one.
+ */
+function chromiumCheck(r: RuntimeFact): PreflightCheck {
+  if (r.chromium) return { id: 'chromium', status: 'ok', optional: true, detailKey: 'preflight.chromium.ok' };
+  return {
+    id: 'chromium',
+    status: 'warn',
+    optional: true,
+    detailKey: 'preflight.chromium.missing',
+    fix: { kind: 'run-task', labelKey: 'preflight.fix.installChromium', task: 'install-chromium', noteKey: 'preflight.chromium.note' },
+  };
+}
+
+/** Does the server actually come up, and with how many tools. */
+function bootCheck(cfg: Settings, f: PreflightFacts): PreflightCheck {
+  if (!f.boot.ran) return { id: 'tvmcpBoot', status: 'unknown', detailKey: 'preflight.boot.skipped' };
+  if (f.boot.ok) {
+    return { id: 'tvmcpBoot', status: 'ok', detailKey: 'preflight.boot.ok', vars: { tools: f.boot.tools, toolsets: cfg.toolsets || '—' } };
+  }
+  // Bundled: re-provisioning is the app's own job and a button. External: the
+  // user owns the checkout, so `uv sync` is theirs to run.
+  const fix: PreflightFix =
+    f.runtime.mode === 'bundled'
+      ? { kind: 'run-task', labelKey: 'preflight.fix.provision', task: 'provision-runtime', noteKey: 'preflight.boot.noteBundled' }
+      : { kind: 'copy', labelKey: 'preflight.fix.copySync', command: `uv --directory "${f.clone.path}" sync`, noteKey: 'preflight.boot.note' };
+  return { id: 'tvmcpBoot', status: 'fail', detailKey: 'preflight.boot.failed', vars: { error: firstLine(f.boot.error) }, fix };
+}
+
+/**
+ * The official TradingView MCP (mcp.tradingview.com).
+ *
+ * Always optional: everything the desk does day to day runs on tvmcp, and this
+ * server adds news, calendars, screeners and alerts on top. It is registered in
+ * Claude Code's own store rather than ours, because that is where the OAuth
+ * token lives — see `shared/official-mcp.ts`.
+ */
+function officialCheck(o: OfficialMcpFact): PreflightCheck {
+  const base = { id: 'officialMcp' as const, optional: true };
+  if (o.status === 'unknown') {
+    return { ...base, status: 'unknown', detailKey: 'preflight.official.unknown' };
+  }
+  if (!o.registered) {
+    return {
+      ...base,
+      status: 'warn',
+      detailKey: 'preflight.official.absent',
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.officialAdd', task: 'official-mcp-add', noteKey: 'preflight.official.addNote' },
+    };
+  }
+  if (o.status !== 'connected') {
+    return {
+      ...base,
+      status: 'warn',
+      detailKey: 'preflight.official.needsAuth',
+      vars: { raw: o.raw || '—' },
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.officialLogin', task: 'official-mcp-login', noteKey: 'preflight.official.loginNote' },
+    };
+  }
+  if (!o.enabled) {
+    return {
+      ...base,
+      status: 'warn',
+      detailKey: 'preflight.official.offInSettings',
+      vars: { scope: o.scope || '—' },
+      fix: { kind: 'set-flag', labelKey: 'preflight.fix.officialEnable', field: 'officialMcp', value: true, noteKey: 'preflight.official.enableNote' },
+    };
+  }
+  return { ...base, status: 'ok', detailKey: 'preflight.official.ok', vars: { scope: o.scope || '—' } };
+}
+
+/** TradingView Desktop, the debug port, the workflows and the two day files. */
+function chartChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] {
+  const checks: PreflightCheck[] = [];
 
   // 5. TradingView Desktop.
   const cdp = f.tv.cdp;

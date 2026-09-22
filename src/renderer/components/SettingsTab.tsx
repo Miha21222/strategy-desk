@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import type { ChatKind, EffortLevel, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
+import type { TaskId, TaskState } from '@shared/tasks';
+import { ZOOM_STEPS } from '@shared/zoom';
 import { t } from '../i18n';
 import { limitationKeys } from '../setup';
 import { SHELF_KINDS } from '../state';
@@ -18,8 +20,16 @@ export interface SettingsTabProps {
   preflightBusy: boolean;
   onPreflight: () => void;
   onFix: (fix: PreflightFix) => void;
+  /** Live state and the command of each long operation the diagnosis can start. */
+  tasks?: Partial<Record<TaskId, TaskState>>;
+  taskCommands?: Partial<Record<TaskId, string>>;
+  onTaskStop?: (id: TaskId) => void;
   onOpenWizard: () => void;
+  /** Delete the provisioned Python environment; absent in a dev run, where there is none. */
+  onClearRuntime?: () => void;
   onSettings: (patch: SettingsPatch) => void;
+  /** System notice in the corner of the window (saved, failed, launched). */
+  onToast: (text: string, level?: 'info' | 'warn' | 'error') => void;
   onSecret: (name: 'apiKey' | 'oauthToken', value: string | null) => void;
   onProfile: (p: TraderProfile) => void;
 }
@@ -59,9 +69,9 @@ export function SettingsTab(p: SettingsTabProps) {
   const s = p.settings;
   const [profile, setProfile] = useState<TraderProfile>(p.profile);
   const [checklist, setChecklist] = useState(p.profile.morningChecklist.join('\n'));
-  const [savedAt, setSavedAt] = useState(0);
   const [text, setText] = useState({
     tvmcpPath: s.tvmcpPath,
+    gtRagPath: s.gtRagPath ?? '',
     cdpPort: String(s.cdpPort),
     toolsets: s.toolsets,
     model: s.model,
@@ -79,6 +89,7 @@ export function SettingsTab(p: SettingsTabProps) {
   useEffect(() => {
     setText({
       tvmcpPath: s.tvmcpPath,
+      gtRagPath: s.gtRagPath ?? '',
       cdpPort: String(s.cdpPort),
       toolsets: s.toolsets,
       model: s.model,
@@ -87,7 +98,7 @@ export function SettingsTab(p: SettingsTabProps) {
       journalPath: s.journalPath,
       fieldNotesPath: s.fieldNotesPath,
     });
-  }, [s.tvmcpPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
+  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
 
   const commitText = (key: keyof typeof text) => {
     const v = text[key].trim();
@@ -111,8 +122,7 @@ export function SettingsTab(p: SettingsTabProps) {
   const saveProfile = () => {
     const next = { ...profile, morningChecklist: checklist.split('\n').map((l) => l.trim()).filter(Boolean) };
     p.onProfile(next);
-    setSavedAt(Date.now());
-    setTimeout(() => setSavedAt(0), 1500);
+    p.onToast(t('settings.saved'));
   };
 
   const pf = (key: keyof Omit<TraderProfile, 'morningChecklist'>, label: string) => (
@@ -129,7 +139,15 @@ export function SettingsTab(p: SettingsTabProps) {
       <fieldset>
         <legend>{t('preflight.title')}</legend>
         <div class="muted">{t('preflight.intro')}</div>
-        <PreflightList result={p.preflight} busy={p.preflightBusy} onRecheck={p.onPreflight} onFix={p.onFix} />
+        <PreflightList
+          result={p.preflight}
+          busy={p.preflightBusy}
+          tasks={p.tasks}
+          taskCommands={p.taskCommands}
+          onRecheck={p.onPreflight}
+          onFix={p.onFix}
+          onTaskStop={p.onTaskStop}
+        />
         {limitationKeys(s).map((key) => (
           <p class="notice warn" key={key}>
             {t(key)}
@@ -139,7 +157,13 @@ export function SettingsTab(p: SettingsTabProps) {
           <button type="button" onClick={p.onOpenWizard}>
             {t('setup.open')}
           </button>
+          {p.onClearRuntime ? (
+            <button type="button" onClick={p.onClearRuntime}>
+              {t('settings.clearRuntime')}
+            </button>
+          ) : null}
         </div>
+        {p.onClearRuntime ? <p class="muted">{t('settings.clearRuntimeNote')}</p> : null}
       </fieldset>
 
       <fieldset>
@@ -169,6 +193,15 @@ export function SettingsTab(p: SettingsTabProps) {
           <input type="checkbox" checked={s.officialMcp} onChange={(e) => p.onSettings({ officialMcp: (e.target as HTMLInputElement).checked })} />
           <span>{t('settings.officialMcp')}</span>
         </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>{t('settings.knowledge')}</legend>
+        <label class="check">
+          <input type="checkbox" checked={s.knowledgeBase !== false} onChange={(e) => p.onSettings({ knowledgeBase: (e.target as HTMLInputElement).checked })} />
+          <span>{t('settings.knowledgeBase')}</span>
+        </label>
+        {textField('gtRagPath', t('settings.gtRagPath'), t('settings.gtRagHint'))}
       </fieldset>
 
       <fieldset>
@@ -236,6 +269,26 @@ export function SettingsTab(p: SettingsTabProps) {
             <option value="light">{t('settings.themeLight')}</option>
           </select>
         </label>
+        <label class="field">
+          <span>{t('settings.uiScale')}</span>
+          <select value={String(s.uiScale ?? 1)} onChange={(e) => p.onSettings({ uiScale: Number((e.target as HTMLSelectElement).value) })}>
+            {ZOOM_STEPS.map((z) => (
+              <option key={z} value={String(z)}>
+                {Math.round(z * 100)}%
+              </option>
+            ))}
+          </select>
+        </label>
+        <div class="muted">{t('settings.uiScaleHint')}</div>
+        <label class="field">
+          <span>{t('settings.answerLang')}</span>
+          <select value={s.answerLang ?? 'ru'} onChange={(e) => p.onSettings({ answerLang: (e.target as HTMLSelectElement).value as Settings['answerLang'] })}>
+            <option value="ru">{t('settings.answerLangRu')}</option>
+            <option value="en">{t('settings.answerLangEn')}</option>
+            <option value="auto">{t('settings.answerLangAuto')}</option>
+          </select>
+        </label>
+        <div class="muted">{t('settings.answerLangHint')}</div>
       </fieldset>
 
       <fieldset>
@@ -255,7 +308,6 @@ export function SettingsTab(p: SettingsTabProps) {
           <button type="button" class="primary" onClick={saveProfile}>
             {t('settings.save')}
           </button>
-          {savedAt ? <span class="muted">{t('settings.saved')}</span> : null}
         </div>
       </fieldset>
     </section>

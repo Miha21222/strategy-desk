@@ -6,10 +6,13 @@
 // happened. The tvmcp server ships a CLI where every registered tool is a
 // subcommand emitting JSON on stdout:
 //
-//   uv --directory <tvmcp> run tv <tool_name> '<json args>'
+//   <python> -m tvmcp.cli <tool_name> '<json args>'
 //
-// so the app polls through that, with the same environment the MCP server gets,
-// and spends a model turn only when there is something worth interpreting.
+// (the `tv` console script, reached as a module so one spawn shape covers both
+// the bundled interpreter and `uv run` on a developer's checkout — see
+// runtime-spec.ts), so the app polls through that, with the same environment
+// the MCP server gets, and spends a model turn only when there is something
+// worth interpreting.
 //
 // Measured on this machine: ~2.5 s per call, all of it Python + fastmcp import,
 // the same for every tool. That is fine against `next_poll_after_s` (floor 5 s)
@@ -23,6 +26,7 @@ import { execFile } from 'node:child_process';
 import type { Settings } from '@shared/api';
 import { isAllowedTvTool, type TvCallResult } from '@shared/panel';
 import { buildTvEnv } from './mcp';
+import { modeOf, runtimePaths, tvmcpSpawn } from './runtime-spec';
 
 /** Plenty of headroom over the ~2.5 s floor; a session-feed load is slower. */
 export const DEFAULT_TV_TIMEOUT_MS = 30_000;
@@ -82,8 +86,12 @@ export async function callTool(
   if (!isAllowedTvTool(name)) {
     return { ok: false, error: `tool ${String(name).slice(0, 60)} is not in the allowlist`, warnings: [], ms: 0 };
   }
-  const dir = (cfg.tvmcpPath || '').trim();
-  if (!dir) return { ok: false, error: 'tvmcp path is not set in the settings', warnings: [], ms: 0 };
+  const paths = runtimePaths();
+  const bundled = modeOf(paths) === 'bundled';
+  if (!bundled && !(cfg.tvmcpPath || '').trim()) {
+    return { ok: false, error: 'tvmcp path is not set in the settings', warnings: [], ms: 0 };
+  }
+  const spec = tvmcpSpawn(cfg, paths, 'cli');
 
   const timeout = opts.timeoutMs ?? (LONG_TOOLS.has(name) ? LONG_TV_TIMEOUT_MS : DEFAULT_TV_TIMEOUT_MS);
   const env = buildTvEnv(cfg, opts.env ?? process.env);
@@ -98,8 +106,8 @@ export async function callTool(
   try {
     return await new Promise<TvCallResult>((resolve) => {
       execFile(
-        'uv',
-        ['--directory', dir, 'run', 'tv', name, payload],
+        spec.command,
+        [...spec.args, name, payload],
         { env, timeout, windowsHide: true, maxBuffer: MAX_STDOUT },
         (err, stdout, stderr) => {
           const ms = Date.now() - started;
@@ -108,8 +116,11 @@ export async function callTool(
           if (err) {
             const e = err as NodeJS.ErrnoException & { killed?: boolean; signal?: string };
             let error: string;
-            if (e.code === 'ENOENT') error = 'uv not found — install uv (astral.sh/uv) and restart the app';
-            else if (e.killed || e.signal === 'SIGTERM') error = `${name} timed out after ${Math.round(timeout / 1000)} s`;
+            if (e.code === 'ENOENT') {
+              error = bundled
+                ? 'the bundled runtime is not provisioned yet — open «Мастер настройки» and press «Развернуть рантайм»'
+                : 'uv not found — install uv (astral.sh/uv) and restart the app';
+            } else if (e.killed || e.signal === 'SIGTERM') error = `${name} timed out after ${Math.round(timeout / 1000)} s`;
             else error = warnings.join(' | ') || e.message || `${name} failed`;
             resolve({ ok: false, error: error.slice(0, 600), warnings, ms });
             return;

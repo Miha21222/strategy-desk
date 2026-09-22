@@ -4,8 +4,9 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { ClaudeAuthStatus, Settings, Status } from '@shared/api';
-import { DEFAULT_TOOLSETS } from '@shared/defaults';
 import { EMPTY_CDP, type CdpProbe } from '@shared/preflight';
+import { buildTvEnv } from './mcp';
+import { modeOf, runtimePaths, tvmcpSpawn } from './runtime-spec';
 
 export type { CdpProbe };
 
@@ -101,17 +102,24 @@ export function cdpOwnerLabel(probe: CdpProbe): string {
 }
 
 export async function tvmcpStatus(cfg: Settings): Promise<{ ok: boolean; tools: number; error: string }> {
-  const key = `${cfg.tvmcpPath}|${cfg.toolsets}`;
+  const paths = runtimePaths();
+  const spec = tvmcpSpawn(cfg, paths, 'server');
+  // The key names everything that decides the answer. In bundled mode that is
+  // the interpreter about to be run, not the path in the settings: provisioning
+  // re-creates the venv without touching any setting, and a cache keyed on the
+  // settings alone would keep reporting the pre-provisioning failure.
+  const key = `${spec.command}|${cfg.tvmcpPath}|${cfg.toolsets}`;
   if (tvmcpCache && tvmcpCache.key === key && Date.now() - tvmcpCache.at < TVMCP_CACHE_MS) {
     return { ok: tvmcpCache.ok, tools: tvmcpCache.tools, error: tvmcpCache.error };
   }
-  const env = { ...process.env, TV_TOOLSETS: cfg.toolsets?.trim() || DEFAULT_TOOLSETS };
-  const r = await exec('uv', ['--directory', cfg.tvmcpPath, 'run', 'python', '-m', 'tvmcp', '--check'], { env, timeout: 60_000 });
+  const env = buildTvEnv(cfg, process.env);
+  const r = await exec(spec.command, [...spec.args, '--check'], { env, timeout: 60_000 });
   const m = r.out.match(/(\d+)\s+tools registered/);
   const ok = r.ok && Boolean(m);
   let error = '';
   if (!ok) {
-    error = r.notFound ? 'uv not found' : r.out.trim().split('\n').filter(Boolean).slice(-3).join('\n').slice(0, 400);
+    const missing = modeOf(paths) === 'bundled' ? 'the bundled runtime is not provisioned yet' : 'uv not found';
+    error = r.notFound ? missing : r.out.trim().split('\n').filter(Boolean).slice(-3).join('\n').slice(0, 400);
   }
   const result = { ok, tools: m ? Number(m[1]) : 0, error };
   tvmcpCache = { at: Date.now(), key, ...result };

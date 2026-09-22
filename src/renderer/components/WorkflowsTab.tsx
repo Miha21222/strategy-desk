@@ -49,7 +49,7 @@ export function WorkflowsTab(p: WorkflowsTabProps) {
             {w.quickPrompts.length ? (
               <div class="field">
                 <span>{t('workflows.quick')}</span>
-                <div class="chips">
+                <div class="chips column">
                   {w.quickPrompts.map((q) => (
                     <button type="button" class="chip" key={q.id} disabled={p.busy} title={q.prompt} onClick={() => p.onRun(q.prompt)}>
                       {q.label}
@@ -61,9 +61,9 @@ export function WorkflowsTab(p: WorkflowsTabProps) {
             {w.reports.length ? (
               <div class="field">
                 <span>{t('workflows.reports')}</span>
-                <div class="chips">
+                <div class="chips column">
                   {w.reports.map((r) => (
-                    <button type="button" class="chip action" key={r.id} disabled={p.busy} title={r.prompt} onClick={() => p.onRun(r.prompt)}>
+                    <button type="button" class="chip" key={r.id} disabled={p.busy} title={r.prompt} onClick={() => p.onRun(r.prompt)}>
                       {r.label}
                     </button>
                   ))}

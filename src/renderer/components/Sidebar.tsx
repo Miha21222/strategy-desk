@@ -14,7 +14,6 @@ export interface SidebarProps {
   chats: ChatMeta[];
   currentKey: string | null;
   launching: boolean;
-  tvMessage: string | null;
   onToggleSection: (id: string) => void;
   onLaunchTv: () => void;
   onRefreshStatus: () => void;
@@ -197,7 +196,6 @@ export function Sidebar(p: SidebarProps) {
             ↻
           </button>
         </div>
-        {p.tvMessage ? <div class="tv-message">{p.tvMessage}</div> : null}
         {/* A red light the user chose to live with: say why, and how to reopen the wizard. */}
         {limitationKeys(p.settings).map((key) => (
           <div class="tv-message" key={key}>

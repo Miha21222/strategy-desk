@@ -24,8 +24,18 @@ export const LIMITS = {
   flags: 10,
 } as const;
 
+/** Characters kept from a `note` before it is trimmed (see `note` below). */
+export const NOTE_MAX = 400;
+
 const short = z.string().trim().max(120);
 const text = z.string().max(2000);
+/**
+ * A free-form one-liner under a card (`note`). The model writes prose here and
+ * regularly overshoots any hard limit, so an over-long note is trimmed instead
+ * of failing the whole block: a card with a shortened takeaway beats an error
+ * card with none.
+ */
+const note = z.preprocess((v) => (typeof v === 'string' ? v.trim().slice(0, NOTE_MAX) : v), z.string().max(NOTE_MAX));
 const num = z.number().finite();
 const numOrNull = num.nullable();
 
@@ -71,7 +81,7 @@ export const LevelsChartSchema = z.object({
   type: z.literal('levels'),
   label: short.optional(),
   last: num.optional(),
-  items: z.array(z.object({ label: short, price: num, note: short.optional() })).min(1).max(LIMITS.levels),
+  items: z.array(z.object({ label: short, price: num, note: note.optional() })).min(1).max(LIMITS.levels),
 });
 
 export const ChartSchema = z.discriminatedUnion('type', [StatsChartSchema, BarsChartSchema, DonutChartSchema, HistChartSchema, LevelsChartSchema]);
@@ -79,7 +89,7 @@ export const ChartSchema = z.discriminatedUnion('type', [StatsChartSchema, BarsC
 export const ChartCardSchema = z.object({
   title: short,
   charts: z.array(ChartSchema).min(1).max(LIMITS.charts),
-  note: short.nullable().optional(),
+  note: note.nullable().optional(),
 });
 
 // ---------- stressreport ----------
@@ -156,7 +166,7 @@ export const BriefReportSchema = z.object({
   session: short.optional(),
   regime: short.nullable().optional(),
   levels: z
-    .array(z.object({ name: short, price: num, hit: z.boolean().nullable().default(null), note: short.optional() }))
+    .array(z.object({ name: short, price: num, hit: z.boolean().nullable().default(null), note: note.optional() }))
     .max(LIMITS.levels)
     .default([]),
   volume: z.object({ text: short, vsAvg: numOrNull.optional() }).nullable().optional(),
@@ -173,7 +183,7 @@ export const WorkflowStateSchema = z.object({
   phase: z.enum(['verdict', 'eth-scan', 'or', 'ib', 'breakout']),
   verdict: z.enum(['GO', 'STOP', 'WAIT']),
   bias: z.object({ direction: z.enum(['LONG', 'SHORT', 'NONE']), confidence: num.min(0).max(1) }),
-  levels: z.array(z.object({ name: short, price: num, note: short.optional() })).max(LIMITS.levels).default([]),
+  levels: z.array(z.object({ name: short, price: num, note: note.optional() })).max(LIMITS.levels).default([]),
   signals: z
     .array(
       z.object({

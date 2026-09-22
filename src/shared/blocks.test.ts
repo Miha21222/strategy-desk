@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BLOCK_KINDS, BLOCK_SCHEMAS, costPerTrade, isBlockKind, netAfterCosts, parseBlock, weightedWinRate, type StressReport } from './blocks';
+import { BLOCK_KINDS, BLOCK_SCHEMAS, costPerTrade, isBlockKind, netAfterCosts, NOTE_MAX, parseBlock, weightedWinRate, type StressReport } from './blocks';
 import { SAMPLE_BLOCKS } from './blocks-sample';
 
 describe('block schemas', () => {
@@ -105,5 +105,34 @@ describe('derived numbers', () => {
     ];
     expect(weightedWinRate(runs)).toBe(45);
     expect(weightedWinRate([])).toBe(0);
+  });
+});
+
+describe('notes are trimmed, never fatal', () => {
+  const longNote = 'x'.repeat(NOTE_MAX + 200);
+  const card = (note: string) => JSON.stringify({ title: 'ES1! 5m', charts: [{ type: 'levels', items: [{ label: 'PDH', price: 7739.25, note }] }], note });
+
+  it('chartcard: an over-long note is cut to NOTE_MAX instead of failing the card', () => {
+    const res = parseBlock('chartcard', card(longNote));
+    expect(res.ok, res.ok ? '' : res.error).toBe(true);
+    if (!res.ok || res.block.kind !== 'chartcard') return;
+    expect(res.block.data.note).toHaveLength(NOTE_MAX);
+    const levels = res.block.data.charts[0];
+    expect(levels.type === 'levels' && levels.items[0].note).toHaveLength(NOTE_MAX);
+  });
+
+  it('a note longer than the old 120-char limit survives whole', () => {
+    const note = "Price is above every prior-day reference with today's range already ~91% of the 5-day average, and today's IB is not built yet.";
+    expect(note.length).toBeGreaterThan(120);
+    const res = parseBlock('chartcard', card(note));
+    expect(res.ok, res.ok ? '' : res.error).toBe(true);
+    if (res.ok && res.block.kind === 'chartcard') expect(res.block.data.note).toBe(note);
+  });
+
+  it('briefreport level notes are trimmed the same way', () => {
+    const raw = JSON.stringify({ date: '2026-09-21', symbol: 'ES1!', levels: [{ name: 'PDH', price: 7739.25, note: longNote }] });
+    const res = parseBlock('briefreport', raw);
+    expect(res.ok, res.ok ? '' : res.error).toBe(true);
+    if (res.ok && res.block.kind === 'briefreport') expect(res.block.data.levels[0].note).toHaveLength(NOTE_MAX);
   });
 });

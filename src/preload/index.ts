@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, PickKind, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, PickKind, SendArgs, SettingsPatch, TaskEvent, TraderProfile } from '@shared/api';
 
 const api: DeskApi = {
   status: { get: () => ipcRenderer.invoke('status:get') },
@@ -20,6 +20,19 @@ const api: DeskApi = {
     setSecret: (name, value) => ipcRenderer.invoke('settings:setSecret', name, value),
     clearSecret: (name) => ipcRenderer.invoke('settings:clearSecret', name),
   },
+  tasks: {
+    run: (id) => ipcRenderer.invoke('tasks:run', id),
+    stop: (id) => ipcRenderer.send('tasks:stop', id),
+    state: (id) => ipcRenderer.invoke('tasks:state', id),
+    list: () => ipcRenderer.invoke('tasks:list'),
+    command: (id) => ipcRenderer.invoke('tasks:command', id),
+    onEvent: (cb) => {
+      const handler = (_e: Electron.IpcRendererEvent, ev: TaskEvent) => cb(ev);
+      ipcRenderer.on('task:event', handler);
+      return () => ipcRenderer.removeListener('task:event', handler);
+    },
+  },
+  runtime: { clear: () => ipcRenderer.invoke('runtime:clear') },
   rules: { get: () => ipcRenderer.invoke('rules:get') },
   profile: {
     get: () => ipcRenderer.invoke('profile:get'),
@@ -40,12 +53,14 @@ const api: DeskApi = {
   chat: {
     send: (args: SendArgs) => ipcRenderer.send('chat:send', args),
     stop: (chatKey) => ipcRenderer.send('chat:stop', chatKey),
+    prewarm: (args) => ipcRenderer.send('chat:prewarm', args),
     onEvent: (cb) => {
       const handler = (_e: Electron.IpcRendererEvent, ev: ChatEvent) => cb(ev);
       ipcRenderer.on('chat:event', handler);
       return () => ipcRenderer.removeListener('chat:event', handler);
     },
   },
+  ui: { zoom: (factor: number) => ipcRenderer.invoke('ui:zoom', factor) },
   open: { external: (url) => ipcRenderer.invoke('open:external', url) },
   app: { version: () => ipcRenderer.invoke('app:version') },
 };

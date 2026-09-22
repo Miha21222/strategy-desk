@@ -61,9 +61,24 @@ export type LadderRow =
   | { kind: 'level'; label: string; price: number; note?: string; distance: number | null; side: 'above' | 'below' | 'at' }
   | { kind: 'now'; price: number };
 
-/** Levels sorted top-down with the current price inserted at its place. */
+/** Two prices count as the same level below this relative difference. */
+const SAME_PRICE_REL = 1e-6;
+
+export function samePrice(a: number, b: number): boolean {
+  return Math.abs(a - b) <= Math.max(Math.abs(b), 1) * SAME_PRICE_REL;
+}
+
+/**
+ * Levels sorted top-down with the current price inserted at its place.
+ *
+ * A level sitting exactly at the current price is dropped: models like to
+ * repeat the last price as an item on top of passing it in `last`, which drew
+ * the same number twice — once as a colourless level with distance 0, once as
+ * the highlighted "price now" row. The "price now" row stands for that price.
+ */
 export function levelsLadder(items: { label: string; price: number; note?: string }[], last: number | undefined): LadderRow[] {
-  const sorted = [...items].sort((a, b) => b.price - a.price);
+  const own = last === undefined ? items : items.filter((it) => !samePrice(it.price, last));
+  const sorted = [...own].sort((a, b) => b.price - a.price);
   const rows: LadderRow[] = [];
   let nowInserted = last === undefined;
   for (const it of sorted) {

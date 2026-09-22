@@ -47,10 +47,12 @@ export function NextStepsCard({ data }: { data: NextSteps }) {
   return (
     <div class="card nextsteps">
       <div class="card-head">{t('cards.nextSteps')}</div>
-      <div class="chips">
-        {data.options.map((opt, i) => (
-          <Chip key={i} opt={opt} />
-        ))}
+      <div class="card-body">
+        <div class="chips">
+          {data.options.map((opt, i) => (
+            <Chip key={i} opt={opt} />
+          ))}
+        </div>
       </div>
     </div>
   );
