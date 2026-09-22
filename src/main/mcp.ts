@@ -16,6 +16,22 @@ export interface StdioServer {
   command: string;
   args: string[];
   env: Record<string, string>;
+  /**
+   * Put this server's tools in the prompt instead of behind tool search.
+   *
+   * With three servers registered the CLI turns tool search on, and a deferred
+   * tool costs the model a `ToolSearch` round trip before it may call anything
+   * — measured in a real chat: "read my chart" spent whole turns discovering
+   * `tv_desktop_*` before the first screenshot. These two servers ARE the
+   * product, so their schemas belong in the prompt: ~22k tokens for tvmcp's 64
+   * tools and ~2k for the knowledge base's 8, paid once into the cached prefix
+   * of a session that outlives the turn.
+   *
+   * The flag also makes startup wait for the server to connect (5 s cap), which
+   * is why gt-rag imports chromadb lazily — the ~1 s it now takes to answer
+   * `list_tools` fits, the ~14 s of a cold import did not.
+   */
+  alwaysLoad?: boolean;
 }
 export interface HttpServer {
   type: 'http';
@@ -41,7 +57,7 @@ export function buildMcpServers(cfg: Settings, baseEnv: NodeJS.ProcessEnv = proc
   const spec = tvmcpSpawn(cfg, paths, 'server');
 
   const servers: ServerMap = {
-    tradingview: { type: 'stdio', command: spec.command, args: spec.args, env },
+    tradingview: { type: 'stdio', command: spec.command, args: spec.args, env, alwaysLoad: true },
   };
 
   // The course knowledge base, out of the same environment as tvmcp. It is
@@ -50,7 +66,7 @@ export function buildMcpServers(cfg: Settings, baseEnv: NodeJS.ProcessEnv = proc
   // a server that refuses to boot costs one failed init, not a broken chat.
   if (kbMode(cfg, paths) !== 'off') {
     const kb = gtRagSpawn(cfg, paths);
-    if (kb?.command) servers[KB_MCP_NAME] = { type: 'stdio', command: kb.command, args: kb.args, env: buildKbEnv(cfg, baseEnv, paths) };
+    if (kb?.command) servers[KB_MCP_NAME] = { type: 'stdio', command: kb.command, args: kb.args, env: buildKbEnv(cfg, baseEnv, paths), alwaysLoad: true };
   }
 
   if (cfg.officialMcp) {
