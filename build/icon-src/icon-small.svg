@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <title>Strategy Desk — bullish and bearish candles</title>
+  <desc>Small-size counterpart: a high mint candle and a low coral candle over a price line.</desc>
+  <defs>
+    <linearGradient id="tile" x2="0" y2="1">
+      <stop stop-color="#242743"/>
+      <stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".88" cy=".08" r=".95">
+      <stop stop-color="#6155ec" stop-opacity=".48"/>
+      <stop offset=".55" stop-color="#6155ec" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#6155ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#tile)"/>
+  <rect width="32" height="32" rx="7" fill="url(#glow)"/>
+  <!-- Symmetric candle bodies: 3 px wide at 16 px, with 1 px wicks.
+       The pair is centred on x=16; wick tips leave 2 px of padding at 16 px.
+       Used through 48 px so the animals never collapse into tiny detail. -->
+  <path d="m4 26 8-4 8 3 8-6" fill="none" stroke="#94a3bd" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M8 4h2v18H8Z" fill="#b5f5df"/>
+  <path d="M22 10h2v18h-2Z" fill="#ff98a5"/>
+  <path d="M6 8h6v10H6Z" fill="#6cdbc0"/>
+  <path d="M20 14h6v10h-6Z" fill="#f2544b"/>
+</svg>

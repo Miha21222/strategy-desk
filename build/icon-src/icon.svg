@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Strategy Desk — bull, bear and price chart</title>
+  <desc>An original broad-shouldered mint bull charges with its head lowered toward a coral bear swiping down, above a rising price line.</desc>
+  <defs>
+    <linearGradient id="tile" x2="0" y2="1">
+      <stop stop-color="#242743"/>
+      <stop offset="1" stop-color="#0b1220"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".88" cy=".08" r=".95">
+      <stop stop-color="#6155ec" stop-opacity=".48"/>
+      <stop offset=".55" stop-color="#6155ec" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#6155ec" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#tile)"/>
+  <rect width="512" height="512" rx="110" fill="url(#glow)"/>
+
+  <!-- One broad chart stroke connects the opposing market forces. -->
+  <path d="M68 430 134 398 192 415 266 361 326 384 442 329"
+        fill="none" stroke="#aca8ff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Bull: low barrel body, high massive shoulder, deep chest and thick short legs.
+       A broad lowered muzzle and short outward hooks replace the upright horns.
+       No thin tail or fine anatomy: the silhouette must survive small raster sizes. -->
+  <path d="M62 256 C56 230 68 207 96 205 L125 202
+           C140 177 172 173 189 193 Q204 208 207 227
+           L225 231 247 253 249 273 Q238 287 217 283 L201 275
+           Q199 294 192 303 L197 329 166 329 157 288
+           Q133 292 111 279 L99 327 69 327 78 276 Q65 269 62 256Z" fill="#6cdbc0"/>
+  <path d="M211 238 C190 239 178 228 179 210
+           Q189 225 213 223Z
+           M224 238 Q244 241 253 218 Q236 229 220 222Z" fill="#b5f5df"/>
+  <path d="m224 249 12 3-10 7Z" fill="#0b1220"/>
+
+  <!-- Bear: round ears, a low muzzle, broad back and a single descending paw. -->
+  <circle cx="346" cy="150" r="19" fill="#ff98a5"/>
+  <circle cx="402" cy="169" r="17" fill="#ff98a5"/>
+  <path d="M434 335 406 331 397 293 380 283 365 319 339 322 343 282 323 269
+           300 282 275 325 249 313 278 263 Q296 237 312 232 L302 219 277 213 273 194
+           293 187 Q304 153 332 154 Q366 139 395 155 Q420 169 429 202
+           Q438 225 433 248 L446 278 Z" fill="#f2544b"/>
+  <path d="M277 193 292 190 289 204 277 206Z" fill="#0b1220"/>
+  <circle cx="312" cy="185" r="5" fill="#0b1220"/>
+  <path d="m259 306 6 3-7 10-6-3Z m12 5 6 3-6 10-6-3Z" fill="#0b1220"/>
+</svg>
