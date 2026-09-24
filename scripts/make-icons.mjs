@@ -3,10 +3,13 @@
 // plain geometry, PNG is zlib + four chunks, and .ico / .icns are containers of
 // PNGs. Run it with `npm run icons` after changing anything below.
 //
-// The mark: a session range (two grey rails) with one bright candle whose body
-// has closed above the upper rail — the moment the «День» panel exists to
-// catch. Deliberately nothing like TradingView's chart-arrow or Anthropic's
-// burst: a dark tile, two horizontals, one vertical.
+// The mark: two slate session-range rails, crossed by a mint breakout candle
+// whose body closed above the upper rail — the moment the «День» panel catches.
+// A deep navy (#0b1220) / indigo (#242743) tile has an upper-right glow in the
+// desk's saturated accent (#6155ec); the candle runs from #b5f5df to #6cdbc0.
+// At 16/24/32 px the geometry snaps to whole pixels and drops the candle glow.
+// Deliberately unlike TradingView's chart-arrow or Anthropic's burst.
+// Main-process ?asset imports use these same build files; no separate copy.
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -16,19 +19,42 @@ const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'build');
 
 // ---------- the drawing, in unit coordinates (0..1) ----------
 
-const BG = [0x14, 0x16, 0x1a, 0xff]; // app window background
-const RAIL = [0x8b, 0x91, 0x9c, 0xff]; // --fg-muted: the range high/low
-const CANDLE = [0x4c, 0x8d, 0xff, 0xff]; // accent blue: the bar that broke it
+const NAVY = [0x0b, 0x12, 0x20, 0xff];
+const INDIGO = [0x24, 0x27, 0x43, 0xff];
+const ACCENT = [0x61, 0x55, 0xec, 0xff];
+const RAIL = [0x94, 0xa3, 0xbd, 0xff];
+const CANDLE = [0x6c, 0xdb, 0xc0, 0xff];
+const CANDLE_TOP = [0xb5, 0xf5, 0xdf, 0xff];
 
 const CORNER = 0.22; // rounded-square, Windows/macOS tile look
-const RAIL_X = [0.13, 0.87];
-const RAIL_H = 0.06;
-const RAIL_TOP_Y = 0.42;
-const RAIL_BOTTOM_Y = 0.72;
-const BODY_X = [0.375, 0.625];
-const BODY_Y = [0.155, 0.385];
-const WICK_X = [0.468, 0.532];
-const WICK_Y = [0.09, 0.87];
+const RAIL_X = [0.125, 0.875];
+const RAIL_H = 0.055;
+const RAIL_TOP_Y = 0.49;
+const RAIL_BOTTOM_Y = 0.76;
+const BODY_X = [0.53, 0.78];
+const BODY_Y = [0.19, 0.40];
+const WICK_X = [0.625, 0.685];
+const WICK_Y = [0.115, 0.86];
+
+const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * Math.max(0, Math.min(1, t)));
+
+function geometry(size) {
+  if (size > 32) return {
+    railX: RAIL_X, railH: RAIL_H, top: RAIL_TOP_Y, bottom: RAIL_BOTTOM_Y,
+    bodyX: BODY_X, bodyY: BODY_Y, wickX: WICK_X, wickY: WICK_Y,
+  };
+  const snap = (v) => Math.round(v * size) / size;
+  const bodyW = size === 16 ? 5 : Math.round(size * 0.25);
+  const wickW = size === 16 ? 1 : 2;
+  const left = Math.round(size * 0.655 - bodyW / 2);
+  const wickLeft = left + (bodyW - wickW) / 2;
+  return {
+    railX: RAIL_X.map(snap), railH: Math.max(1, Math.round(RAIL_H * size)) / size,
+    top: snap(RAIL_TOP_Y), bottom: snap(RAIL_BOTTOM_Y),
+    bodyX: [left / size, (left + bodyW) / size], bodyY: BODY_Y.map(snap),
+    wickX: [wickLeft / size, (wickLeft + wickW) / size], wickY: WICK_Y.map(snap),
+  };
+}
 
 /** Coverage of the rounded-square tile at unit point (x, y); 0 or 1 (AA comes from supersampling). */
 function inTile(x, y) {
@@ -43,17 +69,26 @@ function inTile(x, y) {
 const inBox = (x, y, [x0, x1], [y0, y1]) => x >= x0 && x < x1 && y >= y0 && y < y1;
 
 /** The colour at unit point (x, y), or null for transparent. */
-function sample(x, y) {
+function sample(x, y, shape, small) {
   if (!inTile(x, y)) return null;
-  if (inBox(x, y, BODY_X, BODY_Y) || inBox(x, y, WICK_X, WICK_Y)) return CANDLE;
-  if (inBox(x, y, RAIL_X, [RAIL_TOP_Y, RAIL_TOP_Y + RAIL_H])) return RAIL;
-  if (inBox(x, y, RAIL_X, [RAIL_BOTTOM_Y, RAIL_BOTTOM_Y + RAIL_H])) return RAIL;
-  return BG;
+  if (inBox(x, y, shape.bodyX, shape.bodyY)) {
+    return mix(CANDLE_TOP, CANDLE, (y - shape.bodyY[0]) / (shape.bodyY[1] - shape.bodyY[0]));
+  }
+  if (inBox(x, y, shape.wickX, shape.wickY)) return CANDLE;
+  if (inBox(x, y, shape.railX, [shape.top, shape.top + shape.railH])) return RAIL;
+  if (inBox(x, y, shape.railX, [shape.bottom, shape.bottom + shape.railH])) return RAIL;
+  const tile = mix(INDIGO, NAVY, y);
+  const accentGlow = Math.max(0, 1 - Math.hypot((x - 0.85) / 1.1, y / 1.1));
+  const background = mix(tile, ACCENT, 0.48 * accentGlow * accentGlow);
+  if (small) return background;
+  const candleGlow = Math.max(0, 1 - Math.hypot((x - 0.655) / 0.36, (y - 0.28) / 0.34));
+  return mix(background, CANDLE, 0.10 * candleGlow * candleGlow);
 }
 
 /** RGBA pixels for one square size, 4x supersampled and box-filtered. */
 function render(size) {
   const ss = 4;
+  const shape = geometry(size);
   const px = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
     for (let pxi = 0; pxi < size; pxi++) {
@@ -63,7 +98,7 @@ function render(size) {
       let a = 0;
       for (let sy = 0; sy < ss; sy++) {
         for (let sx = 0; sx < ss; sx++) {
-          const c = sample((pxi + (sx + 0.5) / ss) / size, (py + (sy + 0.5) / ss) / size);
+          const c = sample((pxi + (sx + 0.5) / ss) / size, (py + (sy + 0.5) / ss) / size, shape, size <= 32);
           if (!c) continue;
           r += c[0];
           g += c[1];
