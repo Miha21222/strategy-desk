@@ -52,6 +52,20 @@ src/renderer/styles.css     hand-written CSS, theme via CSS variables
 docs/PLAN.md                stage roadmap and checklists
 ```
 
+## Branches
+
+Two long-lived branches since 2026-09-24 (`master` was renamed to `main`, and the GitHub default with it):
+
+| Branch | Meaning | What may land |
+| --- | --- | --- |
+| `stage` | integration and local testing | every change: code, UI, config, docs, workflows |
+| `main` | production source of truth | only reviewed merges of a `stage` -> `main` PR |
+
+So: work on `stage`, verify locally (`npm test`, `npm run typecheck`, `npm run build`, and the smoke that
+covers the area), commit there, push, and open or update ONE `stage` -> `main` PR. Never commit to `main`
+directly, never merge that PR without being asked, and do not call something shipped because it is on
+`stage`.
+
 ## Commands
 
 ```
