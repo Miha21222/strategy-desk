@@ -70,6 +70,8 @@ win:
     - nsis
   icon: build/icon.ico
 nsis:
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
   oneClick: false                        # a real wizard, not a silent drop
   perMachine: false                      # per-user install: no UAC prompt
   allowElevation: false

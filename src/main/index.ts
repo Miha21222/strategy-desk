@@ -3,6 +3,8 @@ import { existsSync, promises as fs, statSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import appIconIco from '../../build/icon.ico?asset';
+import appIconPng from '../../build/icon.png?asset';
 import { BLOCK_KINDS } from '@shared/blocks';
 import { sampleAssistantMessage } from '@shared/blocks-sample';
 import { adrFromScan, buildSentinelSpec, levelsArgs, levelsFromScan, todayISO } from '@shared/panel';
@@ -34,7 +36,8 @@ function createWindow(): BrowserWindow {
     minHeight: 680,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#14161a',
+    backgroundColor: '#0b1220', // dark sidebar base; avoid the old charcoal pre-paint flash
+    icon: process.platform === 'win32' ? appIconIco : appIconPng,
     title: 'Strategy Desk',
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
@@ -86,6 +89,9 @@ async function runPackSmoke(): Promise<void> {
   console.log('[pack] app', app.getVersion(), `packaged=${app.isPackaged}`);
   console.log('[pack] anchors', JSON.stringify({ cwd: process.cwd(), appPath: app.getAppPath(), resourcesPath: process.resourcesPath }));
   console.log('[pack] roots', JSON.stringify(resourceRoots()));
+  for (const iconPath of [appIconIco, appIconPng]) {
+    if (!existsSync(iconPath)) problems.push(`missing bundled icon: ${iconPath}`);
+  }
 
   const workflows = await listWorkflows();
   console.log('[pack] workflows', workflows.length, workflows.map((w) => `${w.id}${w.panel ? `[${w.panel.kind}]` : ''}:${w.prompt.length}c`).join(' ') || 'NONE');
@@ -347,6 +353,9 @@ async function runSmoke(kind: string): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Match electron-builder.yml so dev windows use the installed app identity too.
+  if (process.platform === 'win32') app.setAppUserModelId('dev.strategydesk.app');
+  if (process.platform === 'darwin') app.dock?.setIcon(appIconPng);
   await fs.mkdir(chatWorkspaceDir(), { recursive: true });
   // Work out where tvmcp comes from before anything can spawn it: the shipped
   // payload plus the provisioned environment in a packaged install, `uv` and
