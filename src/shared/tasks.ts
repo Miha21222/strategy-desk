@@ -15,7 +15,20 @@
 // The second rule: nothing here ever starts by itself. The app may install,
 // download and log in — but only after a press, and the UI shows what it will
 // run before it runs.
-export const TASK_IDS = ['provision-runtime', 'install-chromium', 'kb-import', 'kb-model', 'official-mcp-add', 'official-mcp-login'] as const;
+export const TASK_IDS = [
+  'provision-runtime',
+  'install-chromium',
+  'kb-import',
+  'kb-model',
+  'official-mcp-add',
+  'official-mcp-login',
+  // The Codex engine: the app's own CODEX_HOME starts logged out, and the
+  // official TradingView MCP needs its own OAuth there — Claude Code's store
+  // is a different store.
+  'codex-auth-import',
+  'codex-mcp-add',
+  'codex-mcp-login',
+] as const;
 export type TaskId = (typeof TASK_IDS)[number];
 
 export function isTaskId(x: unknown): x is TaskId {

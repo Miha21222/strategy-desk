@@ -20,7 +20,8 @@ import path from 'node:path';
 import type { Settings } from '@shared/api';
 import { DEFAULT_CDP_PORT, DEFAULT_TVMCP_REPO } from '@shared/defaults';
 import { emptyOfficialFact, OFFICIAL_MCP_NAME, parseMcpGet, type OfficialMcpFact } from '@shared/official-mcp';
-import { buildChecks, firstLine, PORT_CANDIDATES, resultOf, type FileFact, type PreflightFacts, type PreflightResult } from '@shared/preflight';
+import { buildChecks, firstLine, PORT_CANDIDATES, resultOf, type CodexFact, type FileFact, type PreflightFacts, type PreflightResult } from '@shared/preflight';
+import { authFile, codexHomeDir, hasCodexAuth, userCodexHome } from './drivers/codex/home';
 import { claudeBin, initRuntimePaths, kbFact, runtimeFact } from './runtime';
 import { cdpProbe, claudeAuthStatus, invalidateTvmcpCache, isTradingViewRunning, tvmcpStatus } from './status';
 
@@ -28,6 +29,30 @@ function run(cmd: string, args: string[], timeout: number): Promise<{ ok: boolea
   return new Promise((resolve) => {
     try {
       execFile(cmd, args, { timeout, windowsHide: true, maxBuffer: 1024 * 1024 }, (err, stdout, stderr) => {
+        resolve({
+          ok: !err,
+          notFound: Boolean(err && (err as NodeJS.ErrnoException).code === 'ENOENT'),
+          out: `${stdout ?? ''}${stderr ?? ''}`.trim(),
+        });
+      });
+    } catch {
+      resolve({ ok: false, notFound: true, out: '' });
+    }
+  });
+}
+
+/**
+ * Same as `run`, with extra environment and a shell on Windows.
+ *
+ * Both matter for Codex: the probes need `CODEX_HOME` pointed at the app's own
+ * home, and `codex` installed from npm is a `.cmd` shim — `execFile` cannot
+ * start one, so without the shell the probe reported "Codex CLI not found" on
+ * a machine that has it (caught by the preflight smoke, 2026-09-23).
+ */
+function runWithEnv(cmd: string, args: string[], timeout: number, env: Record<string, string>): Promise<{ ok: boolean; notFound: boolean; out: string }> {
+  return new Promise((resolve) => {
+    try {
+      execFile(cmd, args, { timeout, windowsHide: true, maxBuffer: 1024 * 1024, shell: process.platform === 'win32', env: { ...process.env, ...env } }, (err, stdout, stderr) => {
         resolve({
           ok: !err,
           notFound: Boolean(err && (err as NodeJS.ErrnoException).code === 'ENOENT'),
@@ -113,6 +138,34 @@ async function officialFact(cfg: Settings): Promise<OfficialMcpFact> {
   return { ...parseMcpGet(r.out, r.ok), enabled };
 }
 
+/**
+ * The Codex engine: is the CLI there, is the APP's own home logged in, and is
+ * the official TradingView MCP registered in that home. `codex mcp get` runs
+ * with `CODEX_HOME` pointed at the app's home on purpose — the answer for the
+ * user's own home would be about a different store entirely.
+ */
+async function codexFact(cfg: Settings): Promise<CodexFact> {
+  const home = codexHomeDir();
+  const command = (cfg.codexPath || '').trim() || 'codex';
+  const fact: CodexFact = {
+    found: false,
+    version: '',
+    home,
+    hasAuth: hasCodexAuth(home),
+    userAuth: await exists(authFile(userCodexHome())),
+    official: { ...emptyOfficialFact(Boolean(cfg.officialMcp)), status: 'unknown' },
+  };
+  const v = await runWithEnv(command, ['--version'], 15_000, { CODEX_HOME: home });
+  const m = v.out.match(/([0-9]+\.[0-9]+\.[0-9]+)/);
+  fact.found = v.ok && Boolean(m);
+  fact.version = m ? m[1] : '';
+  if (!fact.found) return fact;
+
+  const get = await runWithEnv(command, ['mcp', 'get', OFFICIAL_MCP_NAME], 20_000, { CODEX_HOME: home });
+  if (!get.notFound) fact.official = { ...parseMcpGet(get.out, get.ok), enabled: Boolean(cfg.officialMcp) };
+  return fact;
+}
+
 export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   const port = cfg.cdpPort || DEFAULT_CDP_PORT;
   const repo = (cfg.tvmcpRepo || DEFAULT_TVMCP_REPO).trim();
@@ -121,13 +174,14 @@ export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   // resolved its paths yet when the wizard opens on the very first frame.
   const paths = await initRuntimePaths();
 
-  const [uv, clone, runtime, kb, claude, official, running, cdp, workflows, riskRules, journal] = await Promise.all([
+  const [uv, clone, runtime, kb, claude, official, codex, running, cdp, workflows, riskRules, journal] = await Promise.all([
     uvFact(),
     cloneFact((cfg.tvmcpPath || '').trim(), repo),
     runtimeFact(cfg, paths),
     kbFact(cfg, paths),
     claudeAuthStatus(cfg),
     officialFact(cfg),
+    codexFact(cfg),
     isTradingViewRunning(),
     cdpProbe(port),
     workflowFacts(),
@@ -142,7 +196,7 @@ export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   const boot = bootable ? { ran: true, ...(await tvmcpStatus(cfg)) } : { ran: false, ok: false, tools: 0, error: '' };
   const freePort = cdp.up && !cdp.tradingview ? await findFreePort(port) : null;
 
-  return { uv, clone, runtime, kb, boot, claude, official, tv: { running, port, cdp }, freePort, workflows, files: { riskRules, journal }, platform: process.platform };
+  return { uv, clone, runtime, kb, boot, claude, official, codex, tv: { running, port, cdp }, freePort, workflows, files: { riskRules, journal }, platform: process.platform };
 }
 
 /** The whole diagnosis: probe everything, map it, never throw. */

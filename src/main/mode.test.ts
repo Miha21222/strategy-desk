@@ -35,26 +35,26 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 describe('saver / full mode', () => {
   it('saver adds the mode block and pins effort to medium', async () => {
-    const { buildTurnOptions } = await import('./agent');
-    const o = await buildTurnOptions(chat, 'saver');
-    expect(String(o.systemPrompt)).toContain('## Mode: saver');
-    expect(String(o.systemPrompt)).toContain('Keep tool calls minimal');
-    expect(o.effort).toBe('medium');
+    const { buildTurnSpec } = await import('./agent');
+    const spec = await buildTurnSpec(chat, 'saver');
+    expect(spec.systemPrompt).toContain('## Mode: saver');
+    expect(spec.systemPrompt).toContain('Keep tool calls minimal');
+    expect(spec.effort).toBe('medium');
   });
 
   it('full leaves the prompt alone and keeps the configured effort', async () => {
-    const { buildTurnOptions } = await import('./agent');
-    const o = await buildTurnOptions(chat, 'full');
-    expect(String(o.systemPrompt)).not.toContain('## Mode: saver');
-    expect(o.effort).toBe('high');
+    const { buildTurnSpec } = await import('./agent');
+    const spec = await buildTurnSpec(chat, 'full');
+    expect(spec.systemPrompt).not.toContain('## Mode: saver');
+    expect(spec.effort).toBe('high');
   });
 
   it('the two modes are different sessions, so switching cannot reuse one', async () => {
-    const { buildTurnOptions } = await import('./agent');
-    const { fingerprintOptions } = await import('./session');
-    const saver = await buildTurnOptions(chat, 'saver');
-    const full = await buildTurnOptions(chat, 'full');
-    expect(fingerprintOptions(saver)).not.toBe(fingerprintOptions(full));
+    const { buildTurnSpec } = await import('./agent');
+    const { claudeDriver } = await import('./drivers/claude');
+    const saver = await buildTurnSpec(chat, 'saver');
+    const full = await buildTurnSpec(chat, 'full');
+    expect(claudeDriver.fingerprint(saver)).not.toBe(claudeDriver.fingerprint(full));
   });
 });
 

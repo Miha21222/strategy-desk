@@ -12,7 +12,7 @@
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
 import type { TaskId, TaskState } from '@shared/tasks';
 import { t } from '../i18n';
-import { isSkipped, stepDone, STEP_IDS, WIZARD_STEPS, type StepId } from '../setup';
+import { isSkipped, stepDone, visibleStepIds, WIZARD_STEPS, type StepId } from '../setup';
 import { PreflightList } from './PreflightList';
 
 export interface SetupWizardProps {
@@ -34,13 +34,16 @@ export interface SetupWizardProps {
 }
 
 export function SetupWizard(p: SetupWizardProps) {
-  const index = STEP_IDS.indexOf(p.step);
-  const step = WIZARD_STEPS[index] ?? WIZARD_STEPS[0];
   const checks = p.result?.checks ?? [];
+  // The engine the user did not choose has no checks, so its step is not shown
+  // at all — and the numbering counts what is on screen.
+  const ids = visibleStepIds(checks);
+  const index = Math.max(0, ids.indexOf(p.step));
+  const step = WIZARD_STEPS.find((s) => s.id === ids[index]) ?? WIZARD_STEPS[0];
   const done = p.result ? stepDone(step.id, checks) : false;
   const skipped = isSkipped({ setupSkipped: p.skipped }, step.id);
-  const last = index === STEP_IDS.length - 1;
-  const stillSkipped = STEP_IDS.filter((id) => p.skipped.includes(id));
+  const last = index === ids.length - 1;
+  const stillSkipped = ids.filter((id) => p.skipped.includes(id));
 
   return (
     <div class="modal-backdrop">
@@ -53,7 +56,7 @@ export function SetupWizard(p: SetupWizardProps) {
         </header>
 
         <ol class="wizard-steps">
-          {WIZARD_STEPS.map((s, i) => {
+          {WIZARD_STEPS.filter((s) => ids.includes(s.id)).map((s, i) => {
             const state = p.result ? (isSkipped({ setupSkipped: p.skipped }, s.id) ? 'skipped' : stepDone(s.id, checks) ? 'ok' : 'todo') : 'todo';
             return (
               <li key={s.id} class={`${s.id === p.step ? 'on ' : ''}${state}`}>
@@ -67,7 +70,7 @@ export function SetupWizard(p: SetupWizardProps) {
         </ol>
 
         <div class="wizard-body">
-          <div class="muted">{t('setup.step', { n: index + 1, total: STEP_IDS.length })}</div>
+          <div class="muted">{t('setup.step', { n: index + 1, total: ids.length })}</div>
           <p>{t(`setup.stepIntro.${step.id}`)}</p>
           <PreflightList
             result={p.result}
@@ -83,7 +86,7 @@ export function SetupWizard(p: SetupWizardProps) {
         </div>
 
         <footer>
-          <button type="button" onClick={() => p.onStep(STEP_IDS[Math.max(0, index - 1)])} disabled={index === 0}>
+          <button type="button" onClick={() => p.onStep(ids[Math.max(0, index - 1)])} disabled={index === 0}>
             {t('setup.back')}
           </button>
           <button type="button" onClick={() => p.onSkip(step.id, !skipped)}>
@@ -95,7 +98,7 @@ export function SetupWizard(p: SetupWizardProps) {
               {t('setup.finish')}
             </button>
           ) : (
-            <button type="button" class="primary" onClick={() => p.onStep(STEP_IDS[index + 1])}>
+            <button type="button" class="primary" onClick={() => p.onStep(ids[index + 1])}>
               {t('setup.next')}
             </button>
           )}

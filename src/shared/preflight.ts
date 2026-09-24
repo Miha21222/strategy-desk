@@ -28,6 +28,9 @@ export const CHECK_IDS = [
   'kbModel',
   'claude',
   'officialMcp',
+  'codex',
+  'codexAuth',
+  'codexOfficialMcp',
   'tvDesktop',
   'cdpPort',
   'workflows',
@@ -68,6 +71,25 @@ export type PreflightFix =
 
 /** Settings booleans a `set-flag` fix may write. */
 export type FlagField = 'officialMcp' | 'knowledgeBase';
+
+/**
+ * The Codex engine, as the app sees it. `home` is the app's OWN CODEX_HOME:
+ * the engine never runs out of the user's ~/.codex, because everything in it
+ * — their MCP servers, their AGENTS.md, their notify hook — would land in a
+ * chat (measured 2026-09-23), and `app-server` has no `--ignore-user-config`.
+ */
+export interface CodexFact {
+  found: boolean;
+  version: string;
+  /** The app's own CODEX_HOME. */
+  home: string;
+  /** A login exists in the app's home. */
+  hasAuth: boolean;
+  /** The user has their own login, so importing it is a real offer. */
+  userAuth: boolean;
+  /** The official TradingView MCP as registered in the app's own Codex home. */
+  official: OfficialMcpFact;
+}
 
 export interface PreflightCheck {
   id: CheckId;
@@ -179,6 +201,7 @@ export interface PreflightFacts {
   boot: { ran: boolean; ok: boolean; tools: number; error: string };
   claude: ClaudeAuthStatus;
   official: OfficialMcpFact;
+  codex: CodexFact;
   tv: { running: boolean; port: number; cdp: CdpProbe };
   /** A port nobody answers on, so "switch the port" is a real offer. */
   freePort: number | null;
@@ -236,7 +259,14 @@ export function buildChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] 
   // copilot still reads charts and runs scans, it just cannot cite the course.
   checks.push(...kbChecks(f.kb));
 
-  // 4. Claude — the SDK spawns the user's own Claude Code binary.
+  // 4. the engine that answers the chat. Only the selected one is diagnosed:
+  // a red row about a Codex that the user never chose is noise, and the wizard
+  // drops the step that produced no checks.
+  if (cfg.engine === 'codex') {
+    checks.push(...codexChecks(f.codex));
+    checks.push(...chartChecks(cfg, f));
+    return checks;
+  }
   if (f.claude === 'none') {
     checks.push({
       id: 'claude',
@@ -483,6 +513,92 @@ function bootCheck(cfg: Settings, f: PreflightFacts): PreflightCheck {
  * Claude Code's own store rather than ours, because that is where the OAuth
  * token lives — see `shared/official-mcp.ts`.
  */
+function codexChecks(c: CodexFact): PreflightCheck[] {
+  if (!c.found) {
+    return [
+      {
+        id: 'codex',
+        status: 'fail',
+        detailKey: 'preflight.codex.missing',
+        // Installing someone's global toolchain is their call, never the app's.
+        fix: { kind: 'copy', labelKey: 'preflight.fix.copyInstall', command: 'npm i -g @openai/codex', noteKey: 'preflight.codex.installNote' },
+        docs: 'https://developers.openai.com/codex/cli',
+      },
+    ];
+  }
+  const checks: PreflightCheck[] = [{ id: 'codex', status: 'ok', detailKey: 'preflight.codex.ok', vars: { version: c.version || '—' } }];
+
+  if (c.hasAuth) {
+    checks.push({ id: 'codexAuth', status: 'ok', detailKey: 'preflight.codexAuth.ok', vars: { home: c.home } });
+  } else if (c.userAuth) {
+    // The app has a login it could copy. It does not copy it by itself:
+    // credentials move only when the user presses the button.
+    checks.push({
+      id: 'codexAuth',
+      status: 'fail',
+      detailKey: 'preflight.codexAuth.importable',
+      vars: { home: c.home },
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.codexAuthImport', task: 'codex-auth-import', noteKey: 'preflight.codexAuth.importNote' },
+    });
+  } else {
+    checks.push({
+      id: 'codexAuth',
+      status: 'fail',
+      detailKey: 'preflight.codexAuth.none',
+      vars: { home: c.home },
+      // `codex login` opens a browser and waits; it belongs in the user's own
+      // terminal, with the app's CODEX_HOME in front of it.
+      // PowerShell first (that is the shell this app's users have open), POSIX
+      // as the alternative. `set X=Y && …` in cmd.exe is deliberately NOT
+      // offered: it swallows the space before `&&` into the value, and codex
+      // would quietly build a second home with a trailing space in its name.
+      fix: {
+        kind: 'copy',
+        labelKey: 'preflight.fix.copyLogin',
+        command: `$env:CODEX_HOME='${c.home}'; codex login`,
+        altCommand: `CODEX_HOME="${c.home}" codex login`,
+        noteKey: 'preflight.codexAuth.loginNote',
+      },
+    });
+  }
+
+  checks.push(codexOfficialCheck(c.official));
+  return checks;
+}
+
+/** The official TradingView MCP inside the app's Codex home — its own OAuth store. */
+function codexOfficialCheck(o: OfficialMcpFact): PreflightCheck {
+  const base = { id: 'codexOfficialMcp' as const, optional: true };
+  if (o.status === 'unknown') return { ...base, status: 'unknown', detailKey: 'preflight.official.unknown' };
+  if (!o.registered) {
+    return {
+      ...base,
+      status: 'warn',
+      detailKey: 'preflight.codexOfficial.absent',
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.officialAdd', task: 'codex-mcp-add', noteKey: 'preflight.codexOfficial.addNote' },
+    };
+  }
+  if (o.status !== 'connected') {
+    return {
+      ...base,
+      status: 'warn',
+      detailKey: 'preflight.codexOfficial.needsAuth',
+      vars: { raw: o.raw || '—' },
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.officialLogin', task: 'codex-mcp-login', noteKey: 'preflight.codexOfficial.loginNote' },
+    };
+  }
+  if (!o.enabled) {
+    return {
+      ...base,
+      status: 'warn',
+      detailKey: 'preflight.official.offInSettings',
+      vars: { scope: o.scope || '—' },
+      fix: { kind: 'set-flag', labelKey: 'preflight.fix.officialEnable', field: 'officialMcp', value: true, noteKey: 'preflight.official.enableNote' },
+    };
+  }
+  return { ...base, status: 'ok', detailKey: 'preflight.codexOfficial.ok' };
+}
+
 function officialCheck(o: OfficialMcpFact): PreflightCheck {
   const base = { id: 'officialMcp' as const, optional: true };
   if (o.status === 'unknown') {

@@ -7,7 +7,8 @@ import { BLOCK_KINDS } from '@shared/blocks';
 import { sampleAssistantMessage } from '@shared/blocks-sample';
 import { adrFromScan, buildSentinelSpec, levelsArgs, levelsFromScan, todayISO } from '@shared/panel';
 import { parseBlocks } from '../renderer/chat/blocks';
-import { buildEnv, stopAll } from './agent';
+import { stopAll } from './agent';
+import { buildEnv } from './drivers/claude';
 import { registerIpc } from './ipc';
 import { buildMcpServers } from './mcp';
 import { runPreflight } from './preflight';
@@ -167,6 +168,7 @@ async function runPackSmoke(): Promise<void> {
 // allowlist refuses an unlisted tool; DESK_SMOKE=runtime provisions the bundled
 // Python environment for real and boots tvmcp out of it (minutes, ~600 MB, and
 // it needs a payload — see CLAUDE.md for how to fake one in a dev run);
+// DESK_SMOKE=codex runs two turns through the Codex engine (app-server, real MCP map);
 // DESK_SMOKE=kb seeds the course knowledge base and asks the store how many
 // chunks it holds, with the environment a chat would give it;
 // DESK_SMOKE=pack checks that an INSTALLED
@@ -283,6 +285,51 @@ async function runSmoke(kind: string): Promise<void> {
     const refused = await callTool(cfg, 'tv_desktop_draw', {});
     console.log('[smoke] allowlist', refused.ok ? 'LEAKED' : 'ok');
     if (refused.ok) throw new Error('the allowlist let an unlisted tool through');
+    return;
+  }
+  if (kind === 'codex') {
+    // The Codex engine end to end, through the same driver the chat uses: one
+    // app-server, one thread, the app's real MCP map, a tool call that has to
+    // pass the approval gate, and a second turn to prove the process (and its
+    // MCP servers) survived the first.
+    const { getDriver } = await import('./drivers');
+    const { specForPrompt } = await import('./agent');
+    const { codexHomeDir, hasCodexAuth } = await import('./drivers/codex/home');
+    console.log('[smoke] codex home', codexHomeDir(), 'auth', hasCodexAuth() ? 'yes' : 'no');
+    const spec = await specForPrompt('You are the Strategy Desk smoke test. Use the tools you are given and answer in one short line.', 'saver', 'codex');
+    console.log('[smoke] codex servers', Object.keys(spec.mcpServers).join(', ') || 'none');
+    const driver = getDriver('codex');
+    const turn = async (label: string, text: string) => {
+      const tools: string[] = [];
+      let answer = '';
+      let usage = '';
+      const t0 = Date.now();
+      await driver.runTurn({
+        chatKey: 'smoke',
+        spec,
+        resume: null,
+        text,
+        emit: (ev) => {
+          if (ev.kind === 'init') console.log('[smoke] codex init', ev.init.model, ev.init.engineVersion, JSON.stringify(ev.init.mcpServers.map((m) => m.name)));
+          if (ev.kind === 'tool') tools.push(ev.name);
+          if (ev.kind === 'text') answer += ev.delta;
+          if (ev.kind === 'error') console.log('[smoke] codex error', ev.message);
+          if (ev.kind === 'notice') console.log('[smoke] codex notice', ev.message);
+          if (ev.kind === 'result') usage = JSON.stringify(ev.tokens);
+        },
+        onStderr: (d) => {
+          const line = d.trim();
+          if (line) console.log('[smoke] codex stderr', line.slice(0, 200));
+        },
+      });
+      console.log(`[smoke] codex ${label} ${Date.now() - t0} ms tools=${JSON.stringify(tools)} usage=${usage}`);
+      console.log(`[smoke] codex ${label} answer ${JSON.stringify(answer.trim().slice(0, 200))}`);
+      return tools;
+    };
+    const first = await turn('turn1', 'Call the tradingview tool tv_data_providers_status and say in one line which providers answered.');
+    await turn('turn2', 'Answer in one line: which tool did you just call?');
+    driver.closeAll();
+    if (!first.some((t) => t.startsWith('mcp__tradingview__'))) throw new Error('the Codex turn never reached a tradingview tool');
     return;
   }
   if (kind === 'query') {

@@ -5,7 +5,23 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@shared/defaults';
 import { CHECK_IDS, type PreflightCheck } from '@shared/preflight';
-import { applySkip, checksOfStep, finishPatch, isSkipped, limitationKeys, nextStep, PICK_FOR_FIELD, prevStep, reconcileSkips, shouldOpenWizard, stepDone, stepStatus, STEP_IDS, WIZARD_STEPS } from './setup';
+import {
+  applySkip,
+  checksOfStep,
+  finishPatch,
+  isSkipped,
+  limitationKeys,
+  nextStep,
+  PICK_FOR_FIELD,
+  prevStep,
+  reconcileSkips,
+  shouldOpenWizard,
+  stepDone,
+  stepStatus,
+  STEP_IDS,
+  visibleStepIds,
+  WIZARD_STEPS,
+} from './setup';
 
 const check = (id: (typeof CHECK_IDS)[number], status: PreflightCheck['status']): PreflightCheck => ({ id, status, detailKey: `preflight.${id}.x` });
 
@@ -19,12 +35,28 @@ describe('the wizard steps', () => {
     expect(new Set(covered).size).toBe(covered.length);
   });
 
-  it('runs Claude -> the market server -> the knowledge base -> the official MCP -> TradingView -> files', () => {
-    expect(STEP_IDS).toEqual(['claude', 'tvmcp', 'knowledge', 'official', 'tradingview', 'files']);
-    expect(nextStep('claude')).toBe('tvmcp');
+  it('runs the engine first, then the market server, the knowledge base, the official MCP, TradingView and the files', () => {
+    expect(STEP_IDS).toEqual(['claude', 'codex', 'tvmcp', 'knowledge', 'official', 'tradingview', 'files']);
     expect(nextStep('files')).toBeNull();
     expect(prevStep('claude')).toBeNull();
     expect(prevStep('tradingview')).toBe('official');
+  });
+
+  // Only the engine that answers the chat is diagnosed, so exactly one of the
+  // two engine steps has checks — and the other must not appear as an empty
+  // page with a "skip" button for nothing.
+  it('hides the step of the engine that was not diagnosed', () => {
+    const claudeRun = [check('claude', 'ok'), check('tvmcpBoot', 'ok'), check('officialMcp', 'warn')];
+    expect(visibleStepIds(claudeRun)).toEqual(['claude', 'tvmcp', 'official']);
+    expect(nextStep('claude', visibleStepIds(claudeRun))).toBe('tvmcp');
+
+    const codexRun = [check('codex', 'ok'), check('codexAuth', 'fail'), check('tvmcpBoot', 'ok'), check('codexOfficialMcp', 'warn')];
+    expect(visibleStepIds(codexRun)).toEqual(['codex', 'tvmcp', 'official']);
+    expect(prevStep('tvmcp', visibleStepIds(codexRun))).toBe('codex');
+  });
+
+  it('shows every step before the first diagnosis, rather than none', () => {
+    expect(visibleStepIds([])).toEqual(STEP_IDS);
   });
 
   // The tvmcp step lists the checks of BOTH runtime modes; a run produces only

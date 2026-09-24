@@ -4,16 +4,26 @@ import type { Grade, StressReport } from './blocks';
 import type { PanelDayState, PanelDef, TvCallResult } from './panel';
 import type { PreflightResult } from './preflight';
 import type { TaskEvent, TaskId, TaskState } from './tasks';
+import type { EngineId } from './engine';
 
-export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent, TaskId, TaskState };
+export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent, TaskId, TaskState, EngineId };
 
 export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
 export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
 
 export interface ChatMeta {
   key: string;
-  /** Claude Code session id; set after the first successful turn. */
+  /**
+   * The engine's own conversation id (a Claude Code session, a Codex thread);
+   * set after the first successful turn and resumed on the next one.
+   */
   sessionId: string | null;
+  /**
+   * Engine this chat was started on. Conversations do not move between engines
+   * — the resumed id belongs to one of them — so a chat keeps the engine it
+   * was opened with. Absent on chats created before stage 6 = `claude`.
+   */
+  engine?: EngineId;
   title: string;
   createdAt: number;
   updatedAt: number;
@@ -73,6 +83,10 @@ export type ChatMode = 'saver' | 'full';
 
 /** Settings as seen by the renderer. Secrets never cross the bridge; only presence flags do. */
 export interface Settings {
+  /** Which agent engine runs the chat: the Claude Agent SDK or the Codex CLI. */
+  engine: EngineId;
+  /** How to start the Codex CLI; empty = `codex` from PATH. */
+  codexPath: string;
   authMode: AuthMode;
   hasApiKey: boolean;
   hasOauthToken: boolean;
@@ -143,7 +157,8 @@ export interface Status {
 
 export interface AgentInit {
   model: string;
-  claudeCodeVersion: string;
+  /** Version of the engine runtime that answered (Claude Code, the Codex CLI). */
+  engineVersion: string;
   mcpServers: { name: string; status: string }[];
   toolCount: number;
   sessionId: string;
@@ -157,7 +172,12 @@ export interface TokenUsage {
 }
 
 /** Streamed over the single `chat:event` IPC channel. */
-export type ChatEvent = { chatKey: string } & (
+/**
+ * One thing that happened during a turn, without saying whose turn it was.
+ * Engine drivers (`src/main/drivers`) speak this: whatever the engine's own
+ * protocol looks like, the renderer only ever sees these.
+ */
+export type ChatEventBody =
   | { kind: 'text'; delta: string }
   | { kind: 'thinking'; delta: string }
   | { kind: 'tool'; id: string; name: string; input: string }
@@ -165,8 +185,9 @@ export type ChatEvent = { chatKey: string } & (
   | { kind: 'init'; init: AgentInit }
   | { kind: 'done'; tokens: TokenUsage; costUsd: number | null; sessionId: string | null; turns: number; stopped: boolean }
   | { kind: 'error'; message: string }
-  | { kind: 'notice'; message: string }
-);
+  | { kind: 'notice'; message: string };
+
+export type ChatEvent = { chatKey: string } & ChatEventBody;
 
 /** Persisted transcript entries (renderer-facing shape, not the model context). */
 export type TranscriptItem =

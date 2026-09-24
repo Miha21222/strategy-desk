@@ -7,8 +7,7 @@ import { CHAT_KINDS } from '@shared/api';
 import { isAllowedTvTool, type PanelDayState, type TvCallResult } from '@shared/panel';
 import { isTaskId, type TaskEvent, type TaskId } from '@shared/tasks';
 import { clampZoom } from '@shared/zoom';
-import { dropWarm, prewarmFor, startChat, stopChat } from './agent';
-import { closeFor } from './session';
+import { closeChat, dropWarm, prewarmFor, startChat, stopChat } from './agent';
 import { runPreflight } from './preflight';
 import { freezeForChat } from './prompt';
 import { getPropFirms } from './rules';
@@ -164,8 +163,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('chats:rename', (_e, key: string, title: string) => store.updateChat(key, { title: String(title ?? '').slice(0, 120) }));
   ipcMain.handle('chats:delete', async (_e, key: string) => {
     await stopChat(key);
-    // The chat is gone; its session (a CLI process plus tvmcp) must go too.
-    closeFor(key);
+    // The chat is gone; its session (an engine process plus tvmcp) must go too.
+    closeChat(key);
     return store.deleteChat(key);
   });
   ipcMain.handle('chats:pin', (_e, key: string, pinned: boolean) => store.updateChat(key, { pinned: Boolean(pinned) }));

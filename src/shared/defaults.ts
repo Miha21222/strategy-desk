@@ -1,4 +1,5 @@
 import type { Settings, TraderProfile } from './api';
+import { DEFAULT_ENGINE } from './engine';
 
 export const DEFAULT_TVMCP_PATH = 'C:\\Users\\Admin\\Projects\\tradingview-mcp';
 export const DEFAULT_CDP_PORT = 9223;
@@ -18,6 +19,8 @@ export const DEFAULT_TOOLSETS = 'hybrid,desktop,session';
 export const DEFAULT_KNOWLEDGE_BASE = true;
 
 export const DEFAULT_SETTINGS: Settings = {
+  engine: DEFAULT_ENGINE,
+  codexPath: '',
   authMode: 'subscription',
   hasApiKey: false,
   hasOauthToken: false,

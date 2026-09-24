@@ -69,6 +69,14 @@ function healthyFacts(): PreflightFacts {
     boot: { ran: true, ok: true, tools: 59, error: '' },
     claude: 'subscription',
     official: { enabled: true, registered: true, scope: 'User config', status: 'connected', url: 'https://mcp.tradingview.com/mcp', raw: 'Connected' },
+    codex: {
+      found: true,
+      version: '0.154.0',
+      home: 'C:/userData/codex-home',
+      hasAuth: true,
+      userAuth: true,
+      official: { enabled: true, registered: true, scope: 'User config', status: 'connected', url: 'https://mcp.tradingview.com/mcp', raw: 'Connected' },
+    },
     tv: { running: true, port: 9223, cdp: tvCdp },
     freePort: null,
     workflows: { loaded: ['ib-es', 'strategy-lab'], failed: [] },
@@ -83,9 +91,14 @@ function statusOf(checks: ReturnType<typeof buildChecks>, id: CheckId): CheckSta
   return c.status;
 }
 
-/** Every id that can appear, minus the ones belonging to the other runtime mode. */
-function idsFor(mode: 'bundled' | 'external'): CheckId[] {
+/**
+ * Every id that can appear, minus the ones belonging to the other runtime mode
+ * and to the engine that is not selected: only the engine answering the chat
+ * is diagnosed.
+ */
+function idsFor(mode: 'bundled' | 'external', engine: 'claude' | 'codex' = 'claude'): CheckId[] {
   const drop: CheckId[] = mode === 'bundled' ? ['uv', 'tvmcpClone'] : ['tvmcpRuntime', 'chromium'];
+  drop.push(...(engine === 'codex' ? (['claude', 'officialMcp'] as CheckId[]) : (['codex', 'codexAuth', 'codexOfficialMcp'] as CheckId[])));
   return CHECK_IDS.filter((id) => !drop.includes(id));
 }
 
@@ -436,5 +449,54 @@ describe('the official MCP', () => {
       f.official = { ...f.official, status, registered: status !== 'absent' };
       expect(resultOf(buildChecks(cfg, f)).ok, status).toBe(true);
     }
+  });
+});
+
+// ---------- the Codex engine ----------
+//
+// Everything asserted here is what a live run showed on 2026-09-23: the app's
+// own CODEX_HOME starts logged out, and the official TradingView MCP is a
+// separate registration from Claude Code's.
+describe('the Codex engine', () => {
+  const codexCfg: Settings = { ...DEFAULT_SETTINGS, engine: 'codex' };
+
+  it('diagnoses only the selected engine', () => {
+    const checks = buildChecks(codexCfg, healthyFacts());
+    expect(checks.map((c) => c.id)).toEqual(idsFor('external', 'codex'));
+    expect(checks.find((c) => c.id === 'claude')).toBeUndefined();
+  });
+
+  it('offers to install the CLI as copyable text, never as a button', () => {
+    const f = healthyFacts();
+    f.codex = { ...f.codex, found: false, version: '' };
+    const checks = buildChecks(codexCfg, f);
+    const codex = checks.find((c) => c.id === 'codex');
+    expect(codex?.status).toBe('fail');
+    expect(codex?.fix).toMatchObject({ kind: 'copy', command: 'npm i -g @openai/codex' });
+    // Nothing further is claimed about a machine without the CLI.
+    expect(checks.find((c) => c.id === 'codexAuth')).toBeUndefined();
+  });
+
+  it('offers to import the user own login only when there is one', () => {
+    const f = healthyFacts();
+    f.codex = { ...f.codex, hasAuth: false, userAuth: true };
+    const importable = buildChecks(codexCfg, f).find((c) => c.id === 'codexAuth');
+    expect(importable?.status).toBe('fail');
+    expect(importable?.fix).toMatchObject({ kind: 'run-task', task: 'codex-auth-import' });
+
+    f.codex = { ...f.codex, hasAuth: false, userAuth: false };
+    const login = buildChecks(codexCfg, f).find((c) => c.id === 'codexAuth');
+    expect(login?.fix?.kind).toBe('copy');
+    // The command must carry the app's own home, or it logs the user into theirs.
+    expect((login?.fix as { command: string }).command).toContain(f.codex.home);
+  });
+
+  it('treats the official MCP in Codex as its own registration', () => {
+    const f = healthyFacts();
+    f.codex = { ...f.codex, official: { ...f.codex.official, registered: false, status: 'absent' } };
+    const check = buildChecks(codexCfg, f).find((c) => c.id === 'codexOfficialMcp');
+    expect(check?.status).toBe('warn');
+    expect(check?.optional).toBe(true);
+    expect(check?.fix).toMatchObject({ kind: 'run-task', task: 'codex-mcp-add' });
   });
 });

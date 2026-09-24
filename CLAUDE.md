@@ -26,7 +26,12 @@ src/shared/defaults.ts      default settings / profile
 src/main/index.ts           BrowserWindow, app lifecycle
 src/main/ipc.ts             ipcMain.handle/on registration (status, preflight, dialog:pick, tv:launch, tv:call, panel, settings, profile, chats, chat, open)
 src/main/store.ts           JSON files in userData (config/chats/profile/panel/transcripts), safeStorage secrets, atomic writes
-src/main/agent.ts           query() wrapper: system prompt, env, permission presets, SDKMessage → ChatEvent, retry on crash
+src/main/agent.ts           engine-neutral turn orchestrator: system prompt, TurnSpec, transcript, token/cost tally, retry
+src/main/drivers/           the engine seam: types.ts (TurnSpec/DriverEvent/EngineDriver), index.ts (registry)
+src/main/drivers/claude.ts  the Claude engine: SDK options, auth env, permission presets, SDKMessage → ChatEventBody
+src/main/drivers/codex/     the Codex engine: protocol.ts (app-server JSON-RPC), home.ts (private CODEX_HOME),
+                            servers.ts (MCP map → codex config), translate.ts (notifications → ChatEventBody)
+src/shared/engine.ts        EngineId + the capability table the UI asks instead of branching on the engine
 src/main/mcp.ts             mcpServers map (tradingview + gt-database stdio; optional official http server) + buildTvEnv()
 src/main/tv-cli.ts          callTool(): deterministic tvmcp calls through `uv ... run tv <tool>`, no model turn
 src/main/workflows.ts       workflow loader (yaml + promptBlock), cached
@@ -69,6 +74,7 @@ DESK_SMOKE=preflight npm run dev  + prints the real setup check list of this mac
 DESK_SMOKE=runtime npm run dev  + provisions the bundled Python environment for real and boots tvmcp from it
 DESK_SMOKE=kb     npm run dev   + seeds the course knowledge base and asks the store how many chunks it holds
 DESK_SMOKE=query  npm run dev   same + one trivial SDK query() without MCP (costs a few cents)
+DESK_SMOKE=codex  npm run dev   two turns through the Codex engine: app-server, real MCP map, tool call, reuse
 DESK_SMOKE=pack                 resources a packaged build must find + `claude --version`; runs PACKAGED too
 ```
 
@@ -178,6 +184,44 @@ DESK_SMOKE=runtime npm run dev     # builds the venv WITH the kb extra
 DESK_SMOKE=kb npm run dev          # seeds the store, then asks it how many chunks it holds
 rm -rf tvmcp gt-rag uv.exe "$APPDATA/strategy-desk/py"
 ```
+
+## Engines: Claude and Codex
+
+The chat runs on one of two engines, chosen in the settings (`settings.engine`) and remembered per chat
+(`ChatMeta.engine`) — a conversation never moves, because the id it resumes from belongs to one engine.
+`agent.ts` knows neither: it builds a `TurnSpec`, hands it to the chat's driver and folds the driver's
+`DriverEvent`s into the `ChatEvent` stream, the transcript and the tallies. A driver owns everything
+engine-shaped. Differences the UI must show live in `ENGINES` (`src/shared/engine.ts`), not in `if`s.
+
+**Codex runs on `codex app-server`, never `codex exec`.** `exec` — and `@openai/codex-sdk`, which wraps it
+— starts a process per turn, so tvmcp and the knowledge base would boot on every message; app-server keeps
+the process, takes the system prompt as `baseInstructions` and applies MCP servers per thread through its
+free-form `config`. Measured 2026-09-23 (codex-cli 0.154.0), live through the app's own driver: first turn
+21.7 s (tvmcp boot), second turn 2.9 s.
+
+Four things about it are landmines, each already paid for once:
+
+- **A private `CODEX_HOME`.** With the user's own `~/.codex` a thread loads their entire world — nine MCP
+  servers on this machine, their `AGENTS.md`, their `notify` hook, personality and memories. `-c
+  mcp_servers={}` does not undo it and `app-server` has no `--ignore-user-config` (that flag is `codex
+  exec` only). So the app owns `<userData>/codex-home`, writes its `config.toml` **once** (`codex mcp add`
+  appends to that file), and starts logged out on purpose.
+- **A request id may be `0`.** The server asks for approvals as ordinary JSON-RPC requests; `if (msg.id)`
+  drops that one and the engine waits forever.
+- **MCP tool calls need an approval channel.** Under `approvalPolicy: "never"` a call is refused outright
+  ("MCP tool call requires approval, but approval policy is never"). The driver runs threads with
+  `on-request`, declares the `mcpServerOpenaiFormElicitation` capability, and answers
+  `mcpServer/elicitation/request` with accept **only for servers the app itself registered**. That
+  callback is the Codex twin of the Claude engine's `disallowedTools`: the shell is declined in both
+  presets and may only ever run inside the sandbox.
+- **`codex` from npm is a `.cmd` shim**, so every probe and spawn on Windows needs a shell — without it the
+  preflight reported "Codex CLI not found" on a machine that has it.
+- **A turn must wait for the thread's MCP servers.** The model gets its tool list once; a turn sent right
+  after `thread/start` answered "the TradingView tool isn't available" and never called it. The driver
+  waits for every registered server to report `ready` or `failed` (30 s cap) before `turn/start`.
+
+`DESK_SMOKE=codex npm run dev` runs two turns through the real driver and fails if the first never reached
+a `mcp__tradingview__*` tool.
 
 ## Long operations: tasks
 
@@ -301,3 +345,9 @@ never fail silently later.
    with `settings.fieldNotesPath`), and the Windows installer (NSIS per-user, own icon,
    `npm run dist:check`). Still open: code signing, electron-updater (auto-update is off on
    purpose — no release channel, no certificate), official MCP auth flow.
+6. Second engine (Codex) so the app runs on a ChatGPT subscription too. Done: the driver seam
+   (`src/main/drivers/`), the Codex driver on `codex app-server`, the private CODEX_HOME, the engine
+   selector in the settings, three preflight checks (`codex`, `codexAuth`, `codexOfficialMcp`) with their
+   own wizard step, and three tasks (`codex-auth-import`, `codex-mcp-add`, `codex-mcp-login`). Codex stays
+   an external dependency, never bundled (~350 MB binary). Open: a live day run on Codex, the block-format
+   drift check, and the `exec` fallback driver. Plan: `docs/PLAN-ENGINES.md`.

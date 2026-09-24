@@ -184,7 +184,7 @@ export function ChatView(p: ChatViewProps) {
         {p.init ? (
           <div class="chat-status" title={p.init.mcpServers.map((s) => `${s.name}: ${s.status}`).join('\n')}>
             <span>{t('chat.model')}: {p.init.model}</span>
-            <span>{t('chat.version')} {p.init.claudeCodeVersion}</span>
+            <span>{t('chat.version')} {p.init.engineVersion}</span>
             <span>
               {p.init.toolCount} {t('chat.toolsCount')}
             </span>

@@ -75,6 +75,7 @@ export function SettingsTab(p: SettingsTabProps) {
     cdpPort: String(s.cdpPort),
     toolsets: s.toolsets,
     model: s.model,
+    codexPath: s.codexPath ?? '',
     tvDesktopExe: s.tvDesktopExe,
     riskRulesPath: s.riskRulesPath,
     journalPath: s.journalPath,
@@ -93,12 +94,13 @@ export function SettingsTab(p: SettingsTabProps) {
       cdpPort: String(s.cdpPort),
       toolsets: s.toolsets,
       model: s.model,
+      codexPath: s.codexPath ?? '',
       tvDesktopExe: s.tvDesktopExe,
       riskRulesPath: s.riskRulesPath,
       journalPath: s.journalPath,
       fieldNotesPath: s.fieldNotesPath,
     });
-  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
+  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.codexPath, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
 
   const commitText = (key: keyof typeof text) => {
     const v = text[key].trim();
@@ -164,6 +166,24 @@ export function SettingsTab(p: SettingsTabProps) {
           ) : null}
         </div>
         {p.onClearRuntime ? <p class="muted">{t('settings.clearRuntimeNote')}</p> : null}
+      </fieldset>
+
+      <fieldset>
+        <legend>{t('settings.engine')}</legend>
+        <label class="field">
+          <span>{t('settings.engineWhich')}</span>
+          <select value={s.engine ?? 'claude'} onChange={(e) => p.onSettings({ engine: (e.target as HTMLSelectElement).value as Settings['engine'] })}>
+            <option value="claude">{t('settings.engineClaude')}</option>
+            <option value="codex">{t('settings.engineCodex')}</option>
+          </select>
+        </label>
+        <small>{t('settings.engineHint')}</small>
+        {(s.engine ?? 'claude') === 'codex' ? (
+          <>
+            {textField('codexPath', t('settings.codexPath'), t('settings.codexPathHint'))}
+            <p class="muted">{t('settings.codexNote')}</p>
+          </>
+        ) : null}
       </fieldset>
 
       <fieldset>

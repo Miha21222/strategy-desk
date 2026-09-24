@@ -23,6 +23,7 @@ import { OFFICIAL_MCP_NAME, OFFICIAL_MCP_URL } from '@shared/official-mcp';
 import { applyTaskEvent, emptyTask, splitLines, TASK_IDS, type TaskEvent, type TaskId, type TaskState } from '@shared/tasks';
 import { chromiumSpec, claudeBin, initRuntimePaths, kbSeedPlan, provisionSpec, runtimeRoot, writeMarker, type RuntimePaths } from './runtime';
 import { kbModelSpec, modeOf, type SpawnSpec } from './runtime-spec';
+import { authFile, ensureCodexHome, userCodexHome } from './drivers/codex/home';
 import { invalidateTvmcpCache } from './status';
 
 /** Generous: a cold `uv sync` downloads a Python and ~290 packages. */
@@ -35,6 +36,10 @@ const TIMEOUTS: Record<TaskId, number> = {
   'official-mcp-add': 60_000,
   // Opens a browser and waits for the redirect; the user may take a while.
   'official-mcp-login': 10 * 60_000,
+  // One 4 KB file.
+  'codex-auth-import': 30_000,
+  'codex-mcp-add': 60_000,
+  'codex-mcp-login': 10 * 60_000,
 };
 
 interface Plan {
@@ -125,6 +130,25 @@ async function planFor(cfg: Settings, id: TaskId): Promise<Plan | null> {
     if (!model) return null;
     await fs.mkdir(paths.kbModelDir, { recursive: true });
     return { spec: model.spec, env: model.env, cwd };
+  }
+
+  // The Codex engine runs out of the app's own CODEX_HOME (see
+  // `drivers/codex/home.ts`), so both its login and its MCP registrations live
+  // there — the user's ~/.codex is never written to.
+  if (id === 'codex-auth-import' || id === 'codex-mcp-add' || id === 'codex-mcp-login') {
+    const home = await ensureCodexHome();
+    const codex = (cfg.codexPath || '').trim() || 'codex';
+    const env = { CODEX_HOME: home };
+    if (id === 'codex-auth-import') {
+      // A copy, like the knowledge base seed: planned here, shown before it
+      // runs, and only ever started by the user pressing the button — it moves
+      // credentials, which the app must never do on its own.
+      return { spec: { command: '', args: [] }, env, cwd, copies: [{ from: authFile(userCodexHome()), to: authFile(home) }] };
+    }
+    if (id === 'codex-mcp-add') {
+      return { spec: { command: codex, args: ['mcp', 'add', OFFICIAL_MCP_NAME, '--url', OFFICIAL_MCP_URL] }, env, cwd };
+    }
+    return { spec: { command: codex, args: ['mcp', 'login', OFFICIAL_MCP_NAME] }, env, cwd };
   }
 
   // The official MCP lives in Claude Code's store, not ours. `-s user` on

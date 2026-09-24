@@ -9,7 +9,7 @@
 import type { PickKind, Settings, SettingsPatch } from '@shared/api';
 import { worstStatus, type CheckId, type CheckStatus, type PathField, type PreflightCheck } from '@shared/preflight';
 
-export type StepId = 'claude' | 'tvmcp' | 'knowledge' | 'official' | 'tradingview' | 'files';
+export type StepId = 'claude' | 'codex' | 'tvmcp' | 'knowledge' | 'official' | 'tradingview' | 'files';
 
 export interface WizardStep {
   id: StepId;
@@ -28,14 +28,30 @@ export interface WizardStep {
  */
 export const WIZARD_STEPS: WizardStep[] = [
   { id: 'claude', checks: ['claude'] },
+  // Only the selected engine produces checks, so exactly one of these two
+  // steps has rows; `visibleStepIds` drops the other one entirely.
+  { id: 'codex', checks: ['codex', 'codexAuth'] },
   { id: 'tvmcp', checks: ['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium'] },
   { id: 'knowledge', checks: ['knowledgeBase', 'kbModel'] },
-  { id: 'official', checks: ['officialMcp'] },
+  { id: 'official', checks: ['officialMcp', 'codexOfficialMcp'] },
   { id: 'tradingview', checks: ['tvDesktop', 'cdpPort'] },
   { id: 'files', checks: ['workflows', 'riskRules', 'journal'] },
 ];
 
 export const STEP_IDS: StepId[] = WIZARD_STEPS.map((s) => s.id);
+
+/**
+ * The steps this diagnosis actually has something to say about. The engine the
+ * user did not choose produces no checks, and a wizard page with an empty list
+ * (and a "skip" button for nothing) would be worse than no page.
+ *
+ * Before the first diagnosis arrives there is nothing to filter on, so every
+ * step is shown rather than none.
+ */
+export function visibleStepIds(checks: PreflightCheck[]): StepId[] {
+  if (!checks.length) return STEP_IDS;
+  return STEP_IDS.filter((id) => checksOfStep(id, checks).length > 0);
+}
 
 /** Every check id appears on exactly one step; a new check must be placed. */
 export function checksOfStep(id: StepId, checks: PreflightCheck[]): PreflightCheck[] {
@@ -54,14 +70,14 @@ export function stepDone(id: StepId, checks: PreflightCheck[]): boolean {
   return s === 'ok' || s === 'warn';
 }
 
-export function nextStep(id: StepId): StepId | null {
-  const i = STEP_IDS.indexOf(id);
-  return i >= 0 && i + 1 < STEP_IDS.length ? STEP_IDS[i + 1] : null;
+export function nextStep(id: StepId, ids: StepId[] = STEP_IDS): StepId | null {
+  const i = ids.indexOf(id);
+  return i >= 0 && i + 1 < ids.length ? ids[i + 1] : null;
 }
 
-export function prevStep(id: StepId): StepId | null {
-  const i = STEP_IDS.indexOf(id);
-  return i > 0 ? STEP_IDS[i - 1] : null;
+export function prevStep(id: StepId, ids: StepId[] = STEP_IDS): StepId | null {
+  const i = ids.indexOf(id);
+  return i > 0 ? ids[i - 1] : null;
 }
 
 // ---------- skipped steps ----------
