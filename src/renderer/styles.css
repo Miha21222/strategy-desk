@@ -9,7 +9,9 @@
   --bg-hover: #e3e9f1;
   --fg: #192538;
   --fg-muted: #526176;
-  --border: #cad3df;
+  --border: #d5dce5;
+  --border-control: #8995a6;
+  --border-primary: #463bcd;
   --border-strong: #778599;
   --accent: #4338ca;
   --accent-soft: #eeedff;
@@ -83,6 +85,8 @@
   --mono: ui-monospace, 'Cascadia Code', Consolas, 'JetBrains Mono', monospace;
   --bg-sidebar: #e6ecf5;
   --bg-chat: #ffffff;
+  --bg-sidebar-gradient: linear-gradient(180deg, #e8eafa 0%, #e7ecf7 35%, #e6ecf5 70%, #e2e9f2 100%);
+  --bg-chat-gradient: radial-gradient(ellipse at 100% 0%, #f0effc 0%, #f7f7fd 28%, #fcfcff 55%, #ffffff 80%);
   --bg-raised: #ffffff;
   --status-ok: #16834a;
   --status-err: #cf302f;
@@ -113,7 +117,9 @@
     --bg-hover: #29354a;
     --fg: #e8edf5;
     --fg-muted: #a6b2c6;
-    --border: #344259;
+    --border: #2e3b51;
+    --border-control: #67778d;
+    --border-primary: #9d97fb;
     --border-strong: #7b8ca5;
     --accent: #aca8ff;
     --accent-soft: #302f56;
@@ -147,6 +153,8 @@
     --backdrop: rgb(5 10 18 / 68%);
     --bg-sidebar: #0b1220;
     --bg-chat: #161f2e;
+    --bg-sidebar-gradient: linear-gradient(180deg, #10172a 0%, #0d1525 35%, #0b1220 70%, #09101c 100%);
+    --bg-chat-gradient: radial-gradient(ellipse at 100% 0%, #20283f 0%, #1b2436 28%, #182131 55%, #161f2e 80%);
     --bg-raised: #202b3c;
     --status-ok: #35c46a;
     --status-err: #f2544b;
@@ -163,7 +171,9 @@
   --bg-hover: #29354a;
   --fg: #e8edf5;
   --fg-muted: #a6b2c6;
-  --border: #344259;
+  --border: #2e3b51;
+  --border-control: #67778d;
+  --border-primary: #9d97fb;
   --border-strong: #7b8ca5;
   --accent: #aca8ff;
   --accent-soft: #302f56;
@@ -197,6 +207,8 @@
   --backdrop: rgb(5 10 18 / 68%);
   --bg-sidebar: #0b1220;
   --bg-chat: #161f2e;
+  --bg-sidebar-gradient: linear-gradient(180deg, #10172a 0%, #0d1525 35%, #0b1220 70%, #09101c 100%);
+  --bg-chat-gradient: radial-gradient(ellipse at 100% 0%, #20283f 0%, #1b2436 28%, #182131 55%, #161f2e 80%);
   --bg-raised: #202b3c;
   --status-ok: #35c46a;
   --status-err: #f2544b;
@@ -252,7 +264,7 @@ textarea {
 }
 button {
   background: var(--bg-panel);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   padding: 5px var(--space-5);
   cursor: pointer;
@@ -260,7 +272,7 @@ button {
   box-shadow: var(--surface-highlight), var(--shadow-1);
 }
 button:hover:not(:disabled) {
-  border-color: var(--border-strong);
+  border-color: var(--border-control);
   background: var(--bg-hover);
   box-shadow: var(--surface-highlight), var(--shadow-2);
 }
@@ -275,7 +287,7 @@ button:disabled {
 button.primary {
   background: var(--accent-solid);
   color: var(--accent-fg);
-  border-color: var(--accent);
+  border-color: var(--border-primary);
   font-weight: var(--weight-semibold);
   box-shadow: var(--primary-highlight), var(--shadow-1);
 }
@@ -288,7 +300,7 @@ input,
 select,
 textarea {
   background: var(--bg-input);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border-control);
   min-width: 0;
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
@@ -318,7 +330,11 @@ textarea::placeholder {
   color: var(--fg-muted);
   opacity: 1;
 }
-button.primary:hover:not(:disabled),
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--border-primary);
+  box-shadow: var(--primary-highlight), var(--shadow-2);
+}
 .mode button.on:hover:not(:disabled) {
   background: var(--accent-hover);
   border-color: var(--accent);
@@ -419,6 +435,10 @@ strong, b { font-weight: var(--weight-bold); }
 }
 .sidebar {
   background: var(--bg-sidebar);
+  background-image: var(--bg-sidebar-gradient);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-attachment: scroll;
   border-right: 1px solid var(--border);
   overflow-y: auto;
   padding: var(--space-4);
@@ -427,6 +447,10 @@ strong, b { font-weight: var(--weight-bold); }
   gap: var(--space-3);
 }
 .main {
+  background: var(--bg-chat);
+  background-image: var(--bg-chat-gradient);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -623,7 +647,6 @@ button.quick {
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: var(--bg-chat);
 }
 .chat-head {
   padding: var(--space-5) var(--space-8);
