@@ -6,10 +6,10 @@
 .card {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--bg-panel);
+  background: var(--bg-raised);
   margin: var(--space-4) 0;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--surface-highlight), var(--shadow-1);
 }
 .card-head {
   display: flex;
@@ -17,17 +17,23 @@
   align-items: center;
   gap: var(--space-5);
   padding: var(--space-3) var(--space-6);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
   border-bottom: 1px solid var(--border);
   background: var(--bg-elev);
-  letter-spacing: 0.01em;
+  letter-spacing: var(--tracking-normal);
+  box-shadow: var(--surface-highlight);
+}
+.card-head .muted {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
 }
 .card-body {
   padding: var(--space-5) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  font-size: var(--text-md);
 }
 .card-note {
   font-size: var(--text-md);
@@ -50,7 +56,7 @@
 }
 .card.streaming .card-head {
   color: var(--fg-muted);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   gap: var(--space-4);
   justify-content: flex-start;
 }
@@ -89,6 +95,7 @@ button.danger-text {
   padding: 5px var(--space-6);
   font-size: var(--text-md);
   background: var(--bg-panel);
+  box-shadow: var(--surface-highlight), var(--shadow-1);
 }
 /* Keep the existing compact list variant of next-step chips. */
 .chips.column {
@@ -134,9 +141,10 @@ button.danger-text {
 }
 .stat-value {
   font-size: var(--text-stat);
-  font-weight: 650;
+  font-weight: var(--weight-bold);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.025em;
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
 }
 .stat-tile.neg .stat-value {
   color: var(--bad);
@@ -151,7 +159,7 @@ button.danger-text {
 .chart-label {
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-caps);
   color: var(--fg-muted);
   margin-bottom: var(--space-2);
 }
@@ -169,7 +177,7 @@ button.danger-text {
 .bar-label,
 .bar-value {
   height: 22px;
-  line-height: 22px;
+  line-height: var(--leading-chart);
   font-size: var(--text-sm);
   white-space: nowrap;
   overflow: hidden;
@@ -247,11 +255,11 @@ td.bad {
 .donut-text {
   fill: var(--fg);
   font-size: var(--text-stat);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .donut-label {
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .donut-sub {
   font-size: var(--text-sm);
@@ -307,7 +315,7 @@ td.bad {
 .ladder-row.now {
   background: var(--accent-soft);
   border-left-color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   border-radius: var(--radius-xs);
 }
 .ladder-price,
@@ -324,10 +332,11 @@ td.bad {
   min-width: 0;
 }
 .report-name {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
 }
 .report-headline {
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   color: var(--fg-muted);
   font-size: var(--text-sm);
   margin-top: var(--space-1);
@@ -340,7 +349,7 @@ td.bad {
   height: 34px;
   border-radius: var(--radius);
   font-size: var(--text-title);
-  font-weight: 700;
+  font-weight: var(--weight-bold);
   color: var(--semantic-fg);
   background: var(--unknown);
   flex: none;
@@ -401,7 +410,7 @@ table.signals td:first-child {
 table.runs th,
 table.signals th {
   color: var(--fg-muted);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   background: var(--bg-elev);
 }
 tr.oos td {
@@ -413,8 +422,8 @@ tr.oos td {
   padding: 0 5px;
   border-radius: var(--radius-xs);
   font-size: var(--text-2xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
   vertical-align: middle;
 }
 .tag.oos {
@@ -452,7 +461,7 @@ tr.oos td {
   font-variant-numeric: tabular-nums;
 }
 .check-mark {
-  font-weight: 700;
+  font-weight: var(--weight-bold);
   text-align: center;
 }
 .check-row.hit .check-mark {
@@ -503,8 +512,8 @@ tr.oos td {
   border-radius: var(--radius-xs);
   color: var(--semantic-fg);
   background: var(--unknown);
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
 }
 .verdict.GO {
   background: var(--good);
@@ -523,7 +532,7 @@ tr.oos td {
   font-size: var(--text-md);
 }
 .bias-dir {
-  font-weight: 700;
+  font-weight: var(--weight-bold);
 }
 .bias.LONG .bias-dir {
   color: var(--good);
@@ -575,7 +584,7 @@ tr.oos td {
 
 /* ---------- pine highlighting ---------- */
 .codeblock.pine pre {
-  line-height: 1.5;
+  line-height: var(--leading-base);
 }
 .tok-cmt {
   color: var(--fg-muted);
@@ -589,7 +598,7 @@ tr.oos td {
 }
 .tok-kw {
   color: var(--tok-kw);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .tok-type {
   color: var(--tok-type);
@@ -614,10 +623,10 @@ tr.oos td {
   align-items: center;
 }
 .home-title {
-  font-weight: 600;
+  font-weight: var(--weight-bold);
   color: var(--fg);
-  font-size: var(--text-lg);
-  letter-spacing: -0.015em;
+  font-size: var(--text-heading);
+  letter-spacing: var(--tracking-tight);
 }
 .home-chips {
   justify-content: center;
@@ -625,13 +634,13 @@ tr.oos td {
 .chooser {
   border: 1px solid var(--accent);
   border-radius: var(--radius);
-  background: var(--bg-panel);
+  background: var(--bg-raised);
   padding: var(--space-5);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 320px;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--surface-highlight), var(--shadow-2);
 }
 .chooser-title {
   font-size: var(--text-sm);
@@ -650,19 +659,19 @@ tr.oos td {
 .catalog {
   border: 1px solid var(--accent);
   border-radius: var(--radius);
-  background: var(--bg-panel);
+  background: var(--bg-raised);
   padding: var(--space-3);
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   max-height: 260px;
   overflow-y: auto;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--surface-highlight), var(--shadow-2);
 }
 .catalog-title {
   font-size: var(--text-xs);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-caps);
   color: var(--fg-muted);
   padding: var(--space-1) var(--space-3);
 }
@@ -674,6 +683,7 @@ tr.oos td {
   background: transparent;
   border-color: transparent;
   padding: var(--space-2) var(--space-4);
+  box-shadow: none;
 }
 .catalog-item:hover {
   background: var(--bg-elev);
@@ -687,11 +697,10 @@ tr.oos td {
   bottom: 0;
   width: var(--drawer-w);
   max-width: 80%;
-  background: var(--bg-panel);
+  background: var(--bg-raised);
   border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--surface-highlight), var(--shadow-3);
   transform: translateX(100%);
-  transition: transform var(--duration-normal) var(--ease);
   display: flex;
   flex-direction: column;
   z-index: 5;
@@ -705,7 +714,8 @@ tr.oos td {
   align-items: center;
   padding: var(--space-4) var(--space-6);
   border-bottom: 1px solid var(--border);
-  font-weight: 600;
+  font-weight: var(--weight-bold);
+  font-size: var(--text-lg);
 }
 .drawer-body {
   flex: 1;
@@ -728,6 +738,7 @@ tr.oos td {
   background: transparent;
   border-color: transparent;
   padding: var(--space-2) var(--space-3);
+  box-shadow: none;
 }
 .report-item.on {
   background: var(--accent-soft);
@@ -778,7 +789,7 @@ tr.oos td {
 }
 .row-actions button.health {
   color: var(--accent);
-  font-weight: 700;
+  font-weight: var(--weight-bold);
 }
 
 /* --- prodata report ------------------------------------------------------- */
@@ -797,7 +808,7 @@ tr.oos td {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius);
   border: 1px solid var(--border);
-  line-height: 1.1;
+  line-height: var(--leading-tight);
 }
 .card.prodata .grade b { font-size: var(--text-title); }
 .card.prodata .grade span { font-size: var(--text-sm); color: var(--fg-muted); }
@@ -900,7 +911,7 @@ tr.oos td {
 }
 .panel-table tr.high-impact td {
   background: var(--err-soft);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 .panel-table tr.risk-stop td {
   color: var(--bad);
@@ -962,8 +973,8 @@ fieldset.watch .btn-row.replay input {
   flex: none;
 }
 .feed-type {
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
   flex: none;
   min-width: 132px;
 }
@@ -1000,4 +1011,11 @@ fieldset.watch .btn-row.replay input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Elevation follows interactivity; static reports stay steady. */
+.card:has(button:not(:disabled)):hover,
+.card:has(summary):hover,
+.card:focus-within {
+  box-shadow: var(--surface-highlight), var(--shadow-2);
 }
