@@ -1,0 +1,58 @@
+# What every `stage` -> `main` pull request has to survive: the three commands
+# a developer runs before pushing, on the platform this app is actually built
+# for.
+#
+# Windows, not Ubuntu, and not by preference: the suite asserts real paths
+# (`runtime-spec.test.ts` expects `C:\app\resources\gt-rag\raw`), and
+# `path.join` on Linux answers with forward slashes, so those tests fail on a
+# machine the product never runs on. The installer is a Windows NSIS build too.
+#
+# The Electron binary is NOT downloaded (~100 MB): `electron-vite build` treats
+# `electron` as external, and every test that touches it mocks it. Packaging is
+# a separate, manual job (`npm run dist`) and is not part of this check.
+name: CI
+
+on:
+  pull_request:
+    branches: [main, stage]
+  push:
+    branches: [main]
+
+# A new push to the same PR makes the previous run pointless.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: typecheck, tests, build
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      # Nothing here talks to a model or to TradingView; a smoke run that needs
+      # either is a local step, never a CI one.
+      CI: 'true'
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build

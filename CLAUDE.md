@@ -66,6 +66,11 @@ covers the area), commit there, push, and open or update ONE `stage` -> `main` P
 directly, never merge that PR without being asked, and do not call something shipped because it is on
 `stage`.
 
+CI (`.github/workflows/ci.yml`) runs those same three commands on every PR and on a push to `main`. It runs
+on **windows-latest** because the suite asserts real Windows paths (`C:\app\resources\gt-rag\raw`), which
+`path.join` on Linux spells with forward slashes. It skips the Electron binary download and does not
+package: `npm run dist` and the smokes stay local, because they need a model, TradingView or both.
+
 ## Commands
 
 ```
