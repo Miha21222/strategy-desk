@@ -5,7 +5,11 @@
 //
 // The mark: three candles chart an up-move: mint rise, coral pullback, mint rise.
 // A deep navy (#0b1220) / indigo (#242743) tile has an upper-right glow in the
-// desk's saturated accent (#6155ec), with mint #6cdbc0 and coral #f2544b candles.
+// desk's saturated accent (#6155ec). Bodies fade from #b5f5df to #6cdbc0
+// (mint) and #ffb3a8 to #f2544b (coral); wicks keep the darker end colours.
+// A faint slate grid and indigo price area sit behind the candles at 64px+.
+// At 32/48px only two pixel-aligned horizontal guides remain; at 16/24px,
+// the original tile glow is the entire background, keeping the mark clear.
 // Every size uses the same composition, rendered natively with 4x coverage AA.
 // At 16/24/32 px, bodies and wicks snap to whole pixels; bodies are at least
 // 3 px wide and match the wick's odd width for a crisp, centred stem.
@@ -24,12 +28,16 @@ const INDIGO = [0x24, 0x27, 0x43, 0xff];
 const ACCENT = [0x61, 0x55, 0xec, 0xff];
 const GREEN = [0x6c, 0xdb, 0xc0, 0xff];
 const RED = [0xf2, 0x54, 0x4b, 0xff];
+const GREEN_TOP = [0xb5, 0xf5, 0xdf, 0xff];
+const RED_TOP = [0xff, 0xb3, 0xa8, 0xff];
+const SLATE = [0x94, 0xa3, 0xbd, 0xff];
+const PRICE = [[0.12, 0.80], [0.34, 0.64], [0.47, 0.68], [0.68, 0.42], [0.88, 0.29]];
 
 const CORNER = 0.22; // rounded-square, Windows/macOS tile look
 const CANDLES = [
-  { x: 0.25, bodyY: [0.49, 0.75], wickY: [0.40, 0.84], color: GREEN },
-  { x: 0.50, bodyY: [0.49, 0.62], wickY: [0.38, 0.72], color: RED },
-  { x: 0.75, bodyY: [0.25, 0.62], wickY: [0.16, 0.72], color: GREEN },
+  { x: 0.25, bodyY: [0.49, 0.75], wickY: [0.40, 0.84], color: GREEN, top: GREEN_TOP },
+  { x: 0.50, bodyY: [0.49, 0.62], wickY: [0.38, 0.72], color: RED, top: RED_TOP },
+  { x: 0.75, bodyY: [0.25, 0.62], wickY: [0.16, 0.72], color: GREEN, top: GREEN_TOP },
 ];
 
 const mix = (a, b, t) => a.map((v, i) => v + (b[i] - v) * Math.max(0, Math.min(1, t)));
@@ -48,8 +56,23 @@ function geometry(size) {
       wickX: [wickLeft / size, (wickLeft + wickW) / size],
       wickY: small ? candle.wickY.map(snap) : candle.wickY,
       color: candle.color,
+      top: candle.top,
     };
   });
+}
+
+function backgroundGeometry(size) {
+  if (size < 32) return { horizontal: [], vertical: [], area: false };
+  if (size < 64) return {
+    horizontal: [0.375, 0.75].map((y) => [Math.round(y * size) / size, (Math.round(y * size) + 1) / size]),
+    vertical: [], area: false,
+  };
+  const width = 0.002;
+  return {
+    horizontal: [0.32, 0.50, 0.68, 0.84].map((y) => [y - width / 2, y + width / 2]),
+    vertical: [0.375, 0.625].map((x) => [x - width / 2, x + width / 2]),
+    area: true,
+  };
 }
 
 /** Coverage of the rounded-square tile at unit point (x, y); 0 or 1 (AA comes from supersampling). */
@@ -65,22 +88,45 @@ function inTile(x, y) {
 const inBox = (x, y, [x0, x1], [y0, y1]) => x >= x0 && x < x1 && y >= y0 && y < y1;
 
 /** The colour at unit point (x, y), or null for transparent. */
-function sample(x, y, candles) {
+function sample(x, y, candles, background) {
   if (!inTile(x, y)) return null;
   for (const candle of candles) {
-    if (inBox(x, y, candle.bodyX, candle.bodyY) || inBox(x, y, candle.wickX, candle.wickY)) {
-      return candle.color;
+    if (inBox(x, y, candle.bodyX, candle.bodyY)) {
+      return mix(candle.top, candle.color, (y - candle.bodyY[0]) / (candle.bodyY[1] - candle.bodyY[0]));
     }
+    if (inBox(x, y, candle.wickX, candle.wickY)) return candle.color;
   }
   const tile = mix(INDIGO, NAVY, y);
   const accentGlow = Math.max(0, 1 - Math.hypot((x - 0.85) / 1.1, y / 1.1));
-  return mix(tile, ACCENT, 0.48 * accentGlow * accentGlow);
+  let color = mix(tile, ACCENT, 0.48 * accentGlow * accentGlow);
+  const grid = background.horizontal.some((range) => inBox(x, y, [0.12, 0.88], range)) ||
+    background.vertical.some((range) => inBox(x, y, range, [0.20, 0.87]));
+  if (grid) color = mix(color, SLATE, background.area ? 0.11 : 0.07);
+  if (background.area && x >= PRICE[0][0] && x < PRICE.at(-1)[0]) {
+    for (let i = 1; i < PRICE.length; i++) {
+      const [x0, y0] = PRICE[i - 1];
+      const [x1, y1] = PRICE[i];
+      if (x >= x1) continue;
+      const slope = (y1 - y0) / (x1 - x0);
+      const priceY = y0 + (x - x0) * slope;
+      const edgeFade = Math.min(1, (x - 0.12) / 0.06, (0.88 - x) / 0.06);
+      if (y >= priceY && y < 0.87) {
+        color = mix(color, ACCENT, 0.12 * edgeFade * (0.87 - y) / (0.87 - priceY));
+      }
+      if (Math.abs(y - priceY) / Math.hypot(1, slope) < 0.002) {
+        color = mix(color, ACCENT, 0.30 * edgeFade);
+      }
+      break;
+    }
+  }
+  return color;
 }
 
 /** RGBA pixels for one square size, 4x supersampled and box-filtered. */
 function render(size) {
   const ss = 4;
   const shape = geometry(size);
+  const background = backgroundGeometry(size);
   const px = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
     for (let pxi = 0; pxi < size; pxi++) {
@@ -90,7 +136,7 @@ function render(size) {
       let a = 0;
       for (let sy = 0; sy < ss; sy++) {
         for (let sx = 0; sx < ss; sx++) {
-          const c = sample((pxi + (sx + 0.5) / ss) / size, (py + (sy + 0.5) / ss) / size, shape);
+          const c = sample((pxi + (sx + 0.5) / ss) / size, (py + (sy + 0.5) / ss) / size, shape, background);
           if (!c) continue;
           r += c[0];
           g += c[1];
