@@ -211,6 +211,102 @@ export interface MacroShots {
   shots: MacroShot[];
 }
 
+// ---------------------------------------------------------------- the owner's own two files
+//
+// Note 23: the desk is an augmentation, not a forecast screen. Before the
+// gauge is shown the owner states his own read of the window; at 20:00 he
+// answers two questions about his day. These are the only files the desk
+// writes into the vault — they are the owner's, the skill only reads them
+// (`scale.py review` scores the read against the window and keeps the
+// answers in the day's note).
+
+/** What the owner expects of the window, said before (or without) seeing the scale. */
+export type HumanSide = 'LONG' | 'SHORT' | 'NEUTRAL' | 'NO_TRADE';
+export const HUMAN_SIDES: HumanSide[] = ['LONG', 'SHORT', 'NEUTRAL', 'NO_TRADE'];
+
+/** `state/human_read_<D>_<region>.json` */
+export interface HumanRead {
+  date: string;
+  region: Region;
+  side: HumanSide;
+  /** Kyiv wall clock, «YYYY-MM-DD HH:MM». */
+  at: string;
+  /** True when the scale was not on screen yet (the honest case). */
+  before_scale: boolean;
+}
+
+export type TradeTaken = 'none' | 'long' | 'short';
+export type ByRule = 'yes' | 'no' | 'unsure';
+
+export interface DayAnswerRegion {
+  trade: TradeTaken;
+  /** Only meaningful when a trade was taken. */
+  by_rule?: ByRule;
+}
+
+/** `state/day_answers_<D>.json`: the two evening questions. */
+export interface DayAnswers {
+  date: string;
+  at: string;
+  regions: Partial<Record<Region, DayAnswerRegion>>;
+  /** «Что помогло или помешало» — one line, free text. */
+  note: string;
+}
+
+export function humanReadFile(date: string, region: Region): string {
+  return `human_read_${date}_${region}.json`;
+}
+
+export function dayAnswersFile(date: string): string {
+  return `day_answers_${date}.json`;
+}
+
+/** A parsed human_read file, or null when it is not one. */
+export function normalizeHumanRead(raw: unknown, date: string, region: Region): HumanRead | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (!HUMAN_SIDES.includes(r.side as HumanSide)) return null;
+  return {
+    date: typeof r.date === 'string' ? r.date : date,
+    region: r.region === 'eu' || r.region === 'us' ? r.region : region,
+    side: r.side as HumanSide,
+    at: typeof r.at === 'string' ? r.at : '',
+    before_scale: r.before_scale !== false,
+  };
+}
+
+const TRADES: TradeTaken[] = ['none', 'long', 'short'];
+const BY_RULE: ByRule[] = ['yes', 'no', 'unsure'];
+
+/** A parsed day_answers file, or null when it is not one. */
+export function normalizeDayAnswers(raw: unknown, date: string): DayAnswers | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const regions: DayAnswers['regions'] = {};
+  const src = (r.regions && typeof r.regions === 'object' ? r.regions : {}) as Record<string, unknown>;
+  for (const k of ['eu', 'us'] as Region[]) {
+    const x = src[k];
+    if (!x || typeof x !== 'object') continue;
+    const t = (x as Record<string, unknown>).trade;
+    if (!TRADES.includes(t as TradeTaken)) continue;
+    const b = (x as Record<string, unknown>).by_rule;
+    regions[k] = { trade: t as TradeTaken, ...(BY_RULE.includes(b as ByRule) ? { by_rule: b as ByRule } : {}) };
+  }
+  if (!Object.keys(regions).length && typeof r.note !== 'string') return null;
+  return { date: typeof r.date === 'string' ? r.date : date, at: typeof r.at === 'string' ? r.at : '', regions, note: typeof r.note === 'string' ? r.note : '' };
+}
+
+/**
+ * Did the owner's read match the window? Same rule as `scale.py`'s `hit`:
+ * a directional read against the window's direction; neutral / no-trade and a
+ * flat window are «no verdict» (null).
+ */
+export function humanHit(side: HumanSide | null | undefined, dir: string | null | undefined): boolean | null {
+  if (!side || (side !== 'LONG' && side !== 'SHORT')) return null;
+  if (dir !== 'LONG' && dir !== 'SHORT') return null;
+  return side === dir;
+}
+
 export interface RegionSnapshot {
   region: Region;
   scale: ScaleState | null;
@@ -220,6 +316,8 @@ export interface RegionSnapshot {
   note: string | null;
   /** The chart screenshots of this window; null when the skill wrote none. */
   shots: MacroShots | null;
+  /** The owner's own read of the window, when he gave one. */
+  human: HumanRead | null;
 }
 
 export interface ReviewFactorRow {
@@ -243,6 +341,8 @@ export interface ReviewRegion {
   after?: number | null;
   light?: ScaleLight;
   macro_verdict?: Partial<MacroVerdict>;
+  /** `scale.py review` copies the owner's read here and scores it. */
+  human?: { side?: HumanSide | string | null; at?: string; hit?: '1' | '0' | '' | string } | null;
 }
 
 export interface ReviewMech {
@@ -270,6 +370,8 @@ export interface MacroDay {
   eu: RegionSnapshot;
   us: RegionSnapshot;
   review: { mech: ReviewMech | null; agent: ReviewAgent | null; note: string | null; shots?: Partial<Record<Region, MacroShots | null>> };
+  /** The owner's evening answers, when he gave them. */
+  answers: DayAnswers | null;
   /** Newest lessons first, at most LESSONS_TAIL. */
   lessons: string[];
   /** Hit rate per factor over the last 30 days before (and including) this date. */
@@ -544,7 +646,7 @@ export function normalizeScale(s: ScaleState): ScaleState {
 
 /** Which state files belong to a date: `scale_2026-10-09_us.json` → 2026-10-09. */
 export function dateOfStateFile(name: string): string | null {
-  const m = name.match(/^(?:scale|macro|review|regime|shots)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);
+  const m = name.match(/^(?:scale|macro|review|regime|shots|human_read|day_answers)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);
   return m ? m[1] : null;
 }
 

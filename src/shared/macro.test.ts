@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  dayAnswersFile,
+  humanHit,
+  humanReadFile,
+  normalizeDayAnswers,
+  normalizeHumanRead,
   arcPath,
   dateOfStateFile,
   defaultWindow,
@@ -25,12 +30,13 @@ import {
   type ScaleFactor,
 } from './macro';
 
-const emptyRegion = (region: 'eu' | 'us') => ({ region, scale: null, verdict: null, collect: null, note: null, shots: null });
+const emptyRegion = (region: 'eu' | 'us') => ({ region, scale: null, verdict: null, collect: null, note: null, shots: null, human: null });
 const day = (over: Partial<MacroDay> = {}): MacroDay => ({
   date: '2026-10-12',
   eu: emptyRegion('eu'),
   us: emptyRegion('us'),
   review: { mech: null, agent: null, note: null },
+  answers: null,
   lessons: [],
   stats: [],
   names: {},
@@ -251,5 +257,33 @@ describe('older scale files', () => {
   it('formats a missing number as a dash instead of throwing', () => {
     expect(fmt(undefined)).toBe('—');
     expect(fmt(1.234, 2)).toBe('1.23');
+  });
+});
+
+describe("the owner's two files (note 23)", () => {
+  it('reads a human read and refuses anything else', () => {
+    expect(normalizeHumanRead({ side: 'LONG', at: '2026-10-12 09:31', before_scale: true }, '2026-10-12', 'eu')).toEqual({ date: '2026-10-12', region: 'eu', side: 'LONG', at: '2026-10-12 09:31', before_scale: true });
+    expect(normalizeHumanRead({ side: 'UP' }, '2026-10-12', 'eu')).toBeNull();
+    expect(normalizeHumanRead('LONG', '2026-10-12', 'eu')).toBeNull();
+    expect(normalizeHumanRead({ side: 'NO_TRADE', before_scale: false, region: 'xx' }, '2026-10-12', 'us')?.region).toBe('us');
+  });
+  it('reads the evening answers and drops bad regions', () => {
+    const a = normalizeDayAnswers({ regions: { eu: { trade: 'long', by_rule: 'yes' }, us: { trade: 'maybe' }, xx: { trade: 'short' } }, note: 'ждал вторую манипуляцию' }, '2026-10-12');
+    expect(a).toEqual({ date: '2026-10-12', at: '', regions: { eu: { trade: 'long', by_rule: 'yes' } }, note: 'ждал вторую манипуляцию' });
+    expect(normalizeDayAnswers({ regions: {} }, '2026-10-12')).toBeNull();
+    expect(normalizeDayAnswers({ regions: { us: { trade: 'none', by_rule: 'what' } }, note: 7 }, '2026-10-12')?.regions.us).toEqual({ trade: 'none' });
+  });
+  it('scores the read like scale.py scores the needle', () => {
+    expect(humanHit('LONG', 'LONG')).toBe(true);
+    expect(humanHit('SHORT', 'LONG')).toBe(false);
+    expect(humanHit('NEUTRAL', 'LONG')).toBeNull();
+    expect(humanHit('LONG', 'FLAT')).toBeNull();
+    expect(humanHit(null, 'LONG')).toBeNull();
+  });
+  it('names the files and lets the watcher see them', () => {
+    expect(humanReadFile('2026-10-12', 'us')).toBe('human_read_2026-10-12_us.json');
+    expect(dayAnswersFile('2026-10-12')).toBe('day_answers_2026-10-12.json');
+    expect(dateOfStateFile('human_read_2026-10-12_us.json')).toBe('2026-10-12');
+    expect(dateOfStateFile('day_answers_2026-10-12.json')).toBe('2026-10-12');
   });
 });

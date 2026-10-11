@@ -61,7 +61,7 @@ note 22) drawn as a desk. Tabs «День» and «Воркфлоу» and the cha
 ```
 src/shared/macro.ts          the data contract (state/scale_<D>_<region>.json etc.) + pure helpers: zones, gauge geometry,
                              window states 09:30/16:00/20:00, CSV stats, the prompts the desk sends
-src/main/macro-state.ts      reads <vault>/indices-kb/{state,journal,config}, watches state/ (debounced), never writes
+src/main/macro-state.ts      reads <vault>/indices-kb/{state,journal,config}, watches state/ (debounced); writes only the owner's two files (note 23)
 src/renderer/macro/          MacroDesk.tsx (the tab), Gauge.tsx (Fear & Greed dial, split bar, group bars), macro.css
 prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro chat
 ```
@@ -73,6 +73,15 @@ prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro
   map, tools `MACRO_ALLOWED` (Bash/Write/Skill…, no Task). Same session the Task Scheduler opens, so a run from the
   desk and a scheduled run write the same files. Always the Claude engine.
 - Scheduled runs still come from the Windows Task Scheduler; the tab picks them up through the watcher.
+- **Note 23 (2026-10-11): the desk augments the trader, it does not replace him.** Before the gauge the owner
+  taps his own read of the window («Твой взгляд» → `state/human_read_<D>_<region>.json`; the gauge is veiled
+  until then, with «Показать без ответа» as the honest escape), and at 20:00 he answers two questions
+  («Твой день» → `state/day_answers_<D>.json`). These are the ONLY two files the desk writes into the vault
+  (`writeHumanRead` / `writeDayAnswers` in `macro-state.ts`, atomic, names built from a checked date). The
+  skill reads them: `scale.py review` scores the read like the needle and keeps the answers, `scale.py stats`
+  prints «владелец против шкалы». The review tab shows «Кто был прав» per window from the facts alone.
+  Next steps from note 23: «Сегодня помни» (lesson / rule of the day / similar day), «Что изменилось» (drift),
+  the weekly digest, «Идеи на проверке».
 
 ## Branches
 

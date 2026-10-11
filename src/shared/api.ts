@@ -5,7 +5,7 @@ import type { PanelDayState, PanelDef, TvCallResult } from './panel';
 import type { PreflightResult } from './preflight';
 import type { TaskEvent, TaskId, TaskState } from './tasks';
 import type { EngineId } from './engine';
-import type { MacroDay, MacroIndex } from './macro';
+import type { DayAnswers, HumanRead, HumanSide, MacroDay, MacroIndex, Region } from './macro';
 
 export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent, TaskId, TaskState, EngineId };
 
@@ -320,6 +320,14 @@ export interface DeskApi {
      * `data:image/png;base64,…` URL; null when it is missing or refused.
      */
     image(rel: string): Promise<string | null>;
+    /**
+     * The owner's own two files (note 23) — the only writes the desk makes
+     * into the vault. His read of a window, given before the gauge is shown
+     * (`beforeScale`: no gauge was on screen), and his two evening answers.
+     * Each returns what was written, or null when refused.
+     */
+    humanRead(args: { date: string; region: Region; side: HumanSide; beforeScale: boolean }): Promise<HumanRead | null>;
+    dayAnswers(args: { date: string; regions: DayAnswers['regions']; note: string }): Promise<DayAnswers | null>;
     onChanged(cb: (dates: string[]) => void): () => void;
   };
   /** Applies the window zoom factor (settings.uiScale); returns the clamped value. */

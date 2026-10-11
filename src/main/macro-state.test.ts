@@ -1,8 +1,8 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { listDays, loadDay, readShot, resolveNote, resolveShot } from './macro-state';
+import { listDays, loadDay, readShot, resolveNote, resolveShot, writeDayAnswers, writeHumanRead } from './macro-state';
 
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -110,5 +110,33 @@ describe('the vault reader', () => {
     expect(resolveNote(v, path.join('Макро-обзоры', '..', 'AGENTS.md'))).toBeNull();
     expect(resolveNote(v, path.join('Макро-обзоры', 'x.exe'))).toBeNull();
     expect(resolveNote('', 'Макро-обзоры/x.md')).toBeNull();
+  });
+});
+
+describe("the owner's two files (note 23)", () => {
+  it('writes the read and the answers, and reads them back with the day', async () => {
+    const v = vault();
+    const read = await writeHumanRead(v, '2026-10-08', 'eu', 'SHORT', true);
+    expect(read?.side).toBe('SHORT');
+    expect(read?.at).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    const ans = await writeDayAnswers(v, '2026-10-08', { regions: { eu: { trade: 'short', by_rule: 'yes' }, us: { trade: 'none' } }, note: '  ждал   вторую\nманипуляцию ' });
+    expect(ans?.note).toBe('ждал вторую манипуляцию');
+    const d = await loadDay(v, '2026-10-08');
+    expect(d.eu.human).toEqual(read);
+    expect(d.us.human).toBeNull();
+    expect(d.answers).toEqual(ans);
+    expect(existsSync(path.join(v, 'indices-kb', 'state', 'human_read_2026-10-08_eu.json'))).toBe(true);
+    expect(readdirSync(path.join(v, 'indices-kb', 'state')).filter((n) => n.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('refuses a bad date, region or side, and writes nothing then', async () => {
+    const v = vault();
+    expect(await writeHumanRead(v, '2026-10-08x', 'eu', 'LONG', true)).toBeNull();
+    expect(await writeHumanRead(v, '2026-10-08', 'xx' as never, 'LONG', true)).toBeNull();
+    expect(await writeHumanRead(v, '2026-10-08', 'eu', 'UP' as never, true)).toBeNull();
+    expect(await writeDayAnswers(v, '../2026-10-08', { regions: { eu: { trade: 'long' } }, note: '' })).toBeNull();
+    expect(await writeDayAnswers(v, '2026-10-08', { regions: {}, note: 5 as never })).toBeNull();
+    expect(await writeHumanRead('', '2026-10-08', 'eu', 'LONG', true)).toBeNull();
+    expect(readdirSync(path.join(v, 'indices-kb', 'state')).filter((n) => /^(human_read|day_answers)_/.test(n))).toEqual([]);
   });
 });

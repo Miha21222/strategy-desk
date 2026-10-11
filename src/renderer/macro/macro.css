@@ -420,10 +420,20 @@
 .news .vbadge { align-self: flex-start; }
 .news p { margin: 0; color: var(--fg-muted); line-height: var(--leading-base); }
 .why-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); }
-.whycol-head { font-weight: var(--weight-bold); margin-bottom: var(--space-3); }
+/* One grid per column: the number track is as wide as its widest number (sum or weight),
+   head, list and rows share it through subgrid, so every «%» and every label line up. */
+.whycol { display: grid; grid-template-columns: max-content 1fr; column-gap: var(--space-3); align-content: start; }
+.whycol > * { grid-column: 1 / -1; }
+.whycol-head { display: grid; grid-template-columns: subgrid; align-items: baseline; margin-bottom: var(--space-4); padding-bottom: var(--space-3); border-bottom: 1px solid var(--border); }
+.whycol-sum { font-size: var(--text-stat); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; line-height: 1; justify-self: start; white-space: nowrap; }
+.whycol-label { font-weight: var(--weight-semibold); }
 .whycol.long .whycol-head { color: var(--ok); }
 .whycol.short .whycol-head { color: var(--err); }
-.whycol li { line-height: var(--leading-base); }
+.macro .whycol-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: subgrid; row-gap: var(--space-2); }
+.whycol-list li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: baseline; line-height: var(--leading-base); }
+.whycol-w { justify-self: start; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: var(--weight-semibold); }
+.whycol.long .whycol-w { color: var(--ok); }
+.whycol.short .whycol-w { color: var(--err); }
 .macro .small { font-size: var(--text-sm); }
 .macro p { margin: 0; }
 .talk-row { display: flex; flex-wrap: wrap; gap: var(--space-5); }
@@ -563,3 +573,103 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
   :root:not([data-theme='light']) .lg-level .lg-line { filter: brightness(2.3); }
 }
 :root[data-theme='dark'] .lg-level .lg-line { filter: brightness(2.3); }
+
+/* ---------------------------------------------------------------- note 23: «Твой взгляд», «Твой день» */
+
+.macro .card.human {
+  margin-bottom: 12px;
+}
+.macro .card.human.ask .card-body > p:first-child {
+  font-size: 15px;
+  margin: 0 0 10px;
+}
+.macro .seg.big {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.macro .seg.big button {
+  flex: 1 1 110px;
+  padding: 10px 12px;
+  font-size: 15px;
+}
+.macro .seg button.long,
+.macro .seg button.on.long {
+  color: var(--ok);
+}
+.macro .seg button.short,
+.macro .seg button.on.short {
+  color: var(--err);
+}
+.macro .human-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+}
+.macro .human-line .who-note {
+  flex: 1 1 100%;
+  font-style: italic;
+  opacity: 0.85;
+}
+.macro .card.human.said.same {
+  border-left: 3px solid var(--ok);
+}
+.macro .card.human.said.differ {
+  border-left: 3px solid var(--warn);
+}
+.macro .hs-LONG {
+  color: var(--ok);
+}
+.macro .hs-SHORT {
+  color: var(--err);
+}
+.macro .veil {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: color-mix(in srgb, var(--bg-panel) 80%, transparent);
+  backdrop-filter: blur(10px);
+  border-radius: inherit;
+}
+.macro .veil p {
+  margin: 0;
+  font-size: 15px;
+}
+.macro .card.hero .card-body {
+  position: relative;
+}
+.macro .veiled .card.hero .card-body > :not(.veil) {
+  filter: blur(6px);
+  pointer-events: none;
+  user-select: none;
+}
+.macro .who {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.macro .who-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.macro .who-k {
+  min-width: 56px;
+  font-weight: 600;
+}
+.macro .answers-row {
+  align-items: center;
+  margin-bottom: 6px;
+}
+.macro .card.human input[type='text'] {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 10px;
+}

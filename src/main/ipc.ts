@@ -18,7 +18,7 @@ import * as store from './store';
 import { callTool } from './tv-cli';
 import { launchTradingView } from './tv-launch';
 import { listWorkflows } from './workflows';
-import { listDays, loadDay, readShot, resolveNote, watchVault } from './macro-state';
+import { listDays, loadDay, readShot, resolveNote, watchVault, writeDayAnswers, writeHumanRead } from './macro-state';
 
 const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
 
@@ -41,7 +41,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     if (win && !win.isDestroyed()) win.webContents.send('chat:event', ev);
   };
 
-  // ----- macro review: read the vault, watch it, never write it -----
+  // ----- macro review: read the vault, watch it; write only the owner's two files (note 23) -----
   const emitMacro = (dates: string[]) => {
     const win = getWindow();
     if (win && !win.isDestroyed()) win.webContents.send('macro:changed', dates);
@@ -63,6 +63,17 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   });
   // A chart screenshot of a review, as a data URL; only PNGs under indices-kb/shots/.
   ipcMain.handle('macro:image', async (_e, rel: string) => readShot(await readVault(), String(rel ?? '')));
+  // The owner's read of a window before the gauge, and his two evening answers.
+  // Written straight away (a tap must not wait for a chat turn); the watcher
+  // then refreshes the screen like for any other state file.
+  ipcMain.handle('macro:humanRead', async (_e, a: { date: string; region: 'eu' | 'us'; side: string; beforeScale: boolean }) => {
+    if (!a || typeof a !== 'object' || typeof a.date !== 'string' || !ISO_DATE.test(a.date)) throw new Error('bad date');
+    return writeHumanRead(await readVault(), a.date, a.region, a.side as never, Boolean(a.beforeScale));
+  });
+  ipcMain.handle('macro:dayAnswers', async (_e, a: { date: string; regions: unknown; note: string }) => {
+    if (!a || typeof a !== 'object' || typeof a.date !== 'string' || !ISO_DATE.test(a.date)) throw new Error('bad date');
+    return writeDayAnswers(await readVault(), a.date, { regions: (a.regions ?? {}) as never, note: typeof a.note === 'string' ? a.note : '' });
+  });
 
   ipcMain.handle('status:get', async () => getStatus(await store.getSettings()));
 

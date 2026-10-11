@@ -1,21 +1,33 @@
 // Reads the macro-review files out of the owner's vault and watches them.
 //
-// Read-only by construction: nothing here writes into the vault. A change to a
-// scale (an argument, a re-run) happens through the skill in a chat turn, and
-// the watcher below is how the picture follows it — the same way it follows a
-// run started by the Windows Task Scheduler while the desk was open.
+// Read-only by construction, with one exception: the skill's files are never
+// written here — a change to a scale (an argument, a re-run) happens through
+// the skill in a chat turn, and the watcher below is how the picture follows
+// it, the same way it follows a run started by the Windows Task Scheduler
+// while the desk was open. The exception is the owner's own two files (note
+// 23): his read of a window before the gauge, and his two evening answers.
+// Those are written here, instantly, under exactly two file names.
 import { promises as fs, watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
 import {
   dateOfStateFile,
+  dayAnswersFile,
   DEFAULT_ZONES,
   factorStats,
+  HUMAN_SIDES,
+  humanReadFile,
   isShotPath,
+  kyivNow,
   lessonsTail,
+  normalizeDayAnswers,
+  normalizeHumanRead,
   normalizeScale,
   normalizeShots,
   parseCsv,
   VAULT_PATHS,
+  type DayAnswers,
+  type HumanRead,
+  type HumanSide,
   type MacroCollect,
   type MacroDay,
   type MacroIndex,
@@ -100,11 +112,12 @@ function trimCollect(raw: Record<string, unknown> | null): MacroCollect | null {
 
 async function regionSnapshot(vault: string, date: string, region: Region): Promise<RegionSnapshot> {
   const dir = statePath(vault);
-  const [scale, verdictFile, collectRaw, shotsRaw] = await Promise.all([
+  const [scale, verdictFile, collectRaw, shotsRaw, humanRaw] = await Promise.all([
     readJson<ScaleState>(path.join(dir, `scale_${date}_${region}.json`)),
     readJson<MacroVerdict>(path.join(dir, `macro_${date}_${region}_verdict.json`)),
     readJson<Record<string, unknown>>(path.join(dir, `macro_${date}_${region}.json`)),
     readJson<unknown>(path.join(dir, `shots_${date}_${region}.json`)),
+    readJson<unknown>(path.join(dir, humanReadFile(date, region))),
   ]);
   // `note` copies the verdict into the collect file too; the verdict file is
   // the one the agent writes, so it wins when both exist.
@@ -119,6 +132,7 @@ async function regionSnapshot(vault: string, date: string, region: Region): Prom
     collect: trimCollect(collectRaw),
     note: (await exists(path.join(vault, noteRel))) ? noteRel : null,
     shots: normalizeShots(shotsRaw, region),
+    human: normalizeHumanRead(humanRaw, date, region),
   };
 }
 
@@ -126,11 +140,12 @@ export async function loadDay(vault: string, date: string): Promise<MacroDay> {
   const dir = statePath(vault);
   const jdir = journalPath(vault);
   const reviewNoteRel = path.join(...VAULT_PATHS.notes, `${date} Итог дня.md`);
-  const [eu, us, mech, agent, lessonsMd, scoresCsv, cfg, reviewNote] = await Promise.all([
+  const [eu, us, mech, agent, answersRaw, lessonsMd, scoresCsv, cfg, reviewNote] = await Promise.all([
     regionSnapshot(vault, date, 'eu'),
     regionSnapshot(vault, date, 'us'),
     readJson<ReviewMech>(path.join(dir, `review_${date}.json`)),
     readJson<ReviewAgent>(path.join(dir, `review_${date}_agent.json`)),
+    readJson<unknown>(path.join(dir, dayAnswersFile(date))),
     readText(path.join(jdir, 'lessons.md')),
     readText(path.join(jdir, 'scale_factor_scores.csv')),
     readJson<{ zones?: { neutral?: number; strong?: number }; regions?: Record<string, { factors?: { id: string; name: string }[] }> }>(path.join(vault, ...VAULT_PATHS.config)),
@@ -152,6 +167,7 @@ export async function loadDay(vault: string, date: string): Promise<MacroDay> {
         us: normalizeShots(await readJson<unknown>(path.join(dir, `shots_${date}_us_review.json`)), 'us'),
       },
     },
+    answers: normalizeDayAnswers(answersRaw, date),
     lessons: lessonsMd ? lessonsTail(lessonsMd) : [],
     stats: scoresCsv ? factorStats(parseCsv(scoresCsv), date) : [],
     names,
@@ -207,6 +223,53 @@ export async function readShot(vault: string, rel: string): Promise<string | nul
   } catch {
     return null;
   }
+}
+
+// ---------------------------------------------------------------- the owner's two files
+
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Write one of the owner's files atomically (temp + rename, the way the Python
+ * side does), so the watcher never sees a half file. The name is built here
+ * from a checked date, never taken from the renderer.
+ */
+async function writeOwnerFile(vault: string, name: string, data: unknown): Promise<boolean> {
+  if (!vault.trim()) return false;
+  const dir = statePath(vault);
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const tmp = path.join(dir, `${name}.${process.pid}.tmp`);
+    await fs.writeFile(tmp, JSON.stringify(data, null, 1), 'utf8');
+    await fs.rename(tmp, path.join(dir, name));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Kyiv wall clock for the `at` fields: «2026-10-12 09:31». */
+function stamp(): string {
+  const n = kyivNow();
+  const hh = String(Math.floor(n.minutes / 60)).padStart(2, '0');
+  const mm = String(n.minutes % 60).padStart(2, '0');
+  return `${n.date} ${hh}:${mm}`;
+}
+
+/** The owner's read of a window. `beforeScale` is what the renderer saw: no gauge on screen yet. */
+export async function writeHumanRead(vault: string, date: string, region: Region, side: HumanSide, beforeScale: boolean): Promise<HumanRead | null> {
+  if (!ISO.test(date) || (region !== 'eu' && region !== 'us') || !HUMAN_SIDES.includes(side)) return null;
+  const rec: HumanRead = { date, region, side, at: stamp(), before_scale: Boolean(beforeScale) };
+  return (await writeOwnerFile(vault, humanReadFile(date, region), rec)) ? rec : null;
+}
+
+/** The owner's evening answers; the note is cut to one short line. */
+export async function writeDayAnswers(vault: string, date: string, answers: Pick<DayAnswers, 'regions' | 'note'>): Promise<DayAnswers | null> {
+  if (!ISO.test(date)) return null;
+  const clean = normalizeDayAnswers({ ...answers, date }, date);
+  if (!clean) return null;
+  const rec: DayAnswers = { ...clean, at: stamp(), note: clean.note.replace(/\s+/g, ' ').trim().slice(0, 300) };
+  return (await writeOwnerFile(vault, dayAnswersFile(date), rec)) ? rec : null;
 }
 
 // ---------------------------------------------------------------- watching

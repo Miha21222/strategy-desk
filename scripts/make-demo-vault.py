@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import random
 import subprocess
 import sys
@@ -407,6 +408,11 @@ write(f"macro_{d}_us.json", collect("us", d, "TRADE", EV_US[1:], -3))
 write(f"macro_{d}_us_verdict.json", verdict("SHORT", "low", "Фон слабо за шорт: Европа в минусе, доллар крепнет.",
       ["Скорее вниз, но уверенность низкая — работаем только сетап 2 после закрытия IB.", "Цель IB1, риск 1 %."]))
 note(d, "США")
+# Note 23: the owner's read before the gauge and his two evening answers (Strategy Desk writes these).
+write(f"human_read_{d}_eu.json", {"date": d, "region": "eu", "side": "SHORT", "at": f"{d} 09:28", "before_scale": True})
+write(f"human_read_{d}_us.json", {"date": d, "region": "us", "side": "LONG", "at": f"{d} 16:03", "before_scale": False})
+write(f"day_answers_{d}.json", {"date": d, "at": f"{d} 20:04", "regions": {"eu": {"trade": "short", "by_rule": "yes"}, "us": {"trade": "none"}},
+      "note": "Ждал вторую манипуляцию, как в уроке — сработало; в США не входил: вялое открытие"})
 review(d, {"eu": (eu, "SHORT", -0.42, "да", True, False), "us": (us, "SHORT", -0.25, "пробой без IB1", True, False)})
 write(f"review_{d}_agent.json", {"summary": DEMO + "Оба окна пошли вниз, как показывала стрелка. Европа дошла до цели, США — пробой без цели.",
       "regions": {"eu": {"what_worked": "Снятие ночного максимума с отказом дало вход по сетапу 3.", "what_failed": "«Место до цели» голосовало за лонг — уровень был вплотную к цене.",
@@ -561,7 +567,7 @@ if CFG_SRC and CFG_SRC.exists():
     cfg = json.loads(CFG_SRC.read_text(encoding="utf-8"))
 (CONFIG / "scale.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
 (OUT / "README.md").write_text("# Демо-данные Strategy Desk\n\nПридуманные дни 14–24.09.2026 для проверки вкладки «Обзор дня». Создано scripts/make-demo-vault.py.\n", encoding="utf-8")
-print("demo vault:", OUT.resolve(), "days:", sorted({p.name.split("_")[1][:10] for p in STATE.glob("*_2026-*.json")}))
+print("demo vault:", OUT.resolve(), "days:", sorted({m.group(1) for p in STATE.glob("*_2026-*.json") for m in [re.search(r"_(\d{4}-\d{2}-\d{2})", p.name)] if m}))
 
 # ---------- 20:00 picture of the window (review shots), 14.09 Europe ----------
 _src = OUT / "indices-kb" / "shots" / "2026-09-14" / "macro_eu" / "m15.png"
