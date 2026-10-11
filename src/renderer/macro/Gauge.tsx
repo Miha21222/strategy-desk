@@ -38,7 +38,7 @@ function Needle({ value, ghost }: { value: number; ghost?: boolean }) {
   const rot = -needleAngle(value);
   return (
     <g class={`gauge-needle${ghost ? ' ghost' : ''}`} style={{ transform: `rotate(${rot}deg)`, transformOrigin: `${CX}px ${CY}px` }}>
-      <path d={`M${CX - 12} ${CY - 5} L${CX + R1 - 14} ${CY - 1.2} L${CX + R1 - 14} ${CY + 1.2} L${CX - 12} ${CY + 5} Z`} />
+      <path d={`M${CX} ${CY - 5} L${CX + R1 - 14} ${CY - 1.2} L${CX + R1 - 14} ${CY + 1.2} L${CX} ${CY + 5} Z`} />
     </g>
   );
 }
