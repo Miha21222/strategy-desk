@@ -474,5 +474,5 @@ export function discussPrompt(region: Region, side: Side, share: number, text: s
 
 /** Title of the chat that carries one day of reviews. */
 export function macroChatTitle(date: string): string {
-  return `Макро-ревью ${date.slice(8, 10)}.${date.slice(5, 7)}`;
+  return `Обзор дня ${date.slice(8, 10)}.${date.slice(5, 7)}`;
 }

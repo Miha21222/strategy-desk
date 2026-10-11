@@ -143,6 +143,6 @@ describe('what goes to the agent', () => {
     expect(p).toContain('scale.py discuss');
   });
   it('names the day chat by date', () => {
-    expect(macroChatTitle('2026-10-12')).toBe('Макро-ревью 12.10');
+    expect(macroChatTitle('2026-10-12')).toBe('Обзор дня 12.10');
   });
 });

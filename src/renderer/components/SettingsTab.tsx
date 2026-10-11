@@ -141,6 +141,54 @@ export function SettingsTab(p: SettingsTabProps) {
       <h2>{t('settings.title')}</h2>
 
       <fieldset>
+        <legend>{t('settings.macro')}</legend>
+        {textField('vaultPath', t('settings.vaultPath'), t('settings.vaultHint'))}
+      </fieldset>
+
+      <fieldset>
+        <legend>{t('settings.appearance')}</legend>
+        <label class="field">
+          <span>{t('settings.theme')}</span>
+          <select value={s.theme} onChange={(e) => p.onSettings({ theme: (e.target as HTMLSelectElement).value as Settings['theme'] })}>
+            <option value="system">{t('settings.themeSystem')}</option>
+            <option value="dark">{t('settings.themeDark')}</option>
+            <option value="light">{t('settings.themeLight')}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>{t('settings.uiScale')}</span>
+          <select value={String(s.uiScale ?? 1)} onChange={(e) => p.onSettings({ uiScale: Number((e.target as HTMLSelectElement).value) })}>
+            {ZOOM_STEPS.map((z) => (
+              <option key={z} value={String(z)}>
+                {Math.round(z * 100)}%
+              </option>
+            ))}
+          </select>
+        </label>
+        <div class="muted">{t('settings.uiScaleHint')}</div>
+        <label class="field">
+          <span>{t('settings.answerLang')}</span>
+          <select value={s.answerLang ?? 'ru'} onChange={(e) => p.onSettings({ answerLang: (e.target as HTMLSelectElement).value as Settings['answerLang'] })}>
+            <option value="ru">{t('settings.answerLangRu')}</option>
+            <option value="en">{t('settings.answerLangEn')}</option>
+            <option value="auto">{t('settings.answerLangAuto')}</option>
+          </select>
+        </label>
+        <div class="muted">{t('settings.answerLangHint')}</div>
+      </fieldset>
+
+      <details class="advanced" open={s.legacyUi}>
+        <summary>{t('settings.advanced')}</summary>
+        <p class="muted">{t('settings.advancedHint')}</p>
+        <fieldset>
+          <legend>{t('settings.legacyTitle')}</legend>
+        <label class="check">
+          <input type="checkbox" checked={Boolean(s.legacyUi)} onChange={(e) => p.onSettings({ legacyUi: (e.target as HTMLInputElement).checked })} />
+          <span>{t('settings.legacyUi')}</span>
+        </label>
+        </fieldset>
+
+      <fieldset>
         <legend>{t('preflight.title')}</legend>
         <div class="muted">{t('preflight.intro')}</div>
         <PreflightList
@@ -226,14 +274,6 @@ export function SettingsTab(p: SettingsTabProps) {
         {textField('gtRagPath', t('settings.gtRagPath'), t('settings.gtRagHint'))}
       </fieldset>
 
-      <fieldset>
-        <legend>{t('settings.macro')}</legend>
-        {textField('vaultPath', t('settings.vaultPath'), t('settings.vaultHint'))}
-        <label class="check">
-          <input type="checkbox" checked={Boolean(s.legacyUi)} onChange={(e) => p.onSettings({ legacyUi: (e.target as HTMLInputElement).checked })} />
-          <span>{t('settings.legacyUi')}</span>
-        </label>
-      </fieldset>
 
       {s.legacyUi ? (
       <fieldset>
@@ -292,37 +332,6 @@ export function SettingsTab(p: SettingsTabProps) {
         </label>
       </fieldset>
 
-      <fieldset>
-        <legend>{t('settings.appearance')}</legend>
-        <label class="field">
-          <span>{t('settings.theme')}</span>
-          <select value={s.theme} onChange={(e) => p.onSettings({ theme: (e.target as HTMLSelectElement).value as Settings['theme'] })}>
-            <option value="system">{t('settings.themeSystem')}</option>
-            <option value="dark">{t('settings.themeDark')}</option>
-            <option value="light">{t('settings.themeLight')}</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>{t('settings.uiScale')}</span>
-          <select value={String(s.uiScale ?? 1)} onChange={(e) => p.onSettings({ uiScale: Number((e.target as HTMLSelectElement).value) })}>
-            {ZOOM_STEPS.map((z) => (
-              <option key={z} value={String(z)}>
-                {Math.round(z * 100)}%
-              </option>
-            ))}
-          </select>
-        </label>
-        <div class="muted">{t('settings.uiScaleHint')}</div>
-        <label class="field">
-          <span>{t('settings.answerLang')}</span>
-          <select value={s.answerLang ?? 'ru'} onChange={(e) => p.onSettings({ answerLang: (e.target as HTMLSelectElement).value as Settings['answerLang'] })}>
-            <option value="ru">{t('settings.answerLangRu')}</option>
-            <option value="en">{t('settings.answerLangEn')}</option>
-            <option value="auto">{t('settings.answerLangAuto')}</option>
-          </select>
-        </label>
-        <div class="muted">{t('settings.answerLangHint')}</div>
-      </fieldset>
 
       <fieldset>
         <legend>{t('settings.profile')}</legend>
@@ -343,6 +352,7 @@ export function SettingsTab(p: SettingsTabProps) {
           </button>
         </div>
       </fieldset>
+      </details>
     </section>
   );
 }

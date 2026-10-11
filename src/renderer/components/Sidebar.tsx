@@ -175,6 +175,13 @@ export function Sidebar(p: SidebarProps) {
 
   return (
     <aside class="sidebar">
+      {/* MVP: connection lights are plumbing — they live in Настройки → Для продвинутых.
+          The one thing a person must know here is that Claude is not signed in. */}
+      {!p.settings.legacyUi ? (
+        s && s.claude === 'none' ? (
+          <div class="tv-message">{t('sidebar.claudeMissing')}</div>
+        ) : null
+      ) : (
       <Section id="connections" title={t('sidebar.connections')} collapsed={collapsed('connections')} onToggle={p.onToggleSection}>
         <Light on={s ? s.tvRunning : null} label={t('sidebar.tvRunning')} />
         <Light
@@ -208,6 +215,7 @@ export function Sidebar(p: SidebarProps) {
           </button>
         ) : null}
       </Section>
+      )}
 
       {/* The macro-review MVP hides the chart quick actions with the other pre-MVP tools. */}
       {p.settings.legacyUi ? (

@@ -3,11 +3,11 @@
 // the skill's thresholds, a needle at the scale's balance (long % − short %).
 // When the owner and the agent argued, the morning needle stays as a ghost and
 // the solid one shows the needle after the discussion.
-import { arcPath, clampNeedle, needleAngle, polar, zoneOf, zoneSegments, type ZoneKey } from '@shared/macro';
+import { arcPath, clampNeedle, needleAngle, zoneOf, zoneSegments, type ZoneKey } from '@shared/macro';
 import { t } from '../i18n';
 
 const W = 320;
-const H = 196;
+const H = 200;
 const CX = W / 2;
 const CY = 172;
 const R0 = 104;
@@ -48,7 +48,6 @@ export function Gauge({ needle, before, zones, mini, label }: Props) {
   const zone = zoneOf(value, zones);
   const segs = zoneSegments(zones);
   const showGhost = before != null && Math.round(before) !== Math.round(value);
-  const ticks = [-100, -zones.strong, -zones.neutral, zones.neutral, zones.strong, 100];
   return (
     <figure class={`gauge${mini ? ' mini' : ''} zone-${zone}`} aria-label={`${label ?? t('macro.gauge')}: ${signed(value)}, ${zoneLabel(zone)}`}>
       <svg viewBox={`0 0 ${W} ${mini ? CY + 8 : H}`} role="img">
@@ -57,16 +56,6 @@ export function Gauge({ needle, before, zones, mini, label }: Props) {
             <title>{`${zoneLabel(s.key)}: ${signed(s.from)} … ${signed(s.to)}`}</title>
           </path>
         ))}
-        {!mini
-          ? ticks.map((v) => {
-              const [x, y] = polar(CX, CY, R1 + 13, needleAngle(v));
-              return (
-                <text key={v} class="gauge-tick" x={x} y={y} text-anchor="middle" dominant-baseline="middle">
-                  {v === 0 ? '0' : `${v > 0 ? '+' : '−'}${Math.abs(v)}`}
-                </text>
-              );
-            })
-          : null}
         {!mini ? (
           <>
             <text class="gauge-end" x={CX - R1 + 6} y={CY + 20} text-anchor="start">

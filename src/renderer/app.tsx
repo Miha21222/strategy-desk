@@ -627,7 +627,7 @@ export function App() {
               onToast={pushToast}
             />
           ) : (
-            <HelpTab onOpenWizard={openWizard} />
+            <HelpTab onOpenWizard={openWizard} simple={!settings.legacyUi} />
           )}
           {tab === 'copilot' && current ? (
             <ReportDrawer open={drawerOpen} reports={reports} selectedId={drawerReportId} onSelect={setDrawerReportId} onDelete={(id) => void chatOp(desk.chats.deleteReport(current.key, id))} onClose={() => setDrawerOpen(false)} />
