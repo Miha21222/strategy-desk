@@ -164,6 +164,8 @@ export function MacroDesk(p: Props) {
         ) : null}
       </header>
 
+      {index?.demo ? <div class="demo-banner">{t('macro.demoBanner')}</div> : null}
+
       <nav class="macro-windows" aria-label={t('macro.windows')}>
         {MACRO_WINDOWS.map((id) => (
           <WindowTile key={id} id={id} day={day} active={active === id} state={windowState(id, day, date, now)} onClick={() => setWin(id)} />
@@ -172,7 +174,7 @@ export function MacroDesk(p: Props) {
 
       <AgentStrip
         streaming={streaming}
-        blocked={p.streaming && !mine}
+        blocked={(p.streaming && !mine) || Boolean(index?.demo)}
         messages={messages}
         state={state}
         window={active}
@@ -186,7 +188,7 @@ export function MacroDesk(p: Props) {
         <RegionView
           snap={day?.[active] ?? null}
           day={day}
-          busy={p.streaming}
+          busy={p.streaming || Boolean(index?.demo)}
           onDiscuss={(side, share, text) => p.onSend(date, discussPrompt(active, side, share, text))}
           onOpenNote={(rel) => void window.desk.macro.openNote(rel)}
         />
@@ -230,7 +232,13 @@ function WindowTile({ id, day, active, state, onClick }: { id: MacroWindowId; da
       );
     }
   } else if (day?.review.mech) {
-    const hits = (['eu', 'us'] as Region[]).map((r) => day.review.mech?.regions[r]?.score?.needle_hit).filter((h) => h === '1' || h === '0');
+    // The needle that counts is the one after the discussion, when there was one.
+    const hits = (['eu', 'us'] as Region[])
+      .map((r) => {
+        const x = day.review.mech?.regions[r];
+        return x?.after != null ? x.score?.after_hit : x?.score?.needle_hit;
+      })
+      .filter((h) => h === '1' || h === '0');
     const ok = hits.filter((h) => h === '1').length;
     body = (
       <span class="wt-val">
@@ -257,12 +265,13 @@ function WindowTile({ id, day, active, state, onClick }: { id: MacroWindowId; da
 function AgentStrip(p: { streaming: boolean; blocked: boolean; messages: UiMessage[] | null; state: string; window: MacroWindowId; onRun: () => void; onOpenChat: () => void }) {
   const last = p.messages ? [...p.messages].reverse().find((m) => m.role === 'assistant' || m.role === 'notice') : null;
   const has = p.state === 'ready' || p.state === 'partial';
+  const title = p.streaming ? t('macro.agentBusy') : p.state === 'partial' ? t(`macro.agentPartial.${p.window}`) : has ? t('macro.agentDone') : t(`macro.agentIdle.${p.window}`);
   return (
     <div class={`agent-strip card${p.streaming ? ' busy' : ''}`}>
       <div class="agent-head">
         <span class="agent-title">
           {p.streaming ? <i class="spinner" /> : null}
-          {p.streaming ? t('macro.agentBusy') : has ? t('macro.agentDone') : t(`macro.agentIdle.${p.window}`)}
+          {title}
         </span>
         <span class="spacer" />
         <button type="button" class={p.state === 'due' ? 'primary' : ''} disabled={p.streaming || p.blocked} onClick={p.onRun}>
@@ -787,7 +796,8 @@ function ReviewRegionCard({ region, rv, reflection, zones }: { region: Region; r
   const sc = rv.score ?? {};
   const dir = String(f.dir ?? 'FLAT');
   const needle = rv.after ?? rv.needle ?? 0;
-  const hit = (sc.after_hit || sc.needle_hit) as string | undefined;
+  const afterSkip = rv.after != null && zoneOf(rv.after, zones) === 'neutral';
+  const hit = (rv.after != null ? sc.after_hit : sc.needle_hit) as string | undefined;
   const plan = sc.plan_hit ? PLAN_TEXT[String(sc.plan_hit)] : null;
   return (
     <div class="card review-region">
@@ -808,7 +818,8 @@ function ReviewRegionCard({ region, rv, reflection, zones }: { region: Region; r
           </div>
         </div>
         <div class="rv-chips">
-          <span class={`chip ${hit === '1' ? 'good' : hit === '0' ? 'bad' : ''}`}>{t(hit === '1' ? 'macro.hitYes' : hit === '0' ? 'macro.hitNo' : 'macro.hitNone')}</span>
+          <span class={`chip ${hit === '1' ? 'good' : hit === '0' ? 'bad' : ''}`}>{t(afterSkip ? 'macro.hitSkip' : hit === '1' ? 'macro.hitYes' : hit === '0' ? 'macro.hitNo' : 'macro.hitNone')}</span>
+          {rv.after != null && sc.needle_hit ? <span class="chip">{t(sc.needle_hit === '1' ? 'macro.morningRight' : 'macro.morningWrong')}</span> : null}
           {plan ? <span class={`chip ${plan === 'planYes' ? 'good' : plan === 'planNo' ? 'bad' : ''}`}>{t(`macro.${plan}`)}</span> : null}
         </div>
         {reflection ? (

@@ -241,6 +241,12 @@ export interface MacroIndex {
   error?: string;
   /** Dates that have any macro file, newest first. */
   days: string[];
+  /**
+   * Reading the demo vault (`DESK_DEMO_VAULT`, see scripts/make-demo-vault.py):
+   * invented days for checking the interface. The desk must not send anything
+   * to the agent then — a run would land in the real vault.
+   */
+  demo?: boolean;
 }
 
 export const LESSONS_TAIL = 15;

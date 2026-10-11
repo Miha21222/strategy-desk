@@ -442,3 +442,11 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
 .ftable td { padding: 4px 8px 4px 0; border-bottom: 1px dashed var(--border); font-variant-numeric: tabular-nums; }
 .tech { grid-column: 1 / -1; font-size: var(--text-sm); }
 @media (max-width: 900px) { .why-cols { grid-template-columns: 1fr; } }
+.demo-banner {
+  padding: var(--space-4) var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+}

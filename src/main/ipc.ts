@@ -46,14 +46,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const win = getWindow();
     if (win && !win.isDestroyed()) win.webContents.send('macro:changed', dates);
   };
-  void store.getSettings().then((cfg) => watchVault(cfg.vaultPath, emitMacro));
-  ipcMain.handle('macro:index', async () => listDays((await store.getSettings()).vaultPath));
+  // DESK_DEMO_VAULT (start-demo.cmd) swaps the folder the tab READS for the demo
+  // vault; the macro chat keeps running in the real one, so the tab disables it.
+  const demoVault = (process.env.DESK_DEMO_VAULT ?? '').trim();
+  const readVault = async () => demoVault || (await store.getSettings()).vaultPath;
+  void readVault().then((v) => watchVault(v, emitMacro));
+  ipcMain.handle('macro:index', async () => ({ ...(await listDays(await readVault())), demo: Boolean(demoVault) }));
   ipcMain.handle('macro:day', async (_e, date: string) => {
     if (typeof date !== 'string' || !ISO_DATE.test(date)) throw new Error('bad date');
-    return loadDay((await store.getSettings()).vaultPath, date);
+    return loadDay(await readVault(), date);
   });
   ipcMain.handle('macro:openNote', async (_e, rel: string) => {
-    const full = resolveNote((await store.getSettings()).vaultPath, String(rel ?? ''));
+    const full = resolveNote(await readVault(), String(rel ?? ''));
     if (!full) return false;
     return (await shell.openPath(full)) === '';
   });
@@ -85,7 +89,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const before = await store.getSettings();
     const next = await store.setSettings(patch ?? {});
     if (before.tvmcpPath !== next.tvmcpPath || before.toolsets !== next.toolsets) invalidateTvmcpCache();
-    if (before.vaultPath !== next.vaultPath) watchVault(next.vaultPath, emitMacro);
+    if (before.vaultPath !== next.vaultPath && !demoVault) watchVault(next.vaultPath, emitMacro);
     // Anything the session was built with changed: the waiting one is stale.
     dropWarm();
     return next;
