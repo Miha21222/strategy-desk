@@ -27,6 +27,8 @@ export const VAULT_PATHS = {
   journal: ['indices-kb', 'journal'],
   config: ['indices-kb', 'config', 'scale.json'],
   notes: ['Макро-обзоры'],
+  /** Chart screenshots the skill takes of the review's levels (PNG only). */
+  shots: ['indices-kb', 'shots'],
 } as const;
 
 export interface ScaleFactor {
@@ -168,6 +170,44 @@ export interface MacroCollect {
   previous_verdict?: MacroVerdict | null;
 }
 
+/** What a line on a chart screenshot stands for. */
+export type ShotKind = 'manip' | 'target' | 'level' | 'open';
+
+/** One line drawn on a screenshot, as the legend under the picture names it. */
+export interface ShotLegend {
+  key: string;
+  /** Plain words, written by the skill («манипуляция: открытие дня»). */
+  label: string;
+  kind: ShotKind | string;
+  color: string;
+}
+
+export interface MacroShot {
+  name: string;
+  /** Timeframe as TradingView names it: M15, H1. */
+  tf: string;
+  title: string;
+  /** Vault-relative path of the PNG (forward slashes); the file may be missing. */
+  path: string;
+  /** False when the skill's drawing check found a mismatch; absent = not checked. */
+  verify_ok?: boolean | null;
+  legend: ShotLegend[];
+}
+
+/**
+ * `state/shots_<D>_<region>.json`: the review's levels drawn on TradingView
+ * and screenshotted. `ok: false` means no pictures, and `error` says why
+ * («dry-run», «TradingView не запущен», «нет шкалы с планом: …»).
+ */
+export interface MacroShots {
+  date: string;
+  region: Region;
+  asof: string;
+  ok: boolean;
+  error: string | null;
+  shots: MacroShot[];
+}
+
 export interface RegionSnapshot {
   region: Region;
   scale: ScaleState | null;
@@ -175,6 +215,8 @@ export interface RegionSnapshot {
   collect: MacroCollect | null;
   /** Vault-relative path of the day's note, when it exists. */
   note: string | null;
+  /** The chart screenshots of this window; null when the skill wrote none. */
+  shots: MacroShots | null;
 }
 
 export interface ReviewFactorRow {
@@ -499,8 +541,93 @@ export function normalizeScale(s: ScaleState): ScaleState {
 
 /** Which state files belong to a date: `scale_2026-10-09_us.json` → 2026-10-09. */
 export function dateOfStateFile(name: string): string | null {
-  const m = name.match(/^(?:scale|macro|review|regime)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);
+  const m = name.match(/^(?:scale|macro|review|regime|shots)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);
   return m ? m[1] : null;
+}
+
+// ---------------------------------------------------------------- chart screenshots
+
+const str = (x: unknown): string => (typeof x === 'string' ? x : x == null ? '' : String(x));
+
+/** Line colour per kind when the file's own colour is missing or not a plain hex. */
+export const SHOT_KIND_COLORS: Record<ShotKind, string> = { manip: '#d32f2f', target: '#1e8e3e', level: '#37474f', open: '#9e9e9e' };
+
+/**
+ * A colour safe to put in a style: `#rgb`, `#rrggbb` or `#rrggbbaa` from the
+ * file, else the kind's default. The file is the skill's, but a style
+ * attribute is no place for whatever string it happens to hold.
+ */
+export function legendColor(item: Pick<ShotLegend, 'color' | 'kind'>): string {
+  const c = str(item.color).trim();
+  if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c)) return c;
+  return SHOT_KIND_COLORS[item.kind as ShotKind] ?? SHOT_KIND_COLORS.level;
+}
+
+/**
+ * Bring a parsed `shots_<D>_<region>.json` to the shape the desk draws, or
+ * null when it is not one at all (garbage, an array, a half-written file).
+ * Shots without a path are dropped; a missing legend is an empty one.
+ */
+export function normalizeShots(raw: unknown, region: Region): MacroShots | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.ok !== 'boolean' && !Array.isArray(r.shots)) return null;
+  const shots: MacroShot[] = (Array.isArray(r.shots) ? r.shots : [])
+    .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x === 'object' && typeof (x as Record<string, unknown>).path === 'string')
+    .map((x) => ({
+      name: str(x.name),
+      tf: str(x.tf),
+      title: str(x.title),
+      path: str(x.path),
+      verify_ok: typeof x.verify_ok === 'boolean' ? x.verify_ok : null,
+      legend: (Array.isArray(x.legend) ? x.legend : [])
+        .filter((l): l is Record<string, unknown> => Boolean(l) && typeof l === 'object' && typeof (l as Record<string, unknown>).label === 'string')
+        .map((l) => ({ key: str(l.key), label: str(l.label), kind: str(l.kind) || 'level', color: str(l.color) })),
+    }));
+  return {
+    date: str(r.date),
+    region: r.region === 'eu' || r.region === 'us' ? r.region : region,
+    asof: str(r.asof),
+    // A file that lists pictures but forgot `ok` is taken at its pictures.
+    ok: typeof r.ok === 'boolean' ? r.ok : shots.length > 0,
+    error: r.error == null || r.error === '' ? null : str(r.error),
+    shots,
+  };
+}
+
+/** The picture for the main view: the M15 one when there is one, else the first. */
+export function mainShot(shots: MacroShot[]): MacroShot | null {
+  return shots.find((s) => s.name.toLowerCase() === 'm15' || s.tf.toUpperCase() === 'M15') ?? shots[0] ?? null;
+}
+
+/** «M15 · ночь и уровни у открытия» from tf «M15» and title «M15 — ночь и уровни у открытия». */
+export function shotTabLabel(shot: Pick<MacroShot, 'tf' | 'title' | 'name'>): string {
+  const tf = shot.tf.trim() || shot.name.trim().toUpperCase();
+  let rest = shot.title.trim();
+  if (tf && rest.toUpperCase().startsWith(tf.toUpperCase())) rest = rest.slice(tf.length).replace(/^[\s—–\-:·]+/, '');
+  return rest ? (tf ? `${tf} · ${rest}` : rest) : tf;
+}
+
+/**
+ * Why there are no pictures, ready for «Снимков графика нет: …»: `dry-run` is
+ * a known reason the screen words itself; anything else is shown as written,
+ * on one line and cut short.
+ */
+export function shotsErrorText(error: string | null | undefined, max = 90): { known: 'dry-run' | 'none' | null; text: string } {
+  const e = str(error).replace(/\s+/g, ' ').trim();
+  if (!e) return { known: 'none', text: '' };
+  if (/^dry[-_ ]?run\b/i.test(e)) return { known: 'dry-run', text: '' };
+  return { known: null, text: e.length > max ? `${e.slice(0, max - 1).trimEnd()}…` : e };
+}
+
+/** A vault-relative screenshot path the renderer may ask for: `.png` under `indices-kb/shots/`, no `..`. */
+export function isShotPath(rel: unknown): rel is string {
+  if (typeof rel !== 'string' || !rel || rel.length > 400) return false;
+  const p = rel.replace(/\\/g, '/');
+  if (p.startsWith('/') || /^[a-z]:/i.test(p) || p.includes('\0')) return false;
+  const parts = p.split('/');
+  if (parts.some((x) => x === '..' || x === '.' || x === '')) return false;
+  return parts.length > 3 && parts[0] === VAULT_PATHS.shots[0] && parts[1] === VAULT_PATHS.shots[1] && /\.png$/i.test(p);
 }
 
 // ---------------------------------------------------------------- what the desk sends to the agent

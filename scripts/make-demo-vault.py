@@ -5,9 +5,11 @@
 Writes <out_dir>/indices-kb/{state,journal,config} and <out_dir>/Макро-обзоры with
 nine invented September days, each covering a different case of the interface
 (strong/neutral/red days, discussions that move the needle, half-written reviews,
-an old v1 scale, very long texts). Every file follows the contract of the real
+an old v1 scale, very long texts, chart screenshots in every state). Every file follows the contract of the real
 `macro-review` skill (scale.py v3.1, verdict, review, review_agent, lessons,
-factor scores); the numbers are made up and say so in every summary.
+factor scores, shots); the numbers are made up and say so in every summary.
+The screenshots are drawn with Pillow when it is installed (else their json
+says ok: false, «Pillow не установлен»).
 
 Point Настройки → Папка проекта at <out_dir> to browse it. Nothing here touches
 the real vault.
@@ -17,12 +19,15 @@ from __future__ import annotations
 import csv
 import json
 import random
+import subprocess
 import sys
+import zlib
 from pathlib import Path
 
 OUT = Path(sys.argv[1] if len(sys.argv) > 1 else "demo-vault")
 CFG_SRC = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 STATE = OUT / "indices-kb" / "state"
+SHOTS = OUT / "indices-kb" / "shots"
 JOURNAL = OUT / "indices-kb" / "journal"
 CONFIG = OUT / "indices-kb" / "config"
 NOTES = OUT / "Макро-обзоры"
@@ -240,6 +245,142 @@ def note(d: str, title: str) -> None:
     (NOTES / f"{d} {title}.md").write_text(f"# {DEMO}{d} {title}\n\nДемо-заметка для проверки кнопки «Открыть заметку».\n", encoding="utf-8")
 
 
+# ---------- chart screenshots (state/shots_<D>_<region>.json + PNGs) ----------
+# The real skill draws the plan's levels on TradingView and screenshots them.
+# Here: a dark candlestick picture with the same lines, so the desk has
+# something to show. Without Pillow the json says so (ok: false), like a real
+# run that could not take pictures.
+try:
+    from PIL import Image, ImageDraw, ImageFont
+except ImportError:  # the generator still runs; the desk then shows «Снимков графика нет»
+    Image = None
+
+COLORS = {"manip": "#d32f2f", "target": "#1e8e3e", "level": "#37474f", "open": "#9e9e9e"}
+# On the dark chart the «level» grey of the legend would vanish; the picture uses a lighter twin.
+DRAW_COLOR = {"#37474f": "#90a4ae"}
+
+
+def cyrillic_font(size: int):
+    """DejaVuSans (or any font fontconfig says covers Russian); None when there is none."""
+    if Image is None:
+        return None
+    cands = ["/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/TTF/DejaVuSans.ttf",
+             "/Library/Fonts/Arial Unicode.ttf", "C:/Windows/Fonts/segoeui.ttf", "C:/Windows/Fonts/arial.ttf", "DejaVuSans.ttf"]
+    try:
+        out = subprocess.run(["fc-list", ":lang=ru", "file"], capture_output=True, text=True, timeout=5).stdout
+        found = [ln.split(":")[0].strip() for ln in out.splitlines() if ln.strip().lower().endswith((".ttf:", ".ttf"))]
+        cands += sorted(found, key=lambda f: ("dejavusans" not in f.lower().replace("-", ""), f))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    for c in cands:
+        try:
+            return ImageFont.truetype(c, size)
+        except OSError:
+            continue
+    return None  # PIL's default font has no Cyrillic: draw the lines without captions
+
+
+def legend_for(st: dict, region: str) -> list[dict]:
+    p = st.get("plan") or {}
+    side = p.get("side")
+    up = side != "SHORT"
+    out = [{"key": f"manip{i + 1}", "label": f"манипуляция: {l['name']}", "kind": "manip", "color": COLORS["manip"], "price": l["price"]}
+           for i, l in enumerate(p.get("manipulation_levels") or [])]
+    out += [{"key": f"target{i + 1}", "label": f"цель: {l['name']}", "kind": "target", "color": COLORS["target"], "price": l["price"]}
+            for i, l in enumerate(p.get("targets") or [])]
+    price, adr = st["levels"]["price"], st["levels"]["adr"]
+    out.append({"key": "prev_high" if up else "prev_low", "label": "вчерашний максимум" if up else "вчерашний минимум", "kind": "level",
+                "color": COLORS["level"], "price": round(price + (0.62 if up else -0.62) * adr, 2)})
+    out.append({"key": "NYM" if region == "us" else "XO", "label": "полночь Нью-Йорка" if region == "us" else "открытие Xetra", "kind": "open",
+                "color": COLORS["open"], "price": round(price + (0.05 if up else -0.05) * adr, 2)})
+    return out
+
+
+def draw_chart(path: Path, seed: int, price: float, adr: float, levels: list[dict], bars: int, vol: float, shift: float = 0.0) -> None:
+    """~1200×700 dark candles (random walk ending at `price`), the levels as lines, captions at the right, no prices."""
+    W, H, PAD_L, PAD_Y = 1200, 700, 24, 40
+    font = cyrillic_font(15)
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    PAD_R = 40 + int(max((probe.textlength(l["label"], font=font) for l in levels), default=0)) if font is not None else 60
+    rnd = random.Random(seed)
+    closes = [0.0]
+    for _ in range(bars - 1):
+        closes.append(closes[-1] + rnd.gauss(0, vol * adr))
+    off = price - closes[-1]
+    candles = []
+    prev = closes[0] + off + rnd.gauss(0, vol * adr)
+    for c in closes:
+        c += off
+        o = prev
+        hi = max(o, c) + abs(rnd.gauss(0, vol * adr * 0.6))
+        lo = min(o, c) - abs(rnd.gauss(0, vol * adr * 0.6))
+        candles.append((o, hi, lo, c))
+        prev = c
+    lv = [dict(l, price=l["price"] + shift * adr * (1 if i == 0 else 0)) for i, l in enumerate(levels)]
+    top = max(max(c[1] for c in candles), max(l["price"] for l in lv))
+    bot = min(min(c[2] for c in candles), min(l["price"] for l in lv))
+    span = (top - bot) or 1
+    y = lambda v: PAD_Y + (top - v) / span * (H - 2 * PAD_Y)
+
+    img = Image.new("RGB", (W, H), "#131722")
+    d = ImageDraw.Draw(img)
+    for gx in range(PAD_L, W - PAD_R, 100):  # faint grid like TradingView's
+        d.line([(gx, 0), (gx, H)], fill="#1c2030")
+    for gy in range(PAD_Y, H, 80):
+        d.line([(0, gy), (W, gy)], fill="#1c2030")
+    step = (W - PAD_L - PAD_R) / bars
+    body = max(2, int(step * 0.62))
+    for i, (o, hi, lo, c) in enumerate(candles):
+        x = PAD_L + i * step + step / 2
+        col = "#26a69a" if c >= o else "#ef5350"
+        d.line([(x, y(hi)), (x, y(lo))], fill=col, width=1)
+        y0, y1 = sorted((y(o), y(c)))
+        d.rectangle([x - body / 2, y0, x + body / 2, max(y1, y0 + 1)], fill=col)
+    for l in lv:
+        col = DRAW_COLOR.get(l["color"], l["color"])
+        ly = y(l["price"])
+        if l["kind"] == "open":
+            for x0 in range(PAD_L, W - PAD_R + 10, 14):
+                d.line([(x0, ly), (x0 + 7, ly)], fill=col, width=2)
+        else:
+            d.line([(PAD_L, ly), (W - PAD_R + 10, ly)], fill=col, width=2)
+        if font is not None:
+            tw = d.textlength(l["label"], font=font)
+            tx = W - PAD_R + 18
+            d.rectangle([tx - 6, ly - 11, tx + tw + 6, ly + 11], fill="#131722", outline=col)
+            d.text((tx, ly), l["label"], fill=col, font=font, anchor="lm")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    img.save(path, "PNG", optimize=True)
+
+
+def shots(d: str, region: str, st: dict | None, *, error: str | None = None, verify_ok: bool = True, missing: tuple[str, ...] = ()) -> None:
+    """Write shots_<d>_<region>.json and, when it is a good run, the two PNGs it lists."""
+    asof = f"{d} {'09:40' if region == 'eu' else '15:55'}"
+    if error is None and Image is None:
+        error = "Pillow не установлен"
+    if error is not None or st is None:
+        write(f"shots_{d}_{region}.json", {"date": d, "region": region, "asof": asof, "ok": False, "error": error, "shots": []})
+        return
+    price, adr = st["levels"]["price"], st["levels"]["adr"]
+    legend = legend_for(st, region)
+    night = "ночь" if region == "us" else "премаркет"
+    specs = [("m15", "M15", f"M15 — {night} и уровни у открытия", 64, 0.06, ["manip", "target", "level", "open"]),
+             ("h1", "H1", "H1 — зоны и цели дня", 72, 0.11, ["manip", "target", "level"])]
+    out = []
+    for k, (name, tf, title, bars, vol, kinds) in enumerate(specs):
+        rel = f"indices-kb/shots/{d}/macro_{region}/{name}.png"
+        lg = [l for l in legend if l["kind"] in kinds]
+        # A failed drawing check: the first line sits visibly off its place on M15.
+        ok = verify_ok or name != "m15"
+        if name in missing:
+            (OUT / rel).unlink(missing_ok=True)
+        else:
+            draw_chart(OUT / rel, zlib.crc32(f"{d}/{region}/{name}".encode()), price, adr, lg, bars, vol, shift=0.0 if ok else 0.25)
+        out.append({"name": name, "tf": tf, "title": title, "path": rel, "verify_ok": ok,
+                    "legend": [{k2: l[k2] for k2 in ("key", "label", "kind", "color")} for l in lg]})
+    write(f"shots_{d}_{region}.json", {"date": d, "region": region, "asof": asof, "ok": True, "error": None, "shots": out})
+
+
 EV_EU = [("10:00", "Ifo — деловой климат Германии", "Medium"), ("11:00", "ZEW — настроения", "Medium"), ("15:30", "Заявки на пособие США", "Medium")]
 EV_US = [("15:30", "CPI США", "High"), ("17:00", "Запасы нефти", "Medium"), ("21:00", "Выступление ФРС", "Medium")]
 
@@ -258,8 +399,10 @@ write(f"macro_{d}_eu_verdict.json", verdict("SHORT", "medium", "Фон за шо
                  "windows": [{"window": "10:30–12:00", "expect": "первый вынос за IB"}, {"window": "12:00–15:30", "expect": "второй вынос в другую сторону"}]},
       scale_judgment=[{"side": "SHORT", "strength": 0.7, "text": "Нефть выше 100 — давление на открытие, которого нет в технике"}]))
 note(d, "Европа")
+shots(d, "eu", eu)
 us = scale_state("us", d, factors_for("us", -0.5, 2), light("green", []), 7800, 58)
 write(f"scale_{d}_us.json", us)
+shots(d, "us", us)
 write(f"macro_{d}_us.json", collect("us", d, "TRADE", EV_US[1:], -3))
 write(f"macro_{d}_us_verdict.json", verdict("SHORT", "low", "Фон слабо за шорт: Европа в минусе, доллар крепнет.",
       ["Скорее вниз, но уверенность низкая — работаем только сетап 2 после закрытия IB.", "Цель IB1, риск 1 %."]))
@@ -315,6 +458,7 @@ write(f"macro_{d}_eu.json", collect("eu", d, "TRADE", EV_EU, 2))
 write(f"macro_{d}_eu_verdict.json", verdict("LONG", "low", "Фон слабо за лонг перед CPI США.", ["Скорее вверх, но перед CPI — осторожно, риск 0.5 %.", "Закрыть всё до 15:30."]))
 us = scale_state("us", d, factors_for("us", 0.6, 8), light("red", ["календарь: CPI США в 15:30 — день высокого риска", "ночь уже прошла 85 % среднего дневного хода"]), 7880, 61)
 write(f"scale_{d}_us.json", us)
+shots(d, "us", us)
 write(f"macro_{d}_us.json", collect("us", d, "STOP", EV_US, 1))
 write(f"macro_{d}_us_verdict.json", verdict("NO_TRADE", "high", "Не торгуем: CPI в 15:30 и ночь уже съела почти весь дневной ход.", ["Сегодня по правилам не торгуем.", "Наблюдаем: держится ли ночной минимум после CPI."]))
 review(d, {"eu": (eu, "LONG", 0.18, "пробой без IB1", True, True), "us": (us, "LONG", 0.6, None, None, True)})  # agent part not written yet
@@ -330,6 +474,7 @@ eu = scale_state("eu", d, factors_for("eu", -0.75, 9, silent=4), light("yellow",
                        {"at": f"{d} 09:52", "by": "owner", "side": "LONG", "share": 10, "text": "Азия закрылась на максимумах",
                         "reply": "Не согласен: Азия уже в цене премаркета, её доля в шкале и так учтена — двойной счёт.", "view": "disagree"}])
 write(f"scale_{d}_eu.json", eu)
+shots(d, "eu", eu, verify_ok=False)
 write(f"macro_{d}_eu.json", collect("eu", d, "TRADE", EV_EU, -1))
 write(f"macro_{d}_eu_verdict.json", verdict("SHORT", "low", "Фон слабо за шорт, но день экспирации.", ["Утром — сильный шорт.", "После обсуждения перевеса нет — по правилам пропуск."]))
 note(d, "Европа")
@@ -344,6 +489,7 @@ score(d, "eu", eu, "LONG")
 d = "2026-09-21"
 eu = scale_state("eu", d, factors_for("eu", -0.6, 10), light("green", []), 25000, 290)
 write(f"scale_{d}_eu.json", eu)  # scale written, verdict not yet → «собирается»
+shots(d, "eu", eu, error="TradingView не запущен")
 write(f"macro_{d}_eu.json", collect("eu", d, "TRADE", EV_EU, -4))
 write(f"macro_{d}_us_verdict.json", verdict("LONG", "medium", "Фон за лонг. Шкала не построилась: нет баров ночи (scale_error).", ["Механики нет — опираюсь только на новости: лонг от открытия, риск 0.5 %."]))
 
@@ -355,6 +501,7 @@ eu = scale_state("eu", d, factors_for("eu", -0.7, 11, silent=1), light("yellow",
                         "text": f"Довод {i + 1}: " + "длинный текст довода, чтобы проверить, как карточка переносит строки и не ломает вёрстку; " * 2,
                         "reply": "Ответ агента тоже длинный: " + "проверяю перенос строк в ответе и иконку позиции; " * 2, "view": ["agree", "partial", "disagree"][i % 3]} for i in range(5)], history=8)
 write(f"scale_{d}_eu.json", eu)
+shots(d, "eu", eu, missing=("h1",))  # the H1 picture is listed but its file is gone
 c = collect("eu", d, "TRADE", EV_EU * 4, -9)
 write(f"macro_{d}_eu.json", c)
 write(f"macro_{d}_eu_verdict.json", verdict("SHORT", "medium", "Очень длинное резюме новостного фона: " + "доходности растут, нефть дорожает, Азия падает, евро слабеет, VSTOXX растёт; " * 4, long_plan,
@@ -366,6 +513,7 @@ note(d, "Европа")
 d = "2026-09-23"
 eu = scale_state("eu", d, factors_for("eu", 0.5, 12), light("green", []), 25400, 265)
 write(f"scale_{d}_eu.json", eu)
+shots(d, "eu", eu, error="dry-run")
 write(f"macro_{d}_eu.json", collect("eu", d, "TRADE", EV_EU, 4))
 write(f"macro_{d}_eu_verdict.json", verdict("LONG", "medium", "Фон за лонг.", ["Лонг от снятия минимума премаркета, цель IB1."]))
 review(d, {"eu": (eu, "LONG", 0.33, "да", True, False), "us": None})

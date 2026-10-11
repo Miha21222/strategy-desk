@@ -5,7 +5,13 @@ import {
   defaultWindow,
   discussPrompt,
   factorStats,
+  isShotPath,
+  legendColor,
   lessonsTail,
+  mainShot,
+  normalizeShots,
+  shotsErrorText,
+  shotTabLabel,
   macroChatTitle,
   normalizeScale,
   fmt,
@@ -19,7 +25,7 @@ import {
   type ScaleFactor,
 } from './macro';
 
-const emptyRegion = (region: 'eu' | 'us') => ({ region, scale: null, verdict: null, collect: null, note: null });
+const emptyRegion = (region: 'eu' | 'us') => ({ region, scale: null, verdict: null, collect: null, note: null, shots: null });
 const day = (over: Partial<MacroDay> = {}): MacroDay => ({
   date: '2026-10-12',
   eu: emptyRegion('eu'),
@@ -132,6 +138,77 @@ describe('journal files', () => {
     expect(dateOfStateFile('macro_2026-10-07_eu_verdict.json')).toBe('2026-10-07');
     expect(dateOfStateFile('scale_backtest_us.json')).toBeNull();
     expect(dateOfStateFile('bias_2026-10-05.json')).toBeNull();
+    expect(dateOfStateFile('shots_2026-10-09_us.json')).toBe('2026-10-09');
+  });
+});
+
+describe('chart screenshots', () => {
+  const file = {
+    date: '2026-10-09', region: 'us', asof: '2026-10-09 15:55', ok: true, error: null,
+    shots: [
+      { name: 'h1', tf: 'H1', title: 'H1 — зоны и цели дня', path: 'indices-kb/shots/2026-10-09/macro_us/h1.png', verify_ok: true, legend: [] },
+      { name: 'm15', tf: 'M15', title: 'M15 — ночь и уровни у открытия', path: 'indices-kb/shots/2026-10-09/macro_us/m15.png', verify_ok: false,
+        legend: [{ key: 'manip1+DO', label: 'манипуляция: открытие дня', kind: 'manip', color: '#d32f2f' }, { key: 'x', kind: 'level' }, 'junk'] },
+      { name: 'nopath', tf: 'D1' },
+    ],
+  };
+
+  it('reads the contract and drops what is not a picture', () => {
+    const s = normalizeShots(file, 'eu')!;
+    expect(s.region).toBe('us');
+    expect(s.ok).toBe(true);
+    expect(s.error).toBeNull();
+    expect(s.shots.map((x) => x.name)).toEqual(['h1', 'm15']);
+    expect(s.shots[1].verify_ok).toBe(false);
+    expect(s.shots[1].legend).toEqual([{ key: 'manip1+DO', label: 'манипуляция: открытие дня', kind: 'manip', color: '#d32f2f' }]);
+  });
+
+  it('survives garbage and a failed run', () => {
+    expect(normalizeShots(null, 'eu')).toBeNull();
+    expect(normalizeShots([1, 2], 'eu')).toBeNull();
+    expect(normalizeShots('x', 'eu')).toBeNull();
+    expect(normalizeShots({ hello: 1 }, 'eu')).toBeNull();
+    const f = normalizeShots({ ok: false, error: 'dry-run', shots: null }, 'eu')!;
+    expect(f).toMatchObject({ ok: false, error: 'dry-run', shots: [], region: 'eu' });
+  });
+
+  it('puts M15 in the main view, whatever the order', () => {
+    const s = normalizeShots(file, 'us')!;
+    expect(mainShot(s.shots)?.name).toBe('m15');
+    expect(mainShot([s.shots[0]])?.name).toBe('h1');
+    expect(mainShot([])).toBeNull();
+  });
+
+  it('names tabs from the timeframe and the title', () => {
+    expect(shotTabLabel({ tf: 'M15', title: 'M15 — ночь и уровни у открытия', name: 'm15' })).toBe('M15 · ночь и уровни у открытия');
+    expect(shotTabLabel({ tf: 'H1', title: 'зоны дня', name: 'h1' })).toBe('H1 · зоны дня');
+    expect(shotTabLabel({ tf: '', title: '', name: 'h4' })).toBe('H4');
+  });
+
+  it('words the reason in plain language', () => {
+    expect(shotsErrorText('dry-run')).toEqual({ known: 'dry-run', text: '' });
+    expect(shotsErrorText(null).known).toBe('none');
+    expect(shotsErrorText('TradingView не запущен')).toEqual({ known: null, text: 'TradingView не запущен' });
+    const long = shotsErrorText('нет шкалы с планом: ' + 'x'.repeat(200));
+    expect(long.text.length).toBeLessThanOrEqual(90);
+    expect(long.text.endsWith('…')).toBe(true);
+  });
+
+  it('keeps only plain hex colours, else the kind default', () => {
+    expect(legendColor({ color: '#1e8e3e', kind: 'target' })).toBe('#1e8e3e');
+    expect(legendColor({ color: 'red; background:url(x)', kind: 'manip' })).toBe('#d32f2f');
+    expect(legendColor({ color: '', kind: 'weird' })).toBe('#37474f');
+  });
+
+  it('accepts only PNGs under indices-kb/shots', () => {
+    expect(isShotPath('indices-kb/shots/2026-10-09/macro_us/m15.png')).toBe(true);
+    expect(isShotPath('indices-kb\\shots\\2026-10-09\\m15.png')).toBe(true);
+    expect(isShotPath('indices-kb/shots/../state/x.png')).toBe(false);
+    expect(isShotPath('indices-kb/shots/2026-10-09/m15.jpg')).toBe(false);
+    expect(isShotPath('indices-kb/state/m15.png')).toBe(false);
+    expect(isShotPath('/etc/indices-kb/shots/a/b.png')).toBe(false);
+    expect(isShotPath('C:/indices-kb/shots/a/b.png')).toBe(false);
+    expect(isShotPath(42)).toBe(false);
   });
 });
 

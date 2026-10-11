@@ -315,6 +315,11 @@ export interface DeskApi {
     day(date: string): Promise<MacroDay>;
     /** Open a note under `Макро-обзоры/` in the default app (Obsidian); false when refused. */
     openNote(rel: string): Promise<boolean>;
+    /**
+     * A chart screenshot (`MacroShot.path`, a PNG under `indices-kb/shots/`) as a
+     * `data:image/png;base64,…` URL; null when it is missing or refused.
+     */
+    image(rel: string): Promise<string | null>;
     onChanged(cb: (dates: string[]) => void): () => void;
   };
   /** Applies the window zoom factor (settings.uiScale); returns the clamped value. */

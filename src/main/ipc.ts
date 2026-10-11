@@ -18,7 +18,7 @@ import * as store from './store';
 import { callTool } from './tv-cli';
 import { launchTradingView } from './tv-launch';
 import { listWorkflows } from './workflows';
-import { listDays, loadDay, resolveNote, watchVault } from './macro-state';
+import { listDays, loadDay, readShot, resolveNote, watchVault } from './macro-state';
 
 const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
 
@@ -61,6 +61,8 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     if (!full) return false;
     return (await shell.openPath(full)) === '';
   });
+  // A chart screenshot of a review, as a data URL; only PNGs under indices-kb/shots/.
+  ipcMain.handle('macro:image', async (_e, rel: string) => readShot(await readVault(), String(rel ?? '')));
 
   ipcMain.handle('status:get', async () => getStatus(await store.getSettings()));
 

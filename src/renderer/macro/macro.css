@@ -450,3 +450,115 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
   font-size: var(--text-md);
   font-weight: var(--weight-medium);
 }
+
+/* ---------- chart screenshots (shots_<D>_<region>.json) ----------
+   The pictures are TradingView's dark chart in both themes; the frame around
+   them follows the theme. Legend swatches carry the line colours of the file. */
+.shot-inline { margin: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.shot-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: #131722;
+  box-shadow: none;
+  cursor: zoom-in;
+  aspect-ratio: 12 / 7;
+}
+.shot-frame:hover:not(:disabled) { border-color: var(--border-strong); }
+.shot-frame:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.shot-frame:disabled { cursor: default; opacity: 1; }
+.shot-frame img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.shot-loading, .shot-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+}
+.shot-loading { position: absolute; inset: 0; color: #8a93a6; }
+.shot-missing {
+  aspect-ratio: 12 / 7;
+  background: var(--bg-elev);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: default;
+}
+.shot-warn {
+  position: absolute;
+  left: var(--space-3);
+  top: var(--space-3);
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 30%);
+}
+.shot-warn.inline { position: static; box-shadow: none; }
+.macro .shot-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-6);
+  font-size: var(--text-sm);
+  color: var(--fg-muted);
+}
+.shot-legend li { display: inline-flex; align-items: center; gap: var(--space-3); line-height: 1.3; }
+.lg-line { display: inline-block; width: 18px; height: 3px; border-radius: 2px; flex-shrink: 0; background: var(--lg); }
+.lg-open .lg-line { height: 0; border-radius: 0; background: none; border-top: 2px dashed var(--lg); }
+.shots-none { font-size: var(--text-sm); }
+.shots-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--space-8); }
+.shot-cell { margin: 0; display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.shot-cell figcaption { font-weight: var(--weight-semibold); }
+
+.shot-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
+  background: var(--backdrop);
+  backdrop-filter: blur(2px);
+}
+.lb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: min(1400px, 100%);
+  max-height: 100%;
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgb(0 0 0 / 35%);
+}
+.lb-head { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.lb-tabs button { white-space: nowrap; }
+.lb-close { font-size: 16px; padding: 2px 10px; }
+.lb-img {
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #131722;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: zoom-out;
+}
+.lb-img img { display: block; max-width: 100%; max-height: calc(100vh - 220px); object-fit: contain; }
+.lb-img .muted { padding: var(--space-12); color: #8a93a6; }
+.lb-panel .shot-legend { font-size: var(--text-md); }
+/* The skill's «level» grey (#37474f) is meant for a light chart; on the dark theme lift it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .lg-level .lg-line { filter: brightness(2.3); }
+}
+:root[data-theme='dark'] .lg-level .lg-line { filter: brightness(2.3); }

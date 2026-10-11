@@ -287,7 +287,7 @@ app's own directory is not where the user works.
   and is loaded with dynamic `import()` from the CJS main bundle.
 - Chat events are the union `ChatEvent` in `api.ts`; the renderer treats the trailing assistant message with `at === -1` as live.
 - Secrets never cross IPC; the renderer sees `hasApiKey` / `hasOauthToken` only.
-- CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'` (meta tag in `index.html`). No external scripts/styles.
+- CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:` (meta tag in `index.html`; `data:` for the macro chart screenshots, see `macro:image`). No external scripts/styles.
 - Keep `tv-launch.ts` small: it will move into the tvmcp tool `tv_desktop_launch`.
 - **Anything read at runtime from a file that ships with the app** goes through `src/main/resources.ts`
   (`readResource()` / `resourceCandidates()`), never through `process.cwd()` or a bare `app.getAppPath()`.

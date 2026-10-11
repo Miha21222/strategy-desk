@@ -64,6 +64,7 @@ const api: DeskApi = {
     index: () => ipcRenderer.invoke('macro:index'),
     day: (date: string) => ipcRenderer.invoke('macro:day', date),
     openNote: (rel: string) => ipcRenderer.invoke('macro:openNote', rel),
+    image: (rel: string) => ipcRenderer.invoke('macro:image', rel),
     onChanged: (cb) => {
       const handler = (_e: Electron.IpcRendererEvent, dates: string[]) => cb(dates);
       ipcRenderer.on('macro:changed', handler);

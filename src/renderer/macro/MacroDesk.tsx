@@ -39,6 +39,7 @@ import { Markdown } from '../chat/Markdown';
 import { t } from '../i18n';
 import type { UiMessage } from '../state';
 import { Gauge, GroupBar, signed, SplitBar, zoneLabel } from './Gauge';
+import { ShotsCard, ShotsInline, ShotsLightbox } from './Shots';
 
 interface Props {
   settings: Settings;
@@ -295,6 +296,10 @@ function AgentStrip(p: { streaming: boolean; blocked: boolean; messages: UiMessa
 // ---------------------------------------------------------------- 09:30 / 16:00
 
 function RegionView({ snap, day, busy, onDiscuss, onOpenNote }: { snap: RegionSnapshot | null; day: MacroDay | null; busy: boolean; onDiscuss: (side: Side, share: number, text: string) => void; onOpenNote: (rel: string) => void }) {
+  // Which screenshot the lightbox shows; null = closed.
+  const [shotOpen, setShotOpen] = useState<number | null>(null);
+  const closeShot = useCallback(() => setShotOpen(null), []);
+  useEffect(() => setShotOpen(null), [snap?.region, snap?.shots?.date]);
   if (!snap || (!snap.scale && !snap.verdict)) {
     return <div class="macro-none muted">{t('macro.noData')}</div>;
   }
@@ -342,6 +347,7 @@ function RegionView({ snap, day, busy, onDiscuss, onOpenNote }: { snap: RegionSn
                 <b>{t('macro.cancelTitle')}</b> {s.plan.cancel}
               </p>
             ) : null}
+            <ShotsInline shots={snap.shots} onOpen={setShotOpen} />
             {v ? (
               <div class="news">
                 <span class={`vbadge v-${String(v.verdict).toLowerCase()}`}>{t(`macro.newsVerdict.${v.verdict}`)}</span>
@@ -367,6 +373,7 @@ function RegionView({ snap, day, busy, onDiscuss, onOpenNote }: { snap: RegionSn
       <details class="more">
         <summary>{t('macro.more')}</summary>
         <div class="macro-grid">
+          <ShotsCard shots={snap.shots} onOpen={setShotOpen} />
           {s?.plan ? <PlanCard snap={snap} /> : null}
           {v ? <NewsCard v={v} snap={snap} onOpenNote={onOpenNote} /> : null}
           {s?.result.groups ? <GroupsCard groups={s.result.groups} /> : null}
@@ -380,6 +387,10 @@ function RegionView({ snap, day, busy, onDiscuss, onOpenNote }: { snap: RegionSn
           ) : null}
         </div>
       </details>
+
+      {shotOpen != null && snap.shots?.ok && snap.shots.shots.length ? (
+        <ShotsLightbox shots={snap.shots} index={shotOpen} onIndex={setShotOpen} onClose={closeShot} />
+      ) : null}
     </div>
   );
 }

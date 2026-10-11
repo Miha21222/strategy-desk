@@ -2,7 +2,9 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { listDays, loadDay, resolveNote } from './macro-state';
+import { listDays, loadDay, readShot, resolveNote, resolveShot } from './macro-state';
+
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 function vault(): string {
   const root = mkdtempSync(path.join(tmpdir(), 'macro-vault-'));
@@ -26,6 +28,19 @@ function vault(): string {
   writeFileSync(path.join(state, 'bias_2026-10-09.json'), '{}');
   writeFileSync(path.join(state, 'scale_2026-10-09_us.json'), '{not json');
   writeFileSync(path.join(root, 'Макро-обзоры', '2026-10-08 Европа.md'), '# note');
+  const shots = {
+    date: '2026-10-08', region: 'eu', asof: '2026-10-08 09:40', ok: true, error: null,
+    shots: [{ name: 'm15', tf: 'M15', title: 'M15 — ночь', path: 'indices-kb/shots/2026-10-08/macro_eu/m15.png', verify_ok: true,
+      legend: [{ key: 'NYM', label: 'полночь Нью-Йорка', kind: 'open', color: '#9e9e9e' }] }],
+  };
+  writeFileSync(path.join(state, 'shots_2026-10-08_eu.json'), '﻿' + JSON.stringify(shots));
+  writeFileSync(path.join(state, 'shots_2026-10-08_us.json'), '{"ok": tru');
+  writeFileSync(path.join(state, 'shots_2026-10-07_eu.json'), JSON.stringify({ date: '2026-10-07', region: 'eu', asof: '', ok: false, error: 'dry-run', shots: [] }));
+  const shotDir = path.join(root, 'indices-kb', 'shots', '2026-10-08', 'macro_eu');
+  mkdirSync(shotDir, { recursive: true });
+  writeFileSync(path.join(shotDir, 'm15.png'), Buffer.concat([PNG, Buffer.from('rest')]));
+  writeFileSync(path.join(shotDir, 'fake.png'), 'not a png at all');
+  writeFileSync(path.join(root, 'indices-kb', 'state', 'secret.png'), PNG);
   writeFileSync(path.join(journal, 'lessons.md'), '- 2026-10-07: старый\n- 2026-10-08: новый\n');
   writeFileSync(path.join(journal, 'scale_factor_scores.csv'), 'date,region,factor,group,share,side,strength,dir,hit\n2026-10-07,eu,bias_a,g,12,SHORT,1,SHORT,1\n');
   writeFileSync(path.join(root, 'indices-kb', 'config', 'scale.json'), JSON.stringify({ zones: { neutral: 15, strong: 40 }, regions: { eu: { factors: [{ id: 'bias_a', name: 'Точка A / BIAS' }] } } }));
@@ -58,6 +73,35 @@ describe('the vault reader', () => {
   it('survives a half-written file', async () => {
     const d = await loadDay(vault(), '2026-10-09');
     expect(d.us.scale).toBeNull();
+  });
+
+  it('reads the screenshots file of a window, and tolerates a BOM or garbage', async () => {
+    const v = vault();
+    const d = await loadDay(v, '2026-10-08');
+    expect(d.eu.shots?.ok).toBe(true);
+    expect(d.eu.shots?.shots[0].legend[0].label).toBe('полночь Нью-Йорка');
+    expect(d.us.shots).toBeNull();
+    const d7 = await loadDay(v, '2026-10-07');
+    expect(d7.eu.shots).toMatchObject({ ok: false, error: 'dry-run', shots: [] });
+    expect(d7.us.shots).toBeNull();
+  });
+
+  it('gives out only PNGs inside indices-kb/shots', async () => {
+    const v = vault();
+    const rel = 'indices-kb/shots/2026-10-08/macro_eu/m15.png';
+    expect(resolveShot(v, rel)).toBe(path.join(v, 'indices-kb', 'shots', '2026-10-08', 'macro_eu', 'm15.png'));
+    expect(resolveShot(v, 'indices-kb/shots/../state/secret.png')).toBeNull();
+    expect(resolveShot(v, 'indices-kb/shots/2026-10-08/../../state/secret.png')).toBeNull();
+    expect(resolveShot(v, 'indices-kb/state/secret.png')).toBeNull();
+    expect(resolveShot(v, 'indices-kb/shots/2026-10-08/macro_eu/m15.json')).toBeNull();
+    expect(resolveShot(v, path.join(v, rel))).toBeNull();
+    expect(resolveShot('', rel)).toBeNull();
+    const url = await readShot(v, rel);
+    expect(url?.startsWith('data:image/png;base64,')).toBe(true);
+    expect(Buffer.from(url!.split(',')[1], 'base64').subarray(0, 8).equals(PNG)).toBe(true);
+    expect(await readShot(v, 'indices-kb/shots/2026-10-08/macro_eu/fake.png')).toBeNull();
+    expect(await readShot(v, 'indices-kb/shots/2026-10-08/macro_eu/missing.png')).toBeNull();
+    expect(await readShot(v, 'indices-kb/state/secret.png')).toBeNull();
   });
 
   it('opens only markdown notes inside the notes folder', () => {
