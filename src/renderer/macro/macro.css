@@ -652,6 +652,7 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
 .macro button.link {
   background: none;
   border: 0;
+  box-shadow: none;
   padding: 0;
   font: inherit;
   color: var(--accent);
@@ -662,10 +663,62 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
   color: var(--accent);
   font-weight: 600;
 }
-.macro .lessons li.main {
+.macro .lessons li.lesson-main {
   font-size: 16px;
   font-weight: 600;
 }
-.macro .lessons li.rest {
+.macro .lessons li.lesson-rest {
   opacity: 0.75;
+}
+
+/* ---- factor explanations in «Почему так» ---- */
+.macro .whycol-list li .frow {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: baseline;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 3px 4px;
+  margin: 0 -4px;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+.macro .whycol-list li .frow:hover:not(:disabled),
+.macro .whycol-list li.open .frow {
+  background: var(--bg-hover);
+  border: 0;
+  box-shadow: none;
+}
+.macro .why-info {
+  margin: 12px 14px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: var(--bg-elev);
+  border-radius: 0 8px 8px 0;
+}
+.macro .why-info-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.macro .finfo {
+  font-size: var(--text-md);
+}
+.macro .finfo p {
+  margin: 0 0 6px;
+  line-height: 1.4;
+}
+.macro .finfo p:last-child {
+  margin-bottom: 0;
+}
+.macro .why-hint {
+  margin: 0;
+  padding: 10px 14px 0;
 }

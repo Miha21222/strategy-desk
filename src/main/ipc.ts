@@ -224,7 +224,11 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.on('chat:send', (_e, args: SendArgs) => {
     if (!args || typeof args.chatKey !== 'string' || typeof args.text !== 'string') return;
     const mode = args.mode === 'saver' ? 'saver' : 'full';
-    void startChat({ chatKey: args.chatKey, text: args.text, mode }, emit).catch((e) => {
+    // Attachments: only the shape is checked here; size and count in startChat, which can answer with an error event.
+    const attachments = Array.isArray(args.attachments)
+      ? args.attachments.filter((a) => a && typeof a === 'object' && typeof a.name === 'string' && typeof a.data === 'string').map((a) => ({ name: a.name, type: typeof a.type === 'string' ? a.type : '', data: a.data }))
+      : [];
+    void startChat({ chatKey: args.chatKey, text: args.text, mode, attachments }, emit).catch((e) => {
       emit({ chatKey: args.chatKey, kind: 'error', message: String((e as Error)?.message ?? e) });
     });
   });

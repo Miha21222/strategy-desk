@@ -16,7 +16,7 @@
 // answers two questions about his day («Твой день»). Those two answers are
 // the only things the desk writes into the vault; the evening then shows who
 // was right — him, the scale, or neither.
-import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ChatMeta, Settings } from '@shared/api';
 import {
   defaultWindow,
@@ -431,15 +431,7 @@ function RegionView({ snap, day, date, past, peek, onPeek, busy, onDiscuss, onOp
           </div>
         </div>
 
-        {split && (split.long.length || split.short.length) ? (
-          <div class="card why">
-            <div class="card-head">{t('macro.whyTitle')}</div>
-            <div class="card-body why-cols">
-              <WhyColumn side="long" list={split.long} />
-              <WhyColumn side="short" list={split.short} />
-            </div>
-          </div>
-        ) : null}
+        {split && (split.long.length || split.short.length) ? <WhyCard split={split} day={day} region={snap.region} /> : null}
 
         {s ? <DiscussionCard items={s.discussion ?? []} busy={busy} onDiscuss={onDiscuss} /> : null}
       </div>
@@ -533,8 +525,49 @@ function HumanReadCard({ region, human, scaleSide, onPick, onPeek }: { region: R
   );
 }
 
-/** Every factor that voted for one side, strongest first. */
-function WhyColumn({ side, list }: { side: 'long' | 'short'; list: ScaleFactor[] }) {
+/** «Почему так»: the two columns, and under them the explanation of the factor the owner tapped. */
+function WhyCard({ split, day, region }: { split: ReturnType<typeof splitFactors>; day: MacroDay | null; region: Region }) {
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => setOpen(null), [region, day?.date]);
+  const f = open ? [...split.long, ...split.short].find((x) => x.id === open) ?? null : null;
+  // The explanation sits above the columns (a list of 15 would push it out of
+  // sight below); a tap on a row far down brings it back into view.
+  const infoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) infoRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [open]);
+  return (
+    <div class="card why">
+      <div class="card-head">{t('macro.whyTitle')}</div>
+      {f ? (
+        <div class="why-info" ref={infoRef}>
+          <div class="why-info-head">
+            <b class={f.side === 'LONG' ? 'pos' : 'neg'}>{f.name}</b>
+            <span class="spacer" />
+            <button type="button" class="ghost small" onClick={() => setOpen(null)}>
+              ×
+            </button>
+          </div>
+          <FactorInfo f={f} stat={statsFor(day, region).get(f.id)} />
+        </div>
+      ) : (
+        <p class="muted small why-hint">{t('macro.whyHint')}</p>
+      )}
+      <div class="card-body why-cols">
+        <WhyColumn side="long" list={split.long} open={open} onOpen={setOpen} />
+        <WhyColumn side="short" list={split.short} open={open} onOpen={setOpen} />
+      </div>
+    </div>
+  );
+}
+
+/** Hit rate per factor id for one region, from the day's 30-day stats. */
+function statsFor(day: MacroDay | null, region: Region): Map<string, { hits: number; total: number }> {
+  return new Map((day?.stats ?? []).filter((x) => x.region === region).map((x) => [x.factor, { hits: x.hits, total: x.total }]));
+}
+
+/** Every factor that voted for one side, strongest first; a tap opens what the factor means and why it voted today. */
+function WhyColumn({ side, list, open, onOpen }: { side: 'long' | 'short'; list: ScaleFactor[]; open: string | null; onOpen: (id: string | null) => void }) {
   const sum = Math.round(list.reduce((n, f) => n + f.points, 0));
   return (
     <div class={`whycol ${side}`}>
@@ -545,15 +578,62 @@ function WhyColumn({ side, list }: { side: 'long' | 'short'; list: ScaleFactor[]
       {list.length ? (
         <ul class="whycol-list">
           {list.map((f) => (
-            <li title={f.why}>
-              <span class="whycol-w">{fmt(f.points)} %</span>
-              <span class="whycol-name">{f.name}</span>
+            <li class={open === f.id ? 'open' : ''}>
+              <button type="button" class="frow" aria-expanded={open === f.id} onClick={() => onOpen(open === f.id ? null : f.id)}>
+                <span class="whycol-w">{fmt(f.points)} %</span>
+                <span class="whycol-name">{f.name}</span>
+              </button>
             </li>
           ))}
         </ul>
       ) : (
         <p class="muted">{t('macro.noneSide')}</p>
       )}
+    </div>
+  );
+}
+
+/** The id the explanations are keyed by: discussion arguments share one entry. */
+function aboutKey(id: string): string {
+  return id.startsWith('talk_') ? 'talk' : id;
+}
+
+/**
+ * What a factor means and why it voted today (note 23: the owner should
+ * understand the rule, not memorise a name). The meaning comes from the desk's
+ * own plain-Russian dictionary (note 22 §2–3); today's reason is the skill's
+ * `why` from the scale file.
+ */
+function FactorInfo({ f, stat }: { f: ScaleFactor; stat?: { hits: number; total: number } }) {
+  const key = `macro.factorAbout.${aboutKey(f.id)}`;
+  const what = t(`${key}.what`);
+  const known = what !== `${key}.what`;
+  return (
+    <div class="finfo">
+      {f.why ? (
+        <p>
+          <b>{t('macro.factorToday')}</b> {f.why}
+        </p>
+      ) : null}
+      {known ? (
+        <>
+          <p>
+            <b>{t('macro.factorWhat')}</b> {what}
+          </p>
+          <p class={f.side === 'LONG' ? 'pos' : ''}>
+            <b>{t('macro.factorLong')}</b> {t(`${key}.long`)}
+          </p>
+          <p class={f.side === 'SHORT' ? 'neg' : ''}>
+            <b>{t('macro.factorShort')}</b> {t(`${key}.short`)}
+          </p>
+        </>
+      ) : (
+        <p class="muted">{t('macro.factorNoAbout')}</p>
+      )}
+      <p class="muted small">
+        {t('macro.factorWeight', { w: Math.round(f.share), s: Math.round(f.strength * 100), p: fmt(f.points) })}
+        {stat && stat.total >= 3 ? ` · ${t('macro.factorHitRate', { r: Math.round((stat.hits * 100) / stat.total), n: stat.total })}` : ''}
+      </p>
     </div>
   );
 }
@@ -906,7 +986,7 @@ function ReviewView({ day, date, past, onOpenNote }: { day: MacroDay | null; dat
             <div class="card-body">
               <ul class="lessons">
                 {agent.lessons.map((x, i) => (
-                  <li class={i === 0 ? 'main' : 'rest'}>{x}</li>
+                  <li class={i === 0 ? 'lesson-main' : 'lesson-rest'}>{x}</li>
                 ))}
               </ul>
             </div>

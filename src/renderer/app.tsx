@@ -1,7 +1,7 @@
 // Application shell: sidebar + tabbed main area + report drawer. Owns all
 // renderer state, the single chat:event subscription and the card actions.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
+import type { Attachment, AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
 import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
@@ -313,14 +313,14 @@ export function App() {
    * the "new chat" button in the sidebar.
    */
   const send = useCallback(
-    async (text: string, key = currentKeyRef.current) => {
+    async (text: string, key = currentKeyRef.current, attachments: Attachment[] = []) => {
       const chatKey = key ?? (await newChat());
       currentKeyRef.current = chatKey;
-      setMessages((ms) => [...ms, { role: 'user', text, at: Date.now() }]);
+      setMessages((ms) => [...ms, { role: 'user', text, at: Date.now(), ...(attachments.length ? { files: attachments.map((a) => a.name) } : {}) }]);
       setStreaming(true);
       setThinking(false);
       setConnecting(true);
-      desk.chat.send({ chatKey, text, mode });
+      desk.chat.send({ chatKey, text, mode, ...(attachments.length ? { attachments } : {}) });
     },
     [desk, mode, newChat],
   );
@@ -605,7 +605,7 @@ export function App() {
             />
             </MacroBoundary>
           ) : tab === 'copilot' ? (
-            <ChatView chat={current} simple={!settings.legacyUi} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
+            <ChatView chat={current} simple={!settings.legacyUi} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text, files) => void send(text, undefined, files)} onQuick={(p) => void quick(p)} onStop={stop} />
           ) : tab === 'day' ? (
             <DayPanel workflow={activeWorkflow} settings={settings} busy={streaming} onAsk={(prompt, focus) => void quick(prompt, focus)} />
           ) : tab === 'workflows' ? (

@@ -2,7 +2,7 @@
 // rows, thinking indicator, composer (with the `/` report catalog), Stop,
 // token/cost meter, mode toggle and the home chips on an empty chat.
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { AgentInit, ChatMeta, ChatMode, ToolCallItem, WorkflowPrompt } from '@shared/api';
+import { ATTACH_MAX_BYTES, ATTACH_MAX_FILES, type AgentInit, type Attachment, type ChatMeta, type ChatMode, type ToolCallItem, type WorkflowPrompt } from '@shared/api';
 import { Markdown } from './Markdown';
 import { t } from '../i18n';
 import { ASK_CHIPS, filterCatalog, HOME_CHIPS, READ_CHART_VARIANTS, webStrategyPrompt } from '../prompts';
@@ -21,7 +21,7 @@ export interface ChatViewProps {
   mode: ChatMode;
   catalog: WorkflowPrompt[];
   onModeChange: (m: ChatMode) => void;
-  onSend: (text: string) => void;
+  onSend: (text: string, attachments?: Attachment[]) => void;
   /** Send a library prompt; creates a chat first when none is open. */
   onQuick: (prompt: string) => void;
   onStop: () => void;
@@ -59,7 +59,16 @@ function Message({ m }: { m: UiMessage }) {
   if (m.role === 'user') {
     return (
       <div class="msg user">
-        <div class="bubble">{m.text}</div>
+        <div class="bubble">
+          {m.text}
+          {m.files?.length ? (
+            <div class="files">
+              {m.files.map((f) => (
+                <span class="file-chip">📎 {f}</span>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   }
@@ -151,6 +160,46 @@ export function ChatView(p: ChatViewProps) {
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Files waiting to go with the next message (note 23: a screenshot of the
+  // chart, a PDF). Added with the clip button, by dropping onto the composer,
+  // or by pasting an image (Ctrl+V after a screenshot).
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [fileError, setFileError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const addFiles = async (list: ArrayLike<File> | null | undefined, pasted = false) => {
+    if (!list || !list.length) return;
+    const next = [...files];
+    let total = next.reduce((n, f) => n + f.bytes, 0);
+    for (const f of Array.from(list)) {
+      if (next.length >= ATTACH_MAX_FILES) {
+        setFileError(t('composer.tooMany', { n: ATTACH_MAX_FILES }));
+        break;
+      }
+      if (total + f.size > ATTACH_MAX_BYTES) {
+        setFileError(t('composer.tooBig', { mb: Math.round(ATTACH_MAX_BYTES / 1024 / 1024) }));
+        break;
+      }
+      const data = await readBase64(f);
+      const name = pasted && f.type.startsWith('image/') ? `screenshot-${stamp()}.${f.type.split('/')[1] === 'jpeg' ? 'jpg' : f.type.split('/')[1] || 'png'}` : f.name || `file-${stamp()}`;
+      next.push({ name, type: f.type, data, bytes: f.size, preview: f.type.startsWith('image/') ? `data:${f.type};base64,${data}` : null });
+      total += f.size;
+    }
+    setFiles(next);
+  };
+  const removeFile = (i: number) => setFiles((cur) => cur.filter((_, k) => k !== i));
+  const onPaste = (e: ClipboardEvent) => {
+    const items = Array.from(e.clipboardData?.items ?? []).filter((it) => it.kind === 'file');
+    if (!items.length) return;
+    const got = items.map((it) => it.getAsFile()).filter((f): f is File => Boolean(f));
+    if (got.length) {
+      e.preventDefault();
+      void addFiles(got, true);
+    }
+  };
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    void addFiles(e.dataTransfer?.files);
+  };
 
   useEffect(() => {
     const el = listRef.current;
@@ -174,9 +223,11 @@ export function ChatView(p: ChatViewProps) {
   // No chat open is fine: onSend creates one and sends into it.
   const submit = () => {
     const text = draft.trim();
-    if (!text || p.streaming) return;
-    p.onSend(text);
+    if ((!text && !files.length) || p.streaming) return;
+    p.onSend(text, files.length ? files.map(({ name, type, data }) => ({ name, type, data })) : undefined);
     setDraft('');
+    setFiles([]);
+    setFileError('');
   };
 
   const onKey = (e: KeyboardEvent) => {
@@ -251,8 +302,28 @@ export function ChatView(p: ChatViewProps) {
           value={draft}
           onInput={(e) => setDraft((e.target as HTMLTextAreaElement).value)}
           onKeyDown={onKey}
+          onPaste={onPaste}
+          onDrop={onDrop}
+          onDragOver={(e) => e.preventDefault()}
         />
+        {files.length || fileError ? (
+          <div class="pending-files">
+            {files.map((f, i) => (
+              <span class="file-chip" title={`${f.type || 'file'} · ${Math.max(1, Math.round(f.bytes / 1024))} KB`}>
+                {f.preview ? <img src={f.preview} alt="" /> : '📎'} {f.name}
+                <button type="button" class="x" aria-label={t('composer.removeFile')} onClick={() => removeFile(i)}>
+                  ×
+                </button>
+              </span>
+            ))}
+            {fileError ? <span class="file-error">{fileError}</span> : null}
+          </div>
+        ) : null}
         <div class="composer-bar">
+          <input ref={fileRef} type="file" multiple hidden accept="image/*,.pdf,.csv,.txt,.md,.json,.xlsx" onChange={(e) => { void addFiles((e.target as HTMLInputElement).files); (e.target as HTMLInputElement).value = ''; }} />
+          <button type="button" class="ghost attach" title={t('composer.attachHint')} disabled={p.streaming} onClick={() => fileRef.current?.click()}>
+            📎 {t('composer.attach')}
+          </button>
           {p.simple ? null : (
           <div class="mode" title={t('composer.modeHint')}>
             <button type="button" class={p.mode === 'saver' ? 'on' : ''} onClick={() => p.onModeChange('saver')}>
@@ -274,7 +345,7 @@ export function ChatView(p: ChatViewProps) {
               {t('composer.stop')}
             </button>
           ) : (
-            <button type="button" class="primary" disabled={!draft.trim()} onClick={submit}>
+            <button type="button" class="primary" disabled={!draft.trim() && !files.length} onClick={submit}>
               {t('composer.send')}
             </button>
           )}
@@ -282,4 +353,26 @@ export function ChatView(p: ChatViewProps) {
       </footer>
     </section>
   );
+}
+
+interface PendingFile extends Attachment {
+  bytes: number;
+  /** data: URL for an image thumbnail; null for other files. */
+  preview: string | null;
+}
+
+function readBase64(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(r.error);
+    r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''));
+    r.readAsDataURL(f);
+  });
+}
+
+/** «1031-164512» — for a pasted screenshot that has no name. */
+function stamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }

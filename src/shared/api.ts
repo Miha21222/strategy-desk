@@ -210,7 +210,7 @@ export type ChatEvent = { chatKey: string } & ChatEventBody;
 
 /** Persisted transcript entries (renderer-facing shape, not the model context). */
 export type TranscriptItem =
-  | { role: 'user'; text: string; at: number }
+  | { role: 'user'; text: string; at: number; /** Names of the files attached to this message, when any. */ files?: string[] }
   | { role: 'assistant'; text: string; at: number; tools: ToolCallItem[]; thinking: boolean };
 
 export interface ToolCallItem {
@@ -227,10 +227,26 @@ export interface TvLaunchResult {
   detail?: string;
 }
 
+/**
+ * A file the owner attached to a message (note 23: a screenshot of his chart,
+ * a PDF, a CSV). The main process saves it next to the session's working
+ * directory and tells the model where it is; the model opens it with Read.
+ */
+export interface Attachment {
+  name: string;
+  /** MIME type as the browser reported it; '' when unknown. */
+  type: string;
+  /** Base64 of the bytes, no data: prefix. */
+  data: string;
+}
+export const ATTACH_MAX_FILES = 10;
+export const ATTACH_MAX_BYTES = 20 * 1024 * 1024;
+
 export interface SendArgs {
   chatKey: string;
   text: string;
   mode: ChatMode;
+  attachments?: Attachment[];
 }
 
 /** What `dialog.pick` should open; the main process owns the filters. */

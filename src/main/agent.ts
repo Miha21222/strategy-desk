@@ -6,7 +6,8 @@
 // transcript and the token/cost tally. Everything that knows what an SDK or a
 // CLI looks like lives in the driver.
 import { promises as fs } from 'node:fs';
-import type { AnswerLang, ChatEvent, ChatMeta, ChatMode, EffortLevel, TokenUsage, ToolCallItem } from '@shared/api';
+import path from 'node:path';
+import { ATTACH_MAX_BYTES, ATTACH_MAX_FILES, type AnswerLang, type Attachment, type ChatEvent, type ChatMeta, type ChatMode, type EffortLevel, type TokenUsage, type ToolCallItem } from '@shared/api';
 import { engineOf, type EngineId } from '@shared/engine';
 import { buildMcpServers } from './mcp';
 import { allDrivers, getDriver } from './drivers';
@@ -142,12 +143,48 @@ export interface StartArgs {
   chatKey: string;
   text: string;
   mode: ChatMode;
+  attachments?: Attachment[];
+}
+
+const SAFE_NAME = /[^\p{L}\p{N}._ -]+/gu;
+
+/**
+ * Save the message's attachments where the session can Read them and return
+ * the lines that tell the model where they are. A vault session (macro / ask)
+ * gets `indices-kb/inbox/<date>/`, the copilot its workspace's `attachments/`.
+ * Names are sanitised and prefixed with the time so two screenshots in one
+ * day never collide. Nothing here is ever deleted by the app.
+ */
+async function saveAttachments(spec: TurnSpec, kind: ChatMeta['kind'], files: Attachment[]): Promise<{ lines: string[]; names: string[] }> {
+  if (!files.length) return { lines: [], names: [] };
+  if (files.length > ATTACH_MAX_FILES) throw new Error(`too-many-attachments: ${files.length} > ${ATTACH_MAX_FILES}`);
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10);
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+  const dir = kind === 'macro' || kind === 'ask' ? path.join(spec.cwd, 'indices-kb', 'inbox', day) : path.join(spec.cwd, 'attachments', day);
+  await fs.mkdir(dir, { recursive: true });
+  const lines: string[] = [];
+  const names: string[] = [];
+  let total = 0;
+  for (const f of files) {
+    const buf = Buffer.from(f.data, 'base64');
+    total += buf.length;
+    if (!buf.length || total > ATTACH_MAX_BYTES) throw new Error(`attachment-too-big: ${ATTACH_MAX_BYTES} bytes in all`);
+    const base = path.basename(f.name).replace(SAFE_NAME, '_').slice(0, 80) || 'file';
+    const full = path.join(dir, `${hhmm}_${base}`);
+    await fs.writeFile(full, buf);
+    const kb = Math.max(1, Math.round(buf.length / 1024));
+    lines.push(`- ${full} (${f.type || 'file'}, ${kb} KB)`);
+    names.push(base);
+  }
+  return { lines, names };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function startChat(args: StartArgs, send: Send): Promise<void> {
-  const { chatKey, text, mode } = args;
+  const { chatKey, mode } = args;
+  let text = args.text;
   if (active.has(chatKey)) {
     send({ chatKey, kind: 'error', message: 'busy' });
     return;
@@ -176,10 +213,22 @@ export async function startChat(args: StartArgs, send: Send): Promise<void> {
     if (stderrTail.length > 30) stderrTail.shift();
   };
 
+  // Attachments land on disk first; the model is told the paths, the
+  // transcript keeps only the names (the user sees chips, not paths).
+  let files: string[] = [];
+  try {
+    const saved = await saveAttachments(spec, chat.kind, args.attachments ?? []);
+    files = saved.names;
+    if (saved.lines.length) text = `${text.trim() || 'Посмотри вложения.'}\n\n[Вложения — открой их через Read, не перемещай]\n${saved.lines.join('\n')}`;
+  } catch (e) {
+    send({ chatKey, kind: 'error', message: String((e as Error)?.message ?? e) });
+    return;
+  }
+
   const now = Date.now();
-  await store.appendTranscript(chatKey, { role: 'user', text, at: now });
+  await store.appendTranscript(chatKey, { role: 'user', text: args.text, at: now, ...(files.length ? { files } : {}) });
   const patch: Parameters<typeof store.updateChat>[1] = {};
-  if (!chat.title) Object.assign(patch, { title: text.trim().slice(0, 60), updatedAt: now });
+  if (!chat.title) Object.assign(patch, { title: (args.text.trim() || files.join(', ')).slice(0, 60), updatedAt: now });
   if (!chat.engine) patch.engine = spec.engine;
   if (Object.keys(patch).length) await store.updateChat(chatKey, patch);
 

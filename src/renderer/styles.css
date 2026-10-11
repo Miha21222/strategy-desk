@@ -1376,3 +1376,13 @@ button.ghost {
 .tool:focus-within {
   box-shadow: var(--surface-highlight), var(--shadow-2);
 }
+
+/* ---- attachments in the composer and in a user message ---- */
+.pending-files, .bubble .files { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--bg-elev); font-size: var(--text-sm); max-width: 100%; }
+.bubble .file-chip { background: rgba(255, 255, 255, 0.15); }
+.file-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+.file-chip .x { background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 14px; line-height: 1; color: inherit; opacity: 0.7; }
+.file-chip .x:hover { opacity: 1; }
+.file-error { color: var(--err); font-size: var(--text-sm); align-self: center; }
+.composer-bar .attach { padding-left: 8px; padding-right: 10px; }
