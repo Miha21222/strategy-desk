@@ -209,6 +209,8 @@ export function Sidebar(p: SidebarProps) {
         ) : null}
       </Section>
 
+      {/* The macro-review MVP hides the chart quick actions with the other pre-MVP tools. */}
+      {p.settings.legacyUi ? (
       <Section id="quick" title={t('sidebar.quick')} collapsed={collapsed('quick')} onToggle={p.onToggleSection}>
         {(p.quickPrompts.length ? p.quickPrompts : QUICK_PROMPTS.map((q) => ({ id: q.key, label: t(`quick.${q.key}`), prompt: q.prompt }))).map((q) => (
           <button type="button" class="quick" key={q.id} onClick={() => p.onQuick(q.prompt)} title={q.prompt}>
@@ -216,6 +218,7 @@ export function Sidebar(p: SidebarProps) {
           </button>
         ))}
       </Section>
+      ) : null}
 
       <Section id="chats" title={t('sidebar.chats')} collapsed={collapsed('chats')} onToggle={p.onToggleSection}>
         <div class="btn-row">

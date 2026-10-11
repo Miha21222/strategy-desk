@@ -3,6 +3,8 @@ import { DEFAULT_ENGINE } from './engine';
 
 export const DEFAULT_TVMCP_PATH = 'C:\\Users\\Admin\\Projects\\tradingview-mcp';
 export const DEFAULT_CDP_PORT = 9223;
+/** The owner's vault, where the macro-review skill and its state files live. */
+export const DEFAULT_VAULT_PATH = 'C:\\Users\\Admin\\Documents\\Obsidian Notes\\Trading\\Trading Strategy Assistant';
 /** Where the preflight's `git clone` fix points. The app never runs it itself. */
 export const DEFAULT_TVMCP_REPO = 'https://github.com/Miha21222/tradingview-mcp.git';
 // `hybrid` already carries scan / journal / calendar / sentinel; `session` is
@@ -46,6 +48,8 @@ export const DEFAULT_SETTINGS: Settings = {
   fieldNotesPath: '',
   setupCompletedAt: 0,
   setupSkipped: [],
+  vaultPath: DEFAULT_VAULT_PATH,
+  legacyUi: false,
 };
 
 export const DEFAULT_PROFILE: TraderProfile = {

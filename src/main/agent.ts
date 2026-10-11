@@ -13,6 +13,7 @@ import { allDrivers, getDriver } from './drivers';
 import type { DriverEvent, EngineDriver, TurnSpec } from './drivers/types';
 import { taskInFlight } from './tasks';
 import { assemblePrompt, promptForChat } from './prompt';
+import { readResource } from './resources';
 import { getWorkflow } from './workflows';
 import * as store from './store';
 
@@ -77,6 +78,7 @@ export async function buildSystemPrompt(chat: ChatMeta, mode: ChatMode, lang: An
  * real turn come out identical and the session can be adopted.
  */
 export async function buildTurnSpec(chat: ChatMeta, mode: ChatMode): Promise<TurnSpec> {
+  if (chat.kind === 'macro') return macroSpec(mode);
   const cfg = await store.getSettings();
   const systemPrompt = await buildSystemPrompt(chat, mode, cfg.answerLang ?? 'auto');
   // A chat stays on the engine that answered it first: the id it resumes from
@@ -102,6 +104,35 @@ export async function specForPrompt(systemPrompt: string, mode: ChatMode, engine
     cwd,
     mcpServers: buildMcpServers(cfg),
     permissionPreset: cfg.permissionPreset,
+  };
+}
+
+/**
+ * The spec of a macro-review chat: Claude Code in the owner's vault, with the
+ * vault's own CLAUDE.md, skills and the owner's MCP servers — the same session
+ * the Task Scheduler opens at 09:30 / 16:00 / 20:00, so a run from the desk
+ * and a scheduled run produce the same files. The desk's prompt is only a
+ * short appendix (`prompt/macro-review.md`); the rules live in the skill.
+ */
+export async function macroSpec(mode: ChatMode): Promise<TurnSpec> {
+  const cfg = await store.getSettings();
+  const vault = cfg.vaultPath.trim();
+  if (!vault) throw new Error('vault-not-set');
+  try {
+    await fs.access(vault);
+  } catch {
+    throw new Error(`vault-not-found: ${vault}`);
+  }
+  const appendix = (await readResource('prompt', 'macro-review.md'))?.trim() ?? '';
+  return {
+    engine: 'claude',
+    systemPrompt: `${appendix}${modeSuffix(mode)}`,
+    model: cfg.model.trim(),
+    effort: saverEffort(mode, cfg.effort) ?? '',
+    cwd: vault,
+    mcpServers: {},
+    permissionPreset: cfg.permissionPreset,
+    profile: 'macro',
   };
 }
 

@@ -23,6 +23,14 @@ const CRASH_CODES = ['3221225477', '3221226505', '3221225725', '-1073741819', '-
 const STANDARD_ALLOWED = ['mcp__tradingview', 'mcp__mcp-tradingview', 'mcp__gt-database', 'Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch'];
 const STANDARD_DISALLOWED = ['Bash', 'PowerShell', 'Write', 'Edit', 'NotebookEdit', 'Skill', 'Task', 'TodoWrite'];
 
+/**
+ * What a macro chat may do: exactly what the skill needs to run its own
+ * scripts and write its own state files and notes in the vault — the same
+ * session the Task Scheduler opens, minus subagents.
+ */
+export const MACRO_ALLOWED = ['Bash', 'PowerShell', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Skill', 'WebSearch', 'WebFetch', 'TodoWrite', 'mcp__tradingview', 'mcp__mcp-tradingview', 'mcp__gt-database'];
+export const MACRO_DISALLOWED = ['Task', 'NotebookEdit'];
+
 export function permissionTools(preset: Settings['permissionPreset']): { allowedTools: string[]; disallowedTools: string[] } {
   if (preset === 'extended') {
     // TODO: add a canUseTool callback that scopes Write/Edit to chat-workspace.
@@ -52,6 +60,24 @@ export function buildEnv(cfg: Settings, secrets: { apiKey: string | null; oauthT
  * so this stays synchronous and the fingerprint costs no store read.
  */
 export function optionsFor(spec: TurnSpec): Options {
+  if (spec.profile === 'macro') {
+    return {
+      systemPrompt: { type: 'preset', preset: 'claude_code', append: spec.systemPrompt },
+      // The owner's own setup: user settings and MCP servers, the vault's
+      // CLAUDE.md and `.claude/skills`. Nothing of the desk's MCP map.
+      settingSources: ['user', 'project', 'local'],
+      skills: 'all',
+      mcpServers: {},
+      allowedTools: MACRO_ALLOWED,
+      disallowedTools: MACRO_DISALLOWED,
+      permissionMode: 'dontAsk',
+      maxTurns: 200,
+      cwd: spec.cwd,
+      includePartialMessages: true,
+      ...(spec.model.trim() ? { model: spec.model.trim() } : {}),
+      ...(spec.effort ? { effort: spec.effort } : {}),
+    };
+  }
   const { allowedTools, disallowedTools } = permissionTools(spec.permissionPreset);
   return {
     systemPrompt: spec.systemPrompt,

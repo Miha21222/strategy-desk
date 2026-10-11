@@ -33,6 +33,7 @@ describe('claude driver fingerprint', () => {
     ['cwd', { cwd: 'C:/elsewhere' }],
     ['mcp servers', { mcpServers: {} }],
     ['permission preset', { permissionPreset: 'extended' as const }],
+    ['macro profile', { profile: 'macro' as const }],
   ])('changes with the %s', async (_name, patch) => {
     const { claudeDriver } = await import('./claude');
     expect(claudeDriver.fingerprint({ ...spec, ...patch })).not.toBe(claudeDriver.fingerprint(spec));
@@ -143,5 +144,30 @@ describe('translate', () => {
     const ev = out[0] as { text: string };
     expect(ev.text.length).toBeLessThan(1400);
     expect(ev.text).toContain('more chars');
+  });
+});
+
+describe('macro chat options', () => {
+  it('runs the owner\'s own Claude Code in the vault: preset prompt + appendix, user/project settings, skills, no desk MCP', async () => {
+    const { optionsFor, MACRO_ALLOWED } = await import('./claude');
+    const o = optionsFor({ ...spec, profile: 'macro', cwd: 'C:/vault', mcpServers: {} });
+    expect(o.systemPrompt).toEqual({ type: 'preset', preset: 'claude_code', append: 'base prompt' });
+    expect(o.settingSources).toEqual(['user', 'project', 'local']);
+    expect(o.skills).toBe('all');
+    expect(o.mcpServers).toEqual({});
+    expect(o.strictMcpConfig).toBeUndefined();
+    expect(o.cwd).toBe('C:/vault');
+    expect(o.allowedTools).toEqual(MACRO_ALLOWED);
+    expect(o.allowedTools).toContain('Skill');
+    expect(o.allowedTools).toContain('Bash');
+    expect(o.disallowedTools).toContain('Task');
+  });
+
+  it('keeps the desk chat isolated as before', async () => {
+    const { optionsFor } = await import('./claude');
+    const o = optionsFor(spec);
+    expect(o.settingSources).toEqual([]);
+    expect(o.strictMcpConfig).toBe(true);
+    expect(o.disallowedTools).toContain('Skill');
   });
 });

@@ -30,6 +30,14 @@ export interface TurnSpec {
   mcpServers: ServerMap;
   /** What the model may do; each engine expresses it with what it has. */
   permissionPreset: PermissionPreset;
+  /**
+   * `macro`: the turn runs the owner's own Claude Code setup inside the vault —
+   * its CLAUDE.md, skills and MCP servers — instead of the desk's isolated one.
+   * `systemPrompt` is then appended to Claude Code's preset rather than
+   * replacing it, because the skills need the preset to be found and run.
+   * Claude-only: a macro chat never runs on another engine.
+   */
+  profile?: 'macro';
 }
 
 /**

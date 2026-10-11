@@ -5,11 +5,16 @@ import type { PanelDayState, PanelDef, TvCallResult } from './panel';
 import type { PreflightResult } from './preflight';
 import type { TaskEvent, TaskId, TaskState } from './tasks';
 import type { EngineId } from './engine';
+import type { MacroDay, MacroIndex } from './macro';
 
 export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent, TaskId, TaskState, EngineId };
 
-export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
-export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
+/**
+ * `macro` is the shelf of the macro-review MVP: one chat per day that runs the
+ * owner's `macro-review` skill inside the vault (see `macroSpec` in agent.ts).
+ */
+export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day' | 'macro';
+export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day', 'macro'];
 
 export interface ChatMeta {
   key: string;
@@ -125,6 +130,17 @@ export interface Settings {
   setupCompletedAt: number;
   /** Wizard steps the user chose to skip; the affected feature says why it is limited. */
   setupSkipped: string[];
+  /**
+   * The owner's Obsidian vault folder (the one holding `indices-kb/` and
+   * `.claude/skills/macro-review`). The macro tab reads its state files, and a
+   * macro chat runs Claude Code with this folder as its working directory.
+   */
+  vaultPath: string;
+  /**
+   * Show the pre-MVP tabs (День, Воркфлоу) and the workflow quick prompts.
+   * Off by default since the macro-review MVP; the code stays, only hidden.
+   */
+  legacyUi: boolean;
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'>>;
@@ -215,7 +231,7 @@ export interface SendArgs {
 }
 
 /** What `dialog.pick` should open; the main process owns the filters. */
-export type PickKind = 'tvmcp-dir' | 'gt-rag-dir' | 'risk-rules' | 'journal' | 'field-notes';
+export type PickKind = 'tvmcp-dir' | 'gt-rag-dir' | 'risk-rules' | 'journal' | 'field-notes' | 'vault-dir';
 
 export interface DeskApi {
   status: { get(): Promise<Status> };
@@ -288,6 +304,18 @@ export interface DeskApi {
     /** Start the session this chat's next turn will need, before the text exists. */
     prewarm(args: { chatKey: string | null; mode: ChatMode }): void;
     onEvent(cb: (ev: ChatEvent) => void): () => void;
+  };
+  /**
+   * The macro-review files in the vault, read-only. `onChanged` fires with the
+   * dates whose state files moved (a run from the desk, the Task Scheduler or
+   * a terminal — the desk does not care who wrote them).
+   */
+  macro: {
+    index(): Promise<MacroIndex>;
+    day(date: string): Promise<MacroDay>;
+    /** Open a note under `Макро-обзоры/` in the default app (Obsidian); false when refused. */
+    openNote(rel: string): Promise<boolean>;
+    onChanged(cb: (dates: string[]) => void): () => void;
   };
   /** Applies the window zoom factor (settings.uiScale); returns the clamped value. */
   ui: { zoom(factor: number): Promise<number> };

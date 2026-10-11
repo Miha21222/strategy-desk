@@ -11,6 +11,8 @@ import { CardActionsContext, type CardActions } from './blocks';
 import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
 import { DayPanel } from './components/DayPanel';
+import { MacroDesk } from './macro/MacroDesk';
+import { macroChatTitle } from '@shared/macro';
 import { HelpTab } from './components/HelpTab';
 import { ReportDrawer } from './components/ReportDrawer';
 import { SettingsTab } from './components/SettingsTab';
@@ -24,8 +26,13 @@ import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizar
 import type { UiMessage } from './state';
 import { addToast, TOAST_MS, type Toast, type ToastLevel } from './toasts';
 
-type Tab = 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
-const TABS: Tab[] = ['copilot', 'day', 'workflows', 'settings', 'help'];
+type Tab = 'macro' | 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
+/**
+ * The macro-review MVP shows four tabs; the day panel and the workflow tab are
+ * still here, behind `settings.legacyUi`, until they are rebuilt or removed.
+ */
+const MVP_TABS: Tab[] = ['macro', 'copilot', 'settings', 'help'];
+const LEGACY_TABS: Tab[] = ['macro', 'copilot', 'day', 'workflows', 'settings', 'help'];
 const STATUS_POLL_MS = 20_000;
 
 function applyTheme(theme: Settings['theme']): void {
@@ -36,7 +43,7 @@ function applyTheme(theme: Settings['theme']): void {
 
 export function App() {
   const desk = window.desk;
-  const [tab, setTab] = useState<Tab>('copilot');
+  const [tab, setTab] = useState<Tab>('macro');
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [profile, setProfile] = useState<TraderProfile>(DEFAULT_PROFILE);
   const [status, setStatus] = useState<Status | null>(null);
@@ -78,6 +85,7 @@ export function App() {
   currentKeyRef.current = currentKey;
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const patchSettingsRef = useRef<(patch: SettingsPatch) => Promise<void>>(async () => {});
 
   const dismissToast = useCallback((id: number) => setToasts((list) => list.filter((x) => x.id !== id)), []);
 
@@ -178,7 +186,7 @@ export function App() {
   const catalog = useMemo(() => (activeWorkflow?.reports.length ? activeWorkflow.reports : REPORT_CATALOG), [activeWorkflow]);
 
   const openChat = useCallback(
-    async (key: string) => {
+    async (key: string, focus = true) => {
       const res = await desk.chats.open(key);
       if (!res) return;
       setCurrentKey(key);
@@ -188,7 +196,7 @@ export function App() {
       setInit(null);
       setDrawerOpen(false);
       setDrawerReportId(null);
-      setTab('copilot');
+      if (focus) setTab('copilot');
       setConnecting(false);
       prewarm(key);
     },
@@ -331,6 +339,46 @@ export function App() {
     [newChat, send, streaming],
   );
 
+  // ----- macro review: one chat per day runs the skill in the vault -----
+  const macroChatFor = useCallback((date: string) => chats.find((c) => c.kind === 'macro' && c.title === macroChatTitle(date)) ?? null, [chats]);
+
+  const ensureMacroChat = useCallback(
+    async (date: string): Promise<string> => {
+      const found = macroChatFor(date);
+      if (found) return found.key;
+      const chat = await desk.chats.create('macro', null);
+      setChats(await desk.chats.rename(chat.key, macroChatTitle(date)));
+      return chat.key;
+    },
+    [desk, macroChatFor],
+  );
+
+  /** Send one turn to the day's macro chat without leaving the macro tab. */
+  const macroSend = useCallback(
+    async (date: string, text: string) => {
+      if (streaming) return;
+      const key = await ensureMacroChat(date);
+      if (key !== currentKeyRef.current) await openChat(key, false);
+      currentKeyRef.current = key;
+      await send(text, key);
+    },
+    [ensureMacroChat, openChat, send, streaming],
+  );
+
+  const macroOpenChat = useCallback(
+    async (date: string) => {
+      const key = await ensureMacroChat(date);
+      if (key !== currentKeyRef.current) await openChat(key, true);
+      else setTab('copilot');
+    },
+    [ensureMacroChat, openChat],
+  );
+
+  const pickVault = useCallback(async () => {
+    const picked = await desk.dialog.pick('vault-dir');
+    if (picked) await patchSettingsRef.current({ vaultPath: picked });
+  }, [desk]);
+
   const healthCheck = useCallback(
     async (key: string) => {
       const chat = chats.find((c) => c.key === key);
@@ -368,6 +416,8 @@ export function App() {
     },
     [desk, refreshStatus],
   );
+
+  patchSettingsRef.current = patchSettings;
 
   // Ctrl +/-/0 walks the same zoom steps the settings offer, so the keyboard
   // and the dropdown can never disagree about the stored value.
@@ -516,7 +566,7 @@ export function App() {
         chats={chats}
         currentKey={currentKey}
         launching={launching}
-        quickPrompts={activeWorkflow?.quickPrompts ?? []}
+        quickPrompts={settings.legacyUi ? (activeWorkflow?.quickPrompts ?? []) : []}
         onToggleSection={toggleSection}
         onLaunchTv={launchTv}
         onRefreshStatus={refreshStatus}
@@ -532,14 +582,25 @@ export function App() {
       />
       <main class="main">
         <nav class="tabs">
-          {TABS.map((id) => (
+          {(settings.legacyUi ? LEGACY_TABS : MVP_TABS).map((id) => (
             <button type="button" key={id} class={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
               {t(`tabs.${id}`)}
             </button>
           ))}
         </nav>
         <CardActionsContext.Provider value={cardActions}>
-          {tab === 'copilot' ? (
+          {tab === 'macro' ? (
+            <MacroDesk
+              settings={settings}
+              chatFor={macroChatFor}
+              currentKey={currentKey}
+              messages={messages}
+              streaming={streaming}
+              onSend={(date, text) => void macroSend(date, text)}
+              onOpenChat={(date) => void macroOpenChat(date)}
+              onPickVault={() => void pickVault()}
+            />
+          ) : tab === 'copilot' ? (
             <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
           ) : tab === 'day' ? (
             <DayPanel workflow={activeWorkflow} settings={settings} busy={streaming} onAsk={(prompt, focus) => void quick(prompt, focus)} />

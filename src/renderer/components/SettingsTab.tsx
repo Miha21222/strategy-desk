@@ -80,6 +80,7 @@ export function SettingsTab(p: SettingsTabProps) {
     riskRulesPath: s.riskRulesPath,
     journalPath: s.journalPath,
     fieldNotesPath: s.fieldNotesPath,
+    vaultPath: s.vaultPath ?? '',
   });
 
   useEffect(() => {
@@ -99,8 +100,9 @@ export function SettingsTab(p: SettingsTabProps) {
       riskRulesPath: s.riskRulesPath,
       journalPath: s.journalPath,
       fieldNotesPath: s.fieldNotesPath,
+      vaultPath: s.vaultPath ?? '',
     });
-  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.codexPath, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
+  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.codexPath, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath, s.vaultPath]);
 
   const commitText = (key: keyof typeof text) => {
     const v = text[key].trim();
@@ -225,6 +227,16 @@ export function SettingsTab(p: SettingsTabProps) {
       </fieldset>
 
       <fieldset>
+        <legend>{t('settings.macro')}</legend>
+        {textField('vaultPath', t('settings.vaultPath'), t('settings.vaultHint'))}
+        <label class="check">
+          <input type="checkbox" checked={Boolean(s.legacyUi)} onChange={(e) => p.onSettings({ legacyUi: (e.target as HTMLInputElement).checked })} />
+          <span>{t('settings.legacyUi')}</span>
+        </label>
+      </fieldset>
+
+      {s.legacyUi ? (
+      <fieldset>
         <legend>{t('settings.dayDesk')}</legend>
         {textField('riskRulesPath', t('settings.riskRulesPath'), t('settings.riskRulesHint'))}
         {textField('journalPath', t('settings.journalPath'), t('settings.journalHint'))}
@@ -232,7 +244,7 @@ export function SettingsTab(p: SettingsTabProps) {
         <label class="field">
           <span>{t('settings.shelfWorkflows')}</span>
           <div class="shelf-map">
-            {SHELF_KINDS.map((k: ChatKind) => (
+            {SHELF_KINDS.filter((k) => k !== 'macro').map((k: ChatKind) => (
               <label class="inline" key={k}>
                 <span class="shelf-name">{t(`shelf.${k}`)}</span>
                 <select
@@ -258,6 +270,7 @@ export function SettingsTab(p: SettingsTabProps) {
           <small>{t('settings.shelfWorkflowsHint')}</small>
         </label>
       </fieldset>
+      ) : null}
 
       <fieldset>
         <legend>{t('settings.modelSection')}</legend>

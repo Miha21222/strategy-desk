@@ -52,6 +52,28 @@ src/renderer/styles.css     hand-written CSS, theme via CSS variables
 docs/PLAN.md                stage roadmap and checklists
 ```
 
+## The macro-review MVP (branch `mvp-macro`, 2026-10-11)
+
+The app now opens on «Макро-ревью»: the owner's `macro-review` skill (vault `.claude/skills/macro-review`,
+note 22) drawn as a desk. Tabs «День» and «Воркфлоу» and the chart quick actions are hidden behind
+`settings.legacyUi` — the code stays.
+
+```
+src/shared/macro.ts          the data contract (state/scale_<D>_<region>.json etc.) + pure helpers: zones, gauge geometry,
+                             window states 09:30/16:00/20:00, CSV stats, the prompts the desk sends
+src/main/macro-state.ts      reads <vault>/indices-kb/{state,journal,config}, watches state/ (debounced), never writes
+src/renderer/macro/          MacroDesk.tsx (the tab), Gauge.tsx (Fear & Greed dial, split bar, group bars), macro.css
+prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro chat
+```
+
+- **The desk computes nothing.** Numbers come from the files the skill writes; an argument from the owner is a
+  chat turn (`discussPrompt`), and the agent records it with `scale.py discuss` — the watcher redraws.
+- **A macro chat (`kind: 'macro'`, one per day, «Макро-ревью DD.MM») is the owner's own Claude Code**: cwd =
+  `settings.vaultPath`, `settingSources: user+project+local`, `skills: 'all'`, preset prompt + appendix, no desk MCP
+  map, tools `MACRO_ALLOWED` (Bash/Write/Skill…, no Task). Same session the Task Scheduler opens, so a run from the
+  desk and a scheduled run write the same files. Always the Claude engine.
+- Scheduled runs still come from the Windows Task Scheduler; the tab picks them up through the watcher.
+
 ## Branches
 
 Two long-lived branches since 2026-09-24 (`master` was renamed to `main`, and the GitHub default with it):

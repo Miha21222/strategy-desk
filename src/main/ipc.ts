@@ -18,6 +18,7 @@ import * as store from './store';
 import { callTool } from './tv-cli';
 import { launchTradingView } from './tv-launch';
 import { listWorkflows } from './workflows';
+import { listDays, loadDay, resolveNote, watchVault } from './macro-state';
 
 const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
 
@@ -29,13 +30,33 @@ const PICKERS: Record<PickKind, { properties: ('openFile' | 'openDirectory')[]; 
   'risk-rules': { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }, { name: 'All', extensions: ['*'] }] },
   journal: { properties: ['openFile'], filters: [{ name: 'CSV / TSV / JSON', extensions: ['csv', 'tsv', 'json', 'txt'] }, { name: 'All', extensions: ['*'] }] },
   'field-notes': { properties: ['openFile'], filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }, { name: 'All', extensions: ['*'] }] },
+  'vault-dir': { properties: ['openDirectory'] },
 };
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function registerIpc(getWindow: () => BrowserWindow | null): void {
   const emit = (ev: ChatEvent) => {
     const win = getWindow();
     if (win && !win.isDestroyed()) win.webContents.send('chat:event', ev);
   };
+
+  // ----- macro review: read the vault, watch it, never write it -----
+  const emitMacro = (dates: string[]) => {
+    const win = getWindow();
+    if (win && !win.isDestroyed()) win.webContents.send('macro:changed', dates);
+  };
+  void store.getSettings().then((cfg) => watchVault(cfg.vaultPath, emitMacro));
+  ipcMain.handle('macro:index', async () => listDays((await store.getSettings()).vaultPath));
+  ipcMain.handle('macro:day', async (_e, date: string) => {
+    if (typeof date !== 'string' || !ISO_DATE.test(date)) throw new Error('bad date');
+    return loadDay((await store.getSettings()).vaultPath, date);
+  });
+  ipcMain.handle('macro:openNote', async (_e, rel: string) => {
+    const full = resolveNote((await store.getSettings()).vaultPath, String(rel ?? ''));
+    if (!full) return false;
+    return (await shell.openPath(full)) === '';
+  });
 
   ipcMain.handle('status:get', async () => getStatus(await store.getSettings()));
 
@@ -64,6 +85,7 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     const before = await store.getSettings();
     const next = await store.setSettings(patch ?? {});
     if (before.tvmcpPath !== next.tvmcpPath || before.toolsets !== next.toolsets) invalidateTvmcpCache();
+    if (before.vaultPath !== next.vaultPath) watchVault(next.vaultPath, emitMacro);
     // Anything the session was built with changed: the waiting one is stale.
     dropWarm();
     return next;
