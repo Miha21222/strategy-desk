@@ -293,7 +293,8 @@ export function App() {
 
   const newChat = useCallback(
     async (focus = true): Promise<string> => {
-      const chat = await desk.chats.create('chat', settings.activeWorkflow || null);
+      // The MVP's free chat is a question to the vault agent (note 23); the Strategy Lab copilot stays behind legacyUi.
+      const chat = await desk.chats.create(settings.legacyUi ? 'chat' : 'ask', settings.legacyUi ? settings.activeWorkflow || null : null);
       await refreshChats();
       setCurrentKey(chat.key);
       setMessages([]);
@@ -604,7 +605,7 @@ export function App() {
             />
             </MacroBoundary>
           ) : tab === 'copilot' ? (
-            <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
+            <ChatView chat={current} simple={!settings.legacyUi} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
           ) : tab === 'day' ? (
             <DayPanel workflow={activeWorkflow} settings={settings} busy={streaming} onAsk={(prompt, focus) => void quick(prompt, focus)} />
           ) : tab === 'workflows' ? (

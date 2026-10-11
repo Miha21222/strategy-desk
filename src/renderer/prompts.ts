@@ -98,6 +98,19 @@ export const HOME_CHIPS: { id: string; labelKey: string; prompt?: string; choose
   { id: 'smartAlert', labelKey: 'home.smartAlert', prompt: SMART_ALERT_PROMPT },
 ];
 
+/**
+ * The MVP's chips (note 23): each is sent as its own Russian label — the vault
+ * agent speaks Russian and the owner should see exactly what was asked.
+ */
+export const ASK_CHIPS: { id: string; labelKey: string }[] = [
+  { id: 'today', labelKey: 'home.askToday' },
+  { id: 'similar', labelKey: 'home.askSimilar' },
+  { id: 'scale', labelKey: 'home.askScale' },
+  { id: 'rule', labelKey: 'home.askRule' },
+  { id: 'lessons', labelKey: 'home.askLessons' },
+  { id: 'week', labelKey: 'home.askWeek' },
+];
+
 /** Report catalog (RU label → EN prompt). Typing `/` in the composer lists it. All free. */
 export const REPORT_CATALOG: { id: string; label: string; prompt: string }[] = [
   {

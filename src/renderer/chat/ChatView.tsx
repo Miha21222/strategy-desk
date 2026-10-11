@@ -5,10 +5,12 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { AgentInit, ChatMeta, ChatMode, ToolCallItem, WorkflowPrompt } from '@shared/api';
 import { Markdown } from './Markdown';
 import { t } from '../i18n';
-import { filterCatalog, HOME_CHIPS, READ_CHART_VARIANTS, webStrategyPrompt } from '../prompts';
+import { ASK_CHIPS, filterCatalog, HOME_CHIPS, READ_CHART_VARIANTS, webStrategyPrompt } from '../prompts';
 import type { UiMessage } from '../state';
 
 export interface ChatViewProps {
+  /** MVP (note 23): the chat is a question to the vault agent — no Strategy Lab chips, no tvmcp talk. */
+  simple?: boolean;
   chat: ChatMeta | null;
   messages: UiMessage[];
   streaming: boolean;
@@ -68,6 +70,23 @@ function Message({ m }: { m: UiMessage }) {
     <div class="msg assistant">
       {m.tools.length ? <div class="tools">{m.tools.map((tool) => <ToolRow key={tool.id} tool={tool} />)}</div> : null}
       {m.text ? <Markdown text={m.text} /> : null}
+    </div>
+  );
+}
+
+/** The MVP's empty chat (note 23): questions to the agent that remembers everything. */
+function AskHome({ busy, onQuick }: { busy: boolean; onQuick: (prompt: string) => void }) {
+  return (
+    <div class="home">
+      <div class="home-title">{t('home.askTitle')}</div>
+      <div class="muted small-hint">{t('home.askSubtitle')}</div>
+      <div class="chips home-chips">
+        {ASK_CHIPS.map((c) => (
+          <button type="button" class="chip" key={c.id} disabled={busy} onClick={() => onQuick(t(c.labelKey))}>
+            {t(c.labelKey)}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -197,8 +216,8 @@ export function ChatView(p: ChatViewProps) {
       </header>
 
       <div class="messages" ref={listRef}>
-        {showHome ? <div class="empty">{t('chat.empty')}</div> : null}
-        {showHome ? <Home busy={p.streaming} onQuick={p.onQuick} /> : null}
+        {showHome ? <div class="empty">{t(p.simple ? 'chat.emptyAsk' : 'chat.empty')}</div> : null}
+        {showHome ? p.simple ? <AskHome busy={p.streaming} onQuick={p.onQuick} /> : <Home busy={p.streaming} onQuick={p.onQuick} /> : null}
         {p.messages.map((m, i) => (
           <Message key={i} m={m} />
         ))}

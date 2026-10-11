@@ -8,7 +8,7 @@ export interface HelpTabProps {
   simple?: boolean;
 }
 
-const SIMPLE_SECTIONS = ['what', 'when', 'read', 'argue', 'evening', 'trouble'] as const;
+const SIMPLE_SECTIONS = ['what', 'when', 'first', 'read', 'argue', 'evening', 'ask', 'trouble'] as const;
 
 export function HelpTab(p: HelpTabProps) {
   if (p.simple) {

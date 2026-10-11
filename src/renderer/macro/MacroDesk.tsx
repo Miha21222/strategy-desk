@@ -156,6 +156,16 @@ export function MacroDesk(p: Props) {
   }
 
   const state = windowState(active, day, date, now);
+  // Note 23, «сначала человек»: on the day itself a window with a review but no
+  // read from the owner shows nothing of its direction — not the tile's needle,
+  // not the agent's text, not the plan — until he answers or asks to peek.
+  const [peek, setPeek] = useState<MacroWindowId | null>(null);
+  useEffect(() => setPeek(null), [date]);
+  const unread = (id: MacroWindowId): boolean => {
+    if (id === 'review' || date !== today || !day) return false;
+    const r = day[id];
+    return Boolean(r.scale || r.verdict) && !r.human && peek !== id;
+  };
   return (
     <section class={`macro${flash ? ' flash' : ''}`}>
       <header class="macro-bar">
@@ -183,14 +193,14 @@ export function MacroDesk(p: Props) {
 
       <nav class="macro-windows" aria-label={t('macro.windows')}>
         {MACRO_WINDOWS.map((id) => (
-          <WindowTile key={id} id={id} day={day} active={active === id} state={windowState(id, day, date, now)} onClick={() => setWin(id)} />
+          <WindowTile key={id} id={id} day={day} active={active === id} state={windowState(id, day, date, now)} hidden={unread(id)} onClick={() => setWin(id)} />
         ))}
       </nav>
 
       <AgentStrip
         streaming={streaming}
         blocked={(p.streaming && !mine) || Boolean(index?.demo)}
-        messages={messages}
+        messages={unread(active) ? null : messages}
         state={state}
         window={active}
         onRun={() => p.onSend(date, runCommand(active))}
@@ -205,6 +215,8 @@ export function MacroDesk(p: Props) {
           day={day}
           date={date}
           past={date < today}
+          peek={peek === active}
+          onPeek={() => setPeek(active)}
           busy={p.streaming || Boolean(index?.demo)}
           onDiscuss={(side, share, text) => p.onSend(date, discussPrompt(active, side, share, text))}
           onOpenNote={(rel) => void window.desk.macro.openNote(rel)}
@@ -230,10 +242,12 @@ function lightText(l: ScaleLight): string {
 
 // ---------------------------------------------------------------- window strip
 
-function WindowTile({ id, day, active, state, onClick }: { id: MacroWindowId; day: MacroDay | null; active: boolean; state: string; onClick: () => void }) {
+function WindowTile({ id, day, active, state, hidden, onClick }: { id: MacroWindowId; day: MacroDay | null; active: boolean; state: string; hidden?: boolean; onClick: () => void }) {
   const w = WINDOW_TIMES[id];
   let body = <span class="wt-empty">{t(`macro.stateLong.${state}`)}</span>;
-  if (id !== 'review') {
+  if (hidden) {
+    body = <span class="wt-empty ask">{t('macro.tileAsk')}</span>;
+  } else if (id !== 'review') {
     const s = day?.[id]?.scale;
     if (s) {
       const n = s.after?.needle ?? s.result.needle;
@@ -311,28 +325,34 @@ function AgentStrip(p: { streaming: boolean; blocked: boolean; messages: UiMessa
 
 // ---------------------------------------------------------------- 09:30 / 16:00
 
-function RegionView({ snap, day, date, past, busy, onDiscuss, onOpenNote }: { snap: RegionSnapshot | null; day: MacroDay | null; date: string; past: boolean; busy: boolean; onDiscuss: (side: Side, share: number, text: string) => void; onOpenNote: (rel: string) => void }) {
+function RegionView({ snap, day, date, past, peek, onPeek, busy, onDiscuss, onOpenNote }: { snap: RegionSnapshot | null; day: MacroDay | null; date: string; past: boolean; peek: boolean; onPeek: () => void; busy: boolean; onDiscuss: (side: Side, share: number, text: string) => void; onOpenNote: (rel: string) => void }) {
   // Which screenshot the lightbox shows; null = closed.
   const [shotOpen, setShotOpen] = useState<number | null>(null);
   const closeShot = useCallback(() => setShotOpen(null), []);
   useEffect(() => setShotOpen(null), [snap?.region, snap?.shots?.date]);
-  // «Показать без ответа»: the owner chose to see the gauge first. Not a lock —
-  // but a read given after that is recorded as such (before_scale: false).
-  const [peek, setPeek] = useState(false);
-  useEffect(() => setPeek(false), [snap?.region, date]);
   const region = snap?.region ?? 'eu';
   const human = snap?.human ?? null;
-  // Ask for the owner's read on the day itself (even before the review ran);
-  // a past day without one is left alone.
+  const hasReview = Boolean(snap && (snap.scale || snap.verdict));
+  // Ask for the owner's read on the day itself, even before the review ran; a
+  // past day without one is left alone. While the review is there and he has
+  // not answered, the question is the whole screen («сначала человек») —
+  // «Показать без ответа» is the way around, and a read given after that is
+  // recorded as such (before_scale: false).
   const askRead = !human && !past;
-  const veil = askRead && !peek && Boolean(snap?.scale);
-  const sendRead = (side: HumanSide) => void window.desk.macro.humanRead({ date, region, side, beforeScale: !peek || !snap?.scale });
+  const sendRead = (side: HumanSide) => void window.desk.macro.humanRead({ date, region, side, beforeScale: !(peek && hasReview) });
 
-  if (!snap || (!snap.scale && !snap.verdict)) {
+  if (!snap || !hasReview) {
     return (
       <div class="macro-main">
         {askRead ? <HumanReadCard region={region} human={null} scaleSide={null} onPick={sendRead} /> : null}
         <div class="macro-none muted">{t('macro.noData')}</div>
+      </div>
+    );
+  }
+  if (askRead && !peek) {
+    return (
+      <div class="macro-main">
+        <HumanReadCard region={region} human={null} scaleSide={null} onPick={sendRead} onPeek={onPeek} />
       </div>
     );
   }
@@ -346,19 +366,11 @@ function RegionView({ snap, day, date, past, busy, onDiscuss, onOpenNote }: { sn
   return (
     <div class="macro-main">
       {askRead || human ? <HumanReadCard region={region} human={human} scaleSide={res ? zoneOf(res.needle, zones) : null} onPick={sendRead} /> : null}
-      <div class={`macro-grid${veil ? ' veiled' : ''}`}>
+      <div class="macro-grid">
         {s && res ? (
           <div class="card hero">
             <div class="card-head">{t('macro.whereTitle')}</div>
             <div class="card-body">
-              {veil ? (
-                <div class="veil">
-                  <p>{t('macro.veilText')}</p>
-                  <button type="button" class="ghost small" onClick={() => setPeek(true)}>
-                    {t('macro.veilPeek')}
-                  </button>
-                </div>
-              ) : null}
               <Gauge needle={res.needle} before={s.after ? s.result.needle : null} zones={zones} />
               <p class="hero-line">{headline(res, zones, s.light)}</p>
               <SplitBar long={res.long} short={res.short} undecided={res.undecided} />
@@ -450,7 +462,7 @@ function zoneSide(zone: ReturnType<typeof zoneOf> | null): HumanSide | null {
  * The owner's read of the window, asked before the gauge is shown. One tap;
  * afterwards one line: what he said, what the scale says, whether they agree.
  */
-function HumanReadCard({ region, human, scaleSide, onPick }: { region: Region; human: HumanRead | null; scaleSide: ReturnType<typeof zoneOf> | null; onPick: (side: HumanSide) => void }) {
+function HumanReadCard({ region, human, scaleSide, onPick, onPeek }: { region: Region; human: HumanRead | null; scaleSide: ReturnType<typeof zoneOf> | null; onPick: (side: HumanSide) => void; onPeek?: () => void }) {
   if (!human) {
     return (
       <div class="card human ask">
@@ -464,7 +476,17 @@ function HumanReadCard({ region, human, scaleSide, onPick }: { region: Region; h
               </button>
             ))}
           </div>
-          <p class="muted small">{t('macro.yourReadWhy')}</p>
+          <p class="muted small">
+            {t('macro.yourReadWhy')}
+            {onPeek ? (
+              <>
+                {' '}
+                <button type="button" class="link" onClick={onPeek}>
+                  {t('macro.veilPeek')}
+                </button>
+              </>
+            ) : null}
+          </p>
         </div>
       </div>
     );
@@ -480,7 +502,7 @@ function HumanReadCard({ region, human, scaleSide, onPick }: { region: Region; h
         </span>
         {ss ? (
           <span>
-            {t('macro.scaleSays')} <b class={`hs-${ss}`}>{t(`macro.humanSide.${ss}`)}</b>
+            {t('macro.scaleSays')} <b class={`hs-${ss}`}>{t(`macro.scaleSide.${ss}`)}</b>
             <span class="muted"> — {t(`macro.agree.${agree}`)}</span>
           </span>
         ) : (
@@ -856,15 +878,15 @@ function ReviewView({ day, date, past, onOpenNote }: { day: MacroDay | null; dat
           </div>
         ) : null}
         {(['eu', 'us'] as Region[]).map((r) => (
-          <ReviewRegionCard region={r} rv={mech?.regions[r]} reflection={agent?.regions?.[r]} zones={day.zones} shots={day.review.shots?.[r] ?? null} human={day[r].human} answer={answers?.regions[r]} onOpenShot={(index) => setShotOpen({ region: r, index })} />
+          <ReviewRegionCard region={r} rv={mech?.regions[r]} reflection={agent?.regions?.[r]} zones={day.zones} shots={day.review.shots?.[r] ?? null} human={day[r].human} answer={answers?.regions[r]} past={past} onOpenShot={(index) => setShotOpen({ region: r, index })} />
         ))}
         {agent?.lessons?.length ? (
           <div class="card wide">
             <div class="card-head">{t('macro.lessonsToday')}</div>
             <div class="card-body">
               <ul class="lessons">
-                {agent.lessons.map((x) => (
-                  <li>{x}</li>
+                {agent.lessons.map((x, i) => (
+                  <li class={i === 0 ? 'main' : 'rest'}>{x}</li>
                 ))}
               </ul>
             </div>
@@ -915,7 +937,7 @@ function ReviewView({ day, date, past, onOpenNote }: { day: MacroDay | null; dat
 
 const PLAN_TEXT: Record<string, string> = { да: 'planYes', нет: 'planNo', 'нет пробоя': 'planNoBreak', 'пробой без IB1': 'planHalf' };
 
-function ReviewRegionCard({ region, rv, reflection, zones, shots, human, answer, onOpenShot }: { region: Region; rv?: ReviewRegion; reflection?: { what_worked?: string; what_failed?: string; discussion?: string }; zones: { neutral: number; strong: number }; shots: MacroShots | null; human: HumanRead | null; answer?: DayAnswers['regions'][Region]; onOpenShot: (i: number) => void }) {
+function ReviewRegionCard({ region, rv, reflection, zones, shots, human, answer, past, onOpenShot }: { region: Region; rv?: ReviewRegion; reflection?: { what_worked?: string; what_failed?: string; discussion?: string }; zones: { neutral: number; strong: number }; shots: MacroShots | null; human: HumanRead | null; answer?: DayAnswers['regions'][Region]; past: boolean; onOpenShot: (i: number) => void }) {
   if (!rv || rv.missing) {
     return (
       <div class="card">
@@ -942,19 +964,12 @@ function ReviewRegionCard({ region, rv, reflection, zones, shots, human, answer,
           <Gauge needle={needle} before={rv.after != null ? rv.needle : null} zones={zones} mini />
           <div class="rv-arrow">
             <div>
-              {t('macro.morningWas')} <b>{zoneLabel(zoneOf(needle, zones))}</b>
-            </div>
-            <div>
               {t('macro.factWas')} <b class={dir === 'LONG' ? 'pos' : dir === 'SHORT' ? 'neg' : ''}>{t(`macro.dir.${dir}`)}</b>
             </div>
+            {rv.after != null && sc.needle_hit ? <div class="muted small">{t(sc.needle_hit === '1' ? 'macro.morningRight' : 'macro.morningWrong')}</div> : null}
           </div>
         </div>
-        <div class="rv-chips">
-          <span class={`chip ${hit === '1' ? 'good' : hit === '0' ? 'bad' : ''}`}>{t(afterSkip ? 'macro.hitSkip' : hit === '1' ? 'macro.hitYes' : hit === '0' ? 'macro.hitNo' : 'macro.hitNone')}</span>
-          {rv.after != null && sc.needle_hit ? <span class="chip">{t(sc.needle_hit === '1' ? 'macro.morningRight' : 'macro.morningWrong')}</span> : null}
-          {plan ? <span class={`chip ${plan === 'planYes' ? 'good' : plan === 'planNo' ? 'bad' : ''}`}>{t(`macro.${plan}`)}</span> : null}
-        </div>
-        <WhoWasRight human={human} scaleHit={hit} dir={dir} answer={answer} />
+        <WhoWasRight human={human} answer={answer} past={past} dir={dir} scaleZone={zoneLabel(zoneOf(needle, zones))} scaleHit={afterSkip ? 'skip' : hit} plan={plan} />
         <ShotsInline shots={shots} onOpen={onOpenShot} />
         {reflection ? (
           <div class="reflect">
@@ -983,31 +998,50 @@ function ReviewRegionCard({ region, rv, reflection, zones, shots, human, answer,
 }
 
 /**
- * «Кто был прав»: the owner's morning read, the scale, the window — side by
- * side. Scored here from the window's direction, so it shows the moment
- * `scale.py review` has written the facts, before the agent's reflection.
+ * «Кто был прав»: the owner's morning read, the scale, the plan — one small
+ * table, each scored against the window. Scored here from the window's
+ * direction, so it shows the moment `scale.py review` has written the facts,
+ * before the agent's reflection. On a past day a missing read is not nagged.
  */
-function WhoWasRight({ human, scaleHit, dir, answer }: { human: HumanRead | null; scaleHit?: string; dir: string; answer?: DayAnswers['regions'][Region] }) {
+function WhoWasRight({ human, answer, past, dir, scaleZone, scaleHit, plan }: { human: HumanRead | null; answer?: DayAnswers['regions'][Region]; past: boolean; dir: string; scaleZone: string; scaleHit?: string; plan: string | null }) {
   const hh = humanHit(human?.side, dir);
   const mark = (h: boolean | null) => (h == null ? '' : h ? ' good' : ' bad');
+  const trade = answer ? (answer.trade === 'none' ? t('macro.tradeNone') : `${t(`macro.trade.${answer.trade}`)}${answer.by_rule ? ` · ${t(`macro.byRule.${answer.by_rule}`)}` : ''}`) : '';
   return (
     <div class="who">
-      <div class="who-row">
-        <span class="who-k">{t('macro.whoYou')}</span>
-        {human ? (
-          <span class={`chip${mark(hh)}`}>
-            {t(`macro.humanSide.${human.side}`)}
-            {hh == null ? '' : hh ? ' ✓' : ' ✗'}
-          </span>
-        ) : (
-          <span class="muted">{t('macro.whoNoRead')}</span>
-        )}
-        {answer ? <span class="muted small">{answer.trade === 'none' ? t('macro.tradeNone') : `${t(`macro.trade.${answer.trade}`)}${answer.by_rule ? ` · ${t(`macro.byRule.${answer.by_rule}`)}` : ''}`}</span> : null}
-      </div>
+      {human || !past ? (
+        <div class="who-row">
+          <span class="who-k">{t('macro.whoYou')}</span>
+          {human ? (
+            <span class={`chip${mark(hh)}`}>
+              {t(`macro.humanSide.${human.side}`)}
+              {hh == null ? '' : hh ? ' ✓' : ' ✗'}
+            </span>
+          ) : (
+            <span class="muted">{t('macro.whoNoRead')}</span>
+          )}
+          {trade ? <span class="muted small">{trade}</span> : null}
+        </div>
+      ) : trade ? (
+        <div class="who-row">
+          <span class="who-k">{t('macro.whoYou')}</span>
+          <span class="muted small">{trade}</span>
+        </div>
+      ) : null}
       <div class="who-row">
         <span class="who-k">{t('macro.whoScale')}</span>
-        <span class={`chip${scaleHit === '1' ? ' good' : scaleHit === '0' ? ' bad' : ''}`}>{scaleHit === '1' ? t('macro.whoRightShort') : scaleHit === '0' ? t('macro.whoWrongShort') : t('macro.whoNoScore')}</span>
+        <span class={`chip${scaleHit === '1' ? ' good' : scaleHit === '0' ? ' bad' : ''}`}>
+          {scaleZone}
+          {scaleHit === '1' ? ' ✓' : scaleHit === '0' ? ' ✗' : ''}
+        </span>
+        {scaleHit === 'skip' ? <span class="muted small">{t('macro.hitSkip')}</span> : scaleHit !== '1' && scaleHit !== '0' ? <span class="muted small">{t('macro.hitNone')}</span> : null}
       </div>
+      {plan ? (
+        <div class="who-row">
+          <span class="who-k">{t('macro.whoPlan')}</span>
+          <span class={`chip${plan === 'planYes' ? ' good' : plan === 'planNo' ? ' bad' : ''}`}>{t(`macro.${plan}`)}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -12,9 +12,12 @@ export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent,
 /**
  * `macro` is the shelf of the macro-review MVP: one chat per day that runs the
  * owner's `macro-review` skill inside the vault (see `macroSpec` in agent.ts).
+ * `ask` (note 23) is a free question to the same agent in the same vault — the
+ * one that remembers every review, lesson and note — which is what «+ Новый
+ * чат» opens in the MVP instead of the Strategy Lab copilot.
  */
-export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day' | 'macro';
-export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day', 'macro'];
+export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day' | 'macro' | 'ask';
+export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day', 'macro', 'ask'];
 
 export interface ChatMeta {
   key: string;

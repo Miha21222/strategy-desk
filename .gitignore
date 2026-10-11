@@ -25,3 +25,6 @@ build/gtrag-payload/
 /tvmcp/
 /gt-rag/
 /uv.exe
+
+# Renderer screenshots against the demo vault (scripts/preview/preview.sh)
+scripts/preview/out/

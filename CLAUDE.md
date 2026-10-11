@@ -82,6 +82,18 @@ prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro
   prints «владелец против шкалы». The review tab shows «Кто был прав» per window from the facts alone.
   Next steps from note 23: «Сегодня помни» (lesson / rule of the day / similar day), «Что изменилось» (drift),
   the weekly digest, «Идеи на проверке».
+- **«Сначала человек» is the whole screen, not a veil.** On the day itself a window with a review and no read
+  shows only the question — the tile's needle, the agent's text and the plan are withheld (`unread()` in
+  MacroDesk) — because a blurred gauge next to a tile that says «сильный лонг» is theatre. «Показать обзор без
+  ответа» is the way around, and a read given after it is stored with `before_scale: false`.
+- **The MVP's «+ Новый чат» is `kind: 'ask'`** (note 23): the same vault session as a macro chat
+  (`macroSpec(mode, 'ask')`, appendix `prompt/ask.md`) told to answer from memory — reviews, lessons, journal —
+  and never to run a review or write state. The Strategy Lab copilot (`kind: 'chat'`, tvmcp chips) stays
+  behind `legacyUi`.
+- **Looking at the renderer without Electron:** `scripts/preview/preview.sh` serves `out/renderer` with a
+  `window.desk` shim (`desk-mock.js`) fed by the real `loadDay()` over the demo vault and screenshots the steps in
+  `scripts/preview/steps.json` with Playwright (`NOW=` fakes the Kyiv clock, `H=` the viewport height). This is
+  how the note-23 screens were reviewed; use it before changing the tab.
 
 ## Branches
 
