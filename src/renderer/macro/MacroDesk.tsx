@@ -16,7 +16,8 @@
 // answers two questions about his day («Твой день»). Those two answers are
 // the only things the desk writes into the vault; the evening then shows who
 // was right — him, the scale, or neither.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { createPortal } from 'preact/compat';
+import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import type { ChatMeta, Settings } from '@shared/api';
 import {
   defaultWindow,
@@ -525,39 +526,54 @@ function HumanReadCard({ region, human, scaleSide, onPick, onPeek }: { region: R
   );
 }
 
-/** «Почему так»: the two columns, and under them the explanation of the factor the owner tapped. */
+/** «Почему так»: the two columns; a tap on a row opens the factor's explanation in a centred dialog. */
 function WhyCard({ split, day, region }: { split: ReturnType<typeof splitFactors>; day: MacroDay | null; region: Region }) {
   const [open, setOpen] = useState<string | null>(null);
   useEffect(() => setOpen(null), [region, day?.date]);
   const f = open ? [...split.long, ...split.short].find((x) => x.id === open) ?? null : null;
-  // The explanation sits above the columns (a list of 15 would push it out of
-  // sight below); a tap on a row far down brings it back into view.
-  const infoRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (open) infoRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [open]);
+  const close = useCallback(() => setOpen(null), []);
   return (
     <div class="card why">
       <div class="card-head">{t('macro.whyTitle')}</div>
-      {f ? (
-        <div class="why-info" ref={infoRef}>
-          <div class="why-info-head">
-            <b class={f.side === 'LONG' ? 'pos' : 'neg'}>{f.name}</b>
-            <span class="spacer" />
-            <button type="button" class="ghost small" onClick={() => setOpen(null)}>
-              ×
-            </button>
-          </div>
-          <FactorInfo f={f} stat={statsFor(day, region).get(f.id)} />
-        </div>
-      ) : (
-        <p class="muted small why-hint">{t('macro.whyHint')}</p>
-      )}
       <div class="card-body why-cols">
         <WhyColumn side="long" list={split.long} open={open} onOpen={setOpen} />
         <WhyColumn side="short" list={split.short} open={open} onOpen={setOpen} />
       </div>
+      <p class="muted small why-hint">{t('macro.whyHint')}</p>
+      {f ? <FactorDialog f={f} stat={statsFor(day, region).get(f.id)} onClose={close} /> : null}
     </div>
+  );
+}
+
+/** The explanation as a modal: Escape or a click outside closes it. */
+function FactorDialog({ f, stat, onClose }: { f: ScaleFactor; stat?: { hits: number; total: number }; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+  // A portal: a card's own stacking context would keep a fixed overlay inside the card.
+  return createPortal(
+    <div class="shot-lightbox factor-dialog" role="dialog" aria-modal="true" aria-label={f.name} onClick={onClose}>
+      <div class="lb-panel" onClick={(e) => e.stopPropagation()}>
+        <div class="lb-head">
+          <b class={f.side === 'LONG' ? 'pos' : f.side === 'SHORT' ? 'neg' : ''}>{f.name}</b>
+          <span class="muted"> · {t(f.side === 'LONG' ? 'macro.forLong' : f.side === 'SHORT' ? 'macro.forShort' : 'macro.silentShort')}</span>
+          <span class="spacer" />
+          <button type="button" class="ghost lb-close" onClick={onClose} title={t('macro.shotsClose')} aria-label={t('macro.shotsClose')}>
+            ✕
+          </button>
+        </div>
+        <FactorInfo f={f} stat={stat} />
+      </div>
+    </div>,
+    document.body,
   );
 }
 

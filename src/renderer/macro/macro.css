@@ -696,18 +696,6 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
   border: 0;
   box-shadow: none;
 }
-.macro .why-info {
-  margin: 12px 14px 0;
-  padding: 8px 12px;
-  border-left: 3px solid var(--accent);
-  background: var(--bg-elev);
-  border-radius: 0 8px 8px 0;
-}
-.macro .why-info-head {
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-}
 .macro .finfo {
   font-size: var(--text-md);
 }
@@ -720,5 +708,26 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
 }
 .macro .why-hint {
   margin: 0;
-  padding: 10px 14px 0;
+  padding: 0 14px 10px;
 }
+/* Rendered through a portal into <body>, so no .macro prefix here. */
+.factor-dialog .lb-panel {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 14px 18px 16px;
+}
+.factor-dialog .finfo {
+  font-size: var(--text-base);
+}
+.factor-dialog .finfo p {
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+.factor-dialog .finfo p:last-child {
+  margin-bottom: 0;
+}
+.factor-dialog .pos { color: var(--ok); }
+.factor-dialog .neg { color: var(--err); }
+.factor-dialog .muted { color: var(--fg-muted); }
+.factor-dialog .small { font-size: var(--text-sm); }
