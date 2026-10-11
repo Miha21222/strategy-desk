@@ -175,14 +175,9 @@ export function Sidebar(p: SidebarProps) {
 
   return (
     <aside class="sidebar">
-      {/* MVP: connection lights are plumbing — they live in Настройки → Для продвинутых.
-          The one thing a person must know here is that Claude is not signed in. */}
-      {!p.settings.legacyUi ? (
-        s && s.claude === 'none' ? (
-          <div class="tv-message">{t('sidebar.claudeMissing')}</div>
-        ) : null
-      ) : (
-      <Section id="connections" title={t('sidebar.connections')} collapsed={collapsed('connections')} onToggle={p.onToggleSection}>
+      <Section id="connections" title={t(p.settings.legacyUi ? 'sidebar.connections' : 'sidebar.simple.title')} collapsed={collapsed('connections')} onToggle={p.onToggleSection}>
+        {p.settings.legacyUi ? (
+          <>
         <Light on={s ? s.tvRunning : null} label={t('sidebar.tvRunning')} />
         <Light
           on={s ? s.cdpUp && !s.cdpOwner : null}
@@ -195,6 +190,20 @@ export function Sidebar(p: SidebarProps) {
         />
         <Light on={s ? s.tvmcpOk : null} label={`${t('sidebar.tvmcp')}${s?.tvmcpOk ? ` · ${s.tvmcpTools} ${t('sidebar.tools')}` : ''}`} hint={s?.tvmcpError} />
         <Light on={s ? s.claude !== 'none' : null} label={`${t('sidebar.claude')} · ${s ? t(`claude.${s.claude}`) : '…'}`} />
+          </>
+        ) : (
+          // The same four lights in plain words: what works, not which port or server.
+          <>
+            <Light on={s ? s.tvRunning : null} label={t(s?.tvRunning ? 'sidebar.simple.tvOn' : 'sidebar.simple.tvOff')} />
+            <Light
+              on={s ? s.cdpUp && !s.cdpOwner : null}
+              label={t(s?.cdpOwner ? 'sidebar.simple.chartBusy' : s?.cdpUp ? 'sidebar.simple.chartOn' : 'sidebar.simple.chartOff')}
+              hint={s?.cdpOwner ? t('sidebar.cdpForeignHint', { owner: s.cdpOwner, port: String(p.settings.cdpPort) }) : t('sidebar.simple.chartHint')}
+            />
+            <Light on={s ? s.tvmcpOk : null} label={t(s?.tvmcpOk ? 'sidebar.simple.dataOn' : 'sidebar.simple.dataOff')} hint={s?.tvmcpError || t('sidebar.simple.dataHint')} />
+            <Light on={s ? s.claude !== 'none' : null} label={t(s && s.claude !== 'none' ? 'sidebar.simple.agentOn' : 'sidebar.simple.agentOff')} />
+          </>
+        )}
         <div class="btn-row">
           <button type="button" class="primary" disabled={p.launching} onClick={p.onLaunchTv}>
             {p.launching ? t('sidebar.launching') : t('sidebar.launchTv')}
@@ -215,7 +224,6 @@ export function Sidebar(p: SidebarProps) {
           </button>
         ) : null}
       </Section>
-      )}
 
       {/* The macro-review MVP hides the chart quick actions with the other pre-MVP tools. */}
       {p.settings.legacyUi ? (

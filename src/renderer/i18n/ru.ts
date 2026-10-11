@@ -534,7 +534,20 @@ export const ru = {
   },
 
   sidebar: {
-    claudeMissing: 'Claude не подключён — агент не сможет готовить обзоры. Открой Настройки → Для продвинутых.',
+    simple: {
+      title: 'Подключения',
+      tvOn: 'TradingView открыт',
+      tvOff: 'TradingView закрыт',
+      chartOn: 'Агент видит график',
+      chartOff: 'Агент не видит график',
+      chartBusy: 'График занят другой программой',
+      chartHint: 'Чтобы агент рисовал уровни и делал снимки, TradingView нужно открыть кнопкой ниже.',
+      dataOn: 'Данные рынка работают',
+      dataOff: 'Данные рынка не работают',
+      dataHint: 'Отсюда агент берёт бары, календарь и новости.',
+      agentOn: 'Агент подключён',
+      agentOff: 'Агент не подключён — войди в Claude',
+    },
     connections: 'Соединения',
     tvRunning: 'TradingView запущен',
     cdpPort: 'Порт CDP',
