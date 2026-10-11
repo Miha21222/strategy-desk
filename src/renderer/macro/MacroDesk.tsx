@@ -15,6 +15,7 @@ import type { ChatMeta, Settings } from '@shared/api';
 import {
   defaultWindow,
   discussPrompt,
+  fmt,
   kyivNow,
   MACRO_WINDOWS,
   runCommand,
@@ -463,7 +464,7 @@ function DiscussionCard({ items, busy, onDiscuss }: { items: DiscussionItem[]; b
 
 function PlanCard({ snap }: { snap: RegionSnapshot }) {
   const plan = snap.scale!.plan!;
-  const adr = (x?: number | null) => (x != null ? t('macro.adrAway', { x: x.toFixed(2) }) : '');
+  const adr = (x?: number | null) => (x != null ? t('macro.adrAway', { x: fmt(x, 2) }) : '');
   return (
     <div class="card plan">
       <div class="card-head">{t('macro.planTitle')}</div>
@@ -626,7 +627,7 @@ function FactorTable({ split, day, region }: { split: ReturnType<typeof splitFac
                   <td>{f.name}</td>
                   <td class={side === 'long' ? 'pos' : side === 'short' ? 'neg' : 'muted'}>{side ? t(side === 'long' ? 'macro.forLong' : 'macro.forShort') : t('macro.silentShort')}</td>
                   <td>{Math.round(f.share)} %</td>
-                  <td>{f.points ? `${f.points.toFixed(1)} %` : '—'}</td>
+                  <td>{f.points ? `${fmt(f.points)} %` : '—'}</td>
                   <td class="muted">{st && st.total >= 3 ? `${Math.round((st.hits * 100) / st.total)} % (${st.total})` : '—'}</td>
                 </tr>
               );
@@ -681,7 +682,7 @@ function ContextCard({ snap }: { snap: RegionSnapshot }) {
                 <span>{m.label}</span>
                 <span class={m.chg_pct! > 0 ? 'pos' : m.chg_pct! < 0 ? 'neg' : ''}>
                   {m.chg_pct! > 0 ? '+' : ''}
-                  {m.chg_pct!.toFixed(2)} %
+                  {fmt(m.chg_pct, 2)} %
                 </span>
               </div>
             ))}

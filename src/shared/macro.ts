@@ -444,6 +444,53 @@ export function lessonsTail(md: string, n = LESSONS_TAIL): string[] {
     .reverse();
 }
 
+const num = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) ? x : 0);
+
+/** A number for the screen: never throws on a missing field. */
+export function fmt(x: unknown, digits = 1): string {
+  return typeof x === 'number' && Number.isFinite(x) ? x.toFixed(digits) : '—';
+}
+
+/**
+ * Bring a scale written by an older `scale.py` to the v3 shape the desk draws.
+ *
+ * v1 (before 10.10.2026) counted weights 1–3 and points out of `max`, with no
+ * `share` per factor, no `undecided` and no group shares. The needle itself is
+ * kept as written; only the missing percentages are derived, the way v3 would:
+ * share = weight / Σweights, points = share × strength, long % = long / max.
+ * A v3 file passes through untouched.
+ */
+export function normalizeScale(s: ScaleState): ScaleState {
+  const factors = Array.isArray(s.factors) ? s.factors : [];
+  const legacy = factors.some((f) => typeof f.share !== 'number');
+  const fixResult = (r: ScaleResult | null | undefined, scale: number): ScaleResult | null | undefined => {
+    if (!r) return r;
+    if (typeof r.undecided === 'number' && typeof r.long === 'number' && typeof r.short === 'number' && !legacy) return r;
+    const long = Math.round(num(r.long) * scale * 10) / 10;
+    const short = Math.round(num(r.short) * scale * 10) / 10;
+    const groups = r.groups
+      ? Object.fromEntries(
+          Object.entries(r.groups).map(([k, g]) => {
+            const share = factors.filter((f) => f.group === k && f.on !== false).reduce((n, f) => n + num((f as { weight?: number }).weight), 0) * scale;
+            return [k, { share: typeof g.share === 'number' ? g.share : Math.round(share * 10) / 10, long: Math.round(num(g.long) * scale * 10) / 10, short: Math.round(num(g.short) * scale * 10) / 10, needle: num(g.needle) }];
+          }),
+        )
+      : undefined;
+    return { ...r, long, short, undecided: Math.max(0, Math.round((100 - long - short) * 10) / 10), needle: num(r.needle), groups };
+  };
+  if (!legacy) {
+    return { ...s, factors, result: fixResult(s.result, 1)!, after: fixResult(s.after, 1) ?? s.after };
+  }
+  const total = factors.filter((f) => f.on !== false).reduce((n, f) => n + num((f as { weight?: number }).weight), 0) || num(s.result?.max) || 1;
+  const scale = 100 / total;
+  const fixed = factors.map((f) => {
+    const share = Math.round(num((f as { weight?: number }).weight) * scale * 10) / 10;
+    return { ...f, share, strength: num(f.strength), points: f.side ? Math.round(share * num(f.strength) * 10) / 10 : 0 };
+  });
+  const rScale = 100 / (num(s.result?.max) || total);
+  return { ...s, factors: fixed, result: fixResult(s.result, rScale)!, after: fixResult(s.after, rScale) ?? s.after };
+}
+
 /** Which state files belong to a date: `scale_2026-10-09_us.json` → 2026-10-09. */
 export function dateOfStateFile(name: string): string | null {
   const m = name.match(/^(?:scale|macro|review|regime)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);

@@ -11,6 +11,7 @@ import {
   DEFAULT_ZONES,
   factorStats,
   lessonsTail,
+  normalizeScale,
   parseCsv,
   VAULT_PATHS,
   type MacroCollect,
@@ -108,7 +109,9 @@ async function regionSnapshot(vault: string, date: string, region: Region): Prom
   const noteRel = path.join(...VAULT_PATHS.notes, `${date} ${REGION_NOTE[region]}.md`);
   return {
     region,
-    scale,
+    // Older scale files (v1) lack the percentages the screen draws; a file
+    // without a result at all is half-written and is shown as «not yet».
+    scale: scale && scale.result ? normalizeScale(scale) : null,
     verdict,
     collect: trimCollect(collectRaw),
     note: (await exists(path.join(vault, noteRel))) ? noteRel : null,

@@ -12,6 +12,7 @@ import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
 import { DayPanel } from './components/DayPanel';
 import { MacroDesk } from './macro/MacroDesk';
+import { MacroBoundary } from './macro/Boundary';
 import { macroChatTitle } from '@shared/macro';
 import { HelpTab } from './components/HelpTab';
 import { ReportDrawer } from './components/ReportDrawer';
@@ -590,6 +591,7 @@ export function App() {
         </nav>
         <CardActionsContext.Provider value={cardActions}>
           {tab === 'macro' ? (
+            <MacroBoundary>
             <MacroDesk
               settings={settings}
               chatFor={macroChatFor}
@@ -600,6 +602,7 @@ export function App() {
               onOpenChat={(date) => void macroOpenChat(date)}
               onPickVault={() => void pickVault()}
             />
+            </MacroBoundary>
           ) : tab === 'copilot' ? (
             <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
           ) : tab === 'day' ? (

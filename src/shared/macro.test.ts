@@ -7,6 +7,8 @@ import {
   factorStats,
   lessonsTail,
   macroChatTitle,
+  normalizeScale,
+  fmt,
   needleAngle,
   parseCsv,
   splitFactors,
@@ -144,5 +146,33 @@ describe('what goes to the agent', () => {
   });
   it('names the day chat by date', () => {
     expect(macroChatTitle('2026-10-12')).toBe('Обзор дня 12.10');
+  });
+});
+
+describe('older scale files', () => {
+  it('derives the percentages a v1 file (weights, points out of max) never had', () => {
+    const v1 = {
+      region: 'us', date: '2026-10-08', asof: '', sym: 'ES', version: 'v1',
+      factors: [
+        { id: 'a', name: 'A', group: 'техника', weight: 3, side: 'LONG', strength: 1, points: 3 },
+        { id: 'b', name: 'B', group: 'сессия', weight: 1, side: 'SHORT', strength: 0.5, points: 0.5 },
+        { id: 'c', name: 'C', group: 'сессия', weight: 1, side: '', strength: 0, points: 0 },
+      ],
+      result: { long: 3, short: 0.5, max: 5, needle: 71, zone: 'сильный лонг', side: 'LONG', groups: { техника: { long: 3, short: 0, needle: 100 }, сессия: { long: 0, short: 0.5, needle: -100 } } },
+      light: { color: 'red', label: '' },
+    } as never;
+    const s = normalizeScale(v1);
+    expect(s.factors.map((f) => [f.share, f.points])).toEqual([[60, 60], [20, 10], [20, 0]]);
+    expect(s.result).toMatchObject({ long: 60, short: 10, undecided: 30, needle: 71 });
+    expect(s.result.groups?.['техника']).toEqual({ share: 60, long: 60, short: 0, needle: 100 });
+    expect(s.result.groups?.['сессия'].share).toBe(40);
+  });
+  it('leaves a v3 file alone', () => {
+    const v3 = { factors: [{ id: 'a', name: 'A', group: 'g', side: 'LONG', strength: 1, share: 12, points: 12 }], result: { long: 12, short: 0, undecided: 88, needle: 12, zone: '', side: null } } as never;
+    expect(normalizeScale(v3)).toEqual({ ...(v3 as object), after: undefined });
+  });
+  it('formats a missing number as a dash instead of throwing', () => {
+    expect(fmt(undefined)).toBe('—');
+    expect(fmt(1.234, 2)).toBe('1.23');
   });
 });

@@ -3,7 +3,7 @@
 // the skill's thresholds, a needle at the scale's balance (long % − short %).
 // When the owner and the agent argued, the morning needle stays as a ghost and
 // the solid one shows the needle after the discussion.
-import { arcPath, clampNeedle, needleAngle, zoneOf, zoneSegments, type ZoneKey } from '@shared/macro';
+import { arcPath, clampNeedle, fmt, needleAngle, zoneOf, zoneSegments, type ZoneKey } from '@shared/macro';
 import { t } from '../i18n';
 
 const W = 320;
@@ -88,9 +88,9 @@ export function SplitBar({ long, short, undecided }: { long: number; short: numb
   return (
     <div class="split">
       <div class="split-bar" role="img" aria-label={t('macro.splitAria', { l: Math.round(long), s: Math.round(short), u: Math.round(undecided) })}>
-        <span class="split-long" style={{ width: pct(long) }} title={`${t('macro.forLong')} ${long.toFixed(1)} %`} />
-        <span class="split-und" style={{ width: pct(undecided) }} title={`${t('macro.undecided')} ${undecided.toFixed(1)} %`} />
-        <span class="split-short" style={{ width: pct(short) }} title={`${t('macro.forShort')} ${short.toFixed(1)} %`} />
+        <span class="split-long" style={{ width: pct(long) }} title={`${t('macro.forLong')} ${fmt(long)} %`} />
+        <span class="split-und" style={{ width: pct(undecided) }} title={`${t('macro.undecided')} ${fmt(undecided)} %`} />
+        <span class="split-short" style={{ width: pct(short) }} title={`${t('macro.forShort')} ${fmt(short)} %`} />
       </div>
       <div class="split-legend">
         <span>
@@ -118,7 +118,7 @@ export function GroupBar({ name, share, long, short, scale }: { name: string; sh
   const w = (n: number) => `${Math.min(50, (n * 50) / Math.max(1, scale))}%`;
   const net = long - short;
   return (
-    <div class="gbar" title={`${name}: ${t('macro.share')} ${share.toFixed(1)} % · ${t('macro.forLong')} ${long.toFixed(1)} · ${t('macro.forShort')} ${short.toFixed(1)}`}>
+    <div class="gbar" title={`${name}: ${t('macro.share')} ${fmt(share)} % · ${t('macro.forLong')} ${fmt(long)} · ${t('macro.forShort')} ${fmt(short)}`}>
       <span class="gbar-name">
         {name} <em>{Math.round(share)} %</em>
       </span>
