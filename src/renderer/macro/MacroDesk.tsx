@@ -384,7 +384,7 @@ function RegionView({ snap, day, busy, onDiscuss, onOpenNote }: { snap: RegionSn
   );
 }
 
-/** Up to three strongest arguments of one side, in words. */
+/** Every factor that voted for one side, strongest first. */
 function WhyColumn({ side, list }: { side: 'long' | 'short'; list: ScaleFactor[] }) {
   const sum = Math.round(list.reduce((n, f) => n + f.points, 0));
   return (
@@ -392,14 +392,13 @@ function WhyColumn({ side, list }: { side: 'long' | 'short'; list: ScaleFactor[]
       <div class="whycol-head">{t(side === 'long' ? 'macro.forLongTitle' : 'macro.forShortTitle', { n: sum })}</div>
       {list.length ? (
         <ul>
-          {list.slice(0, 3).map((f) => (
+          {list.map((f) => (
             <li title={f.why}>{f.name}</li>
           ))}
         </ul>
       ) : (
         <p class="muted">{t('macro.noneSide')}</p>
       )}
-      {list.length > 3 ? <p class="muted small">{t('macro.andMore', { n: list.length - 3 })}</p> : null}
     </div>
   );
 }
