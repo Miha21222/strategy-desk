@@ -585,3 +585,32 @@ if _src.exists():
                               {"key": "t1", "label": "цель: минимум H4 — вне ADR", "kind": "target", "color": "#1e8e3e", "style": "dashed"},
                               {"key": "zone1", "label": "точка A: снятие максимума D1", "kind": "zone", "color": "#5c6bc0", "style": "solid"},
                               {"key": "break", "label": "первый пробой IB вниз — 10:45", "kind": "fact", "color": "#ef6c00", "style": "solid"}]}]})
+
+# ---------- «сегодня» для проверки заметки 23 ----------
+# A copy of 14.09 under today's Kyiv date — with its reviews and the 20:00 result,
+# but WITHOUT the owner's read and evening answers, so the question-first flow,
+# «Показать обзор без ответа», «Твой день» and «Кто был прав» can be tried live
+# in the demo. Everything else in the demo stays on the invented September days.
+import shutil as _sh2
+from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+_TODAY = (_dt.now(_tz.utc) + _td(hours=3)).strftime("%Y-%m-%d")  # Kyiv, close enough for a demo
+_SRC = "2026-09-14"
+# The whole vault is rewritten on every run, so a previous «today» (another date)
+# is simply removed first — the marker remembers which one.
+_MARK = OUT / ".today"
+_OLD = _MARK.read_text(encoding="utf-8").strip() if _MARK.exists() else ""
+if _OLD and _OLD != _TODAY:
+    for _p in list(STATE.glob(f"*_{_OLD}*.json")) + list(NOTES.glob(f"{_OLD} *.md")):
+        _p.unlink()
+    _sh2.rmtree(SHOTS / _OLD, ignore_errors=True)
+_MARK.write_text(_TODAY, encoding="utf-8")
+for _p in list(STATE.glob(f"*_{_SRC}*.json")):
+    if _p.name.startswith(("human_read_", "day_answers_")):
+        continue
+    _txt = _p.read_text(encoding="utf-8").replace(_SRC, _TODAY)
+    (STATE / _p.name.replace(_SRC, _TODAY)).write_text(_txt, encoding="utf-8")
+if (SHOTS / _SRC).exists():
+    _sh2.copytree(SHOTS / _SRC, SHOTS / _TODAY, dirs_exist_ok=True)
+for _n in NOTES.glob(f"{_SRC} *.md"):
+    (NOTES / _n.name.replace(_SRC, _TODAY)).write_text(_n.read_text(encoding="utf-8").replace(_SRC, _TODAY), encoding="utf-8")
+print("today for note 23:", _TODAY, "(copy of", _SRC + ", no read / answers)")
