@@ -17,8 +17,8 @@ function load(dir: string): WorkflowFile {
 }
 
 describe('the shipped workflow files', () => {
-  it('finds all three', () => {
-    expect(dirs.sort()).toEqual(['ib-es', 'strategy-lab', 'v1b3-fundingpips']);
+  it('finds all four', () => {
+    expect(dirs.sort()).toEqual(['ib-es', 'ib-fdax', 'strategy-lab', 'v1b3-fundingpips']);
   });
 
   it.each(dirs)('%s parses and its prompt block exists', (dir: string) => {
@@ -49,9 +49,58 @@ describe('the shipped workflow files', () => {
     expect(p?.prompts.verdict).toBeTruthy();
   });
 
+  it('ib-es asks the level scan for its anchors, or the Daily open never exists', () => {
+    const lv = load('ib-es').panel?.levels as Record<string, unknown>;
+    expect(lv.include).toContain('anchors');
+    expect(load('ib-es').panel?.levelNames).toContain('Daily open');
+  });
+
   it("ib-es names its clocks in the owner's timezone", () => {
     const clocks = load('ib-es').panel?.clocks ?? [];
     expect(clocks.map((c) => c.name)).toEqual(['verdict', 'eth_scan', 'ib_close', 'entries_closed', 'flat']);
+    for (const c of clocks) expect(c.tz).toBe('Europe/Kyiv');
+  });
+
+  it('ib-fdax watches the Xetra session on the Eurex future itself', () => {
+    const p = load('ib-fdax').panel;
+    expect(p?.kind).toBe('session-watch');
+    const s = p?.sentinel as Record<string, unknown>;
+    expect(s.symbol).toBe('EUREX:FDAX1!');
+    expect(s.provider).toBe('session');
+    expect(s.session).toEqual({ start: '10:00', end: '18:30', tz: 'Europe/Kyiv' });
+    // IB = 10:00-10:30, thirty minutes, never an hour.
+    expect(s.range).toEqual({ source: 'session_open', minutes: 30 });
+    // DAX canon: one full-bodied close beyond a narrow IB is the trigger.
+    expect(s.confirm).toEqual({ mode: 'closes', closes: 1 });
+    expect((s.watch as Record<string, unknown>).tick_size).toBe(1);
+  });
+
+  it('ib-fdax computes every level it hands the sentinel', () => {
+    const p = load('ib-fdax').panel;
+    const lv = p?.levels as Record<string, unknown>;
+    // Anchors only come back when asked for in `include` (ib-es missed this once).
+    expect(lv.include).toEqual(expect.arrayContaining(['prev_day', 'prev_session', 'sessions', 'anchors', 'adr']));
+    expect(lv.prev_session_name).toBe('Xetra');
+    expect(lv.adr_session).toBe('Xetra');
+    expect(p?.levelNames).toEqual(
+      expect.arrayContaining(['Xetra prev high', 'Xetra prev low', 'Premarket high', 'Premarket low']),
+    );
+  });
+
+  it('ib-fdax has the pre-open plan turn and clocks a few minutes before each mark', () => {
+    const p = load('ib-fdax').panel;
+    expect(p?.prompts.plan).toContain('{levels_json}');
+    expect(p?.askModelOn).toEqual(['RANGE_CLOSED', 'BREAK_CONFIRMED', 'SWEEP', 'CLOCK']);
+    const clocks = p?.clocks ?? [];
+    expect(clocks.map((c) => c.name)).toEqual([
+      'premarket_scan',
+      'ib_close',
+      'late_entry',
+      'entries_closed',
+      'us_news_check',
+      'us_open_check',
+      'flat',
+    ]);
     for (const c of clocks) expect(c.tz).toBe('Europe/Kyiv');
   });
 

@@ -180,7 +180,7 @@ export const BriefReportSchema = z.object({
 export const WorkflowStateSchema = z.object({
   workflow: short,
   date: z.string().max(20),
-  phase: z.enum(['verdict', 'eth-scan', 'or', 'ib', 'breakout']),
+  phase: z.enum(['plan', 'verdict', 'premarket', 'eth-scan', 'or', 'ib', 'breakout', 'manage']),
   verdict: z.enum(['GO', 'STOP', 'WAIT']),
   bias: z.object({ direction: z.enum(['LONG', 'SHORT', 'NONE']), confidence: num.min(0).max(1) }),
   levels: z.array(z.object({ name: short, price: num, note: note.optional() })).max(LIMITS.levels).default([]),

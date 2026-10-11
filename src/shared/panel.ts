@@ -72,6 +72,11 @@ export const PanelPromptsSchema = z
     verdict: z.string().max(4000).optional(),
     /** Sent by the «разобрать день» button after a replay. */
     review: z.string().max(4000).optional(),
+    /**
+     * The pre-open turn of «запустить день целиком»: sent once the levels,
+     * calendar and risk are in, right before the sentinel starts.
+     */
+    plan: z.string().max(6000).optional(),
   })
   .default({});
 
@@ -276,6 +281,16 @@ export function nextPollDelayMs(
 export function shouldAskModel(panel: PanelDef | null | undefined, eventType: string): boolean {
   if (!panel || !panel.askModelOn.length) return false;
   return panel.askModelOn.includes(eventType);
+}
+
+/**
+ * The stored events still owed a chat turn: listed in askModelOn and not yet
+ * asked about. Kept separate from one poll's fresh events so a turn that could
+ * not be sent (the chat was busy) is sent on a later poll instead of being lost.
+ */
+export function eventsOwedTurn(panel: PanelDef | null | undefined, events: SentinelEvent[], asked: number[]): SentinelEvent[] {
+  const done = new Set(asked);
+  return eventsNeedingModel(panel, events).filter((e) => !done.has(e.seq));
 }
 
 /** The events of one poll that are worth a chat turn, oldest first. */
