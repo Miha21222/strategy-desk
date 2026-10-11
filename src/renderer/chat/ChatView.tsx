@@ -253,6 +253,7 @@ export function ChatView(p: ChatViewProps) {
           onKeyDown={onKey}
         />
         <div class="composer-bar">
+          {p.simple ? null : (
           <div class="mode" title={t('composer.modeHint')}>
             <button type="button" class={p.mode === 'saver' ? 'on' : ''} onClick={() => p.onModeChange('saver')}>
               {t('composer.modeSaver')}
@@ -261,6 +262,7 @@ export function ChatView(p: ChatViewProps) {
               {t('composer.modeFull')}
             </button>
           </div>
+          )}
           {p.chat ? (
             <div class="meter">
               {t('composer.tokens')}: {fmtTokens(p.chat.tokens.in)} / {fmtTokens(p.chat.tokens.out)} · {t('composer.cost')}: ${p.chat.costUsd.toFixed(3)}

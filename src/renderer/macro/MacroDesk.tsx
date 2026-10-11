@@ -162,7 +162,9 @@ export function MacroDesk(p: Props) {
   const [peek, setPeek] = useState<MacroWindowId | null>(null);
   useEffect(() => setPeek(null), [date]);
   const unread = (id: MacroWindowId): boolean => {
-    if (id === 'review' || date !== today || !day) return false;
+    if (date !== today || !day) return false;
+    // The evening tile's «N из 2 верно» would tell on the scale before the owner answered.
+    if (id === 'review') return unread('eu') || unread('us');
     const r = day[id];
     return Boolean(r.scale || r.verdict) && !r.human && peek !== id;
   };
@@ -246,7 +248,7 @@ function WindowTile({ id, day, active, state, hidden, onClick }: { id: MacroWind
   const w = WINDOW_TIMES[id];
   let body = <span class="wt-empty">{t(`macro.stateLong.${state}`)}</span>;
   if (hidden) {
-    body = <span class="wt-empty ask">{t('macro.tileAsk')}</span>;
+    body = <span class={`wt-empty${id === 'review' ? '' : ' ask'}`}>{t(id === 'review' ? 'macro.tileLater' : 'macro.tileAsk')}</span>;
   } else if (id !== 'review') {
     const s = day?.[id]?.scale;
     if (s) {
@@ -297,6 +299,23 @@ function AgentStrip(p: { streaming: boolean; blocked: boolean; messages: UiMessa
   const last = p.messages ? [...p.messages].reverse().find((m) => m.role === 'assistant' || m.role === 'notice') : null;
   const has = p.state === 'ready' || p.state === 'partial';
   const title = p.streaming ? t('macro.agentBusy') : p.state === 'partial' ? t(`macro.agentPartial.${p.window}`) : has ? t('macro.agentDone') : t(`macro.agentIdle.${p.window}`);
+  // Rebuilding an existing review costs minutes and tokens, so it takes two
+  // taps: the second button says so and goes away on its own.
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => {
+    if (!confirm) return;
+    const id = setTimeout(() => setConfirm(false), 6000);
+    return () => clearTimeout(id);
+  }, [confirm]);
+  useEffect(() => setConfirm(false), [p.window, p.streaming]);
+  const run = () => {
+    if (has && !confirm) {
+      setConfirm(true);
+      return;
+    }
+    setConfirm(false);
+    p.onRun();
+  };
   return (
     <div class={`agent-strip card${p.streaming ? ' busy' : ''}`}>
       <div class="agent-head">
@@ -305,8 +324,9 @@ function AgentStrip(p: { streaming: boolean; blocked: boolean; messages: UiMessa
           {title}
         </span>
         <span class="spacer" />
-        <button type="button" class={p.state === 'due' ? 'primary' : ''} disabled={p.streaming || p.blocked} onClick={p.onRun}>
-          {has ? t('macro.rerun') : t('macro.run')}
+        {confirm ? <span class="muted small">{t('macro.rerunCost')}</span> : null}
+        <button type="button" class={p.state === 'due' || confirm ? 'primary' : ''} disabled={p.streaming || p.blocked} onClick={run}>
+          {has ? (confirm ? t('macro.rerunConfirm') : t('macro.rerun')) : t('macro.run')}
         </button>
         {p.messages ? (
           <button type="button" class="ghost" onClick={p.onOpenChat}>
