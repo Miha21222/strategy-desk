@@ -26,6 +26,7 @@ import {
   type DiscussionItem,
   type MacroDay,
   type MacroIndex,
+  type MacroShots,
   type MacroWindowId,
   type Region,
   type RegionSnapshot,
@@ -717,7 +718,10 @@ function ContextCard({ snap }: { snap: RegionSnapshot }) {
 function ReviewView({ day, onOpenNote }: { day: MacroDay | null; onOpenNote: (rel: string) => void }) {
   const mech = day?.review.mech;
   const agent = day?.review.agent;
+  const [shotOpen, setShotOpen] = useState<{ region: Region; index: number } | null>(null);
+  useEffect(() => setShotOpen(null), [day?.date]);
   if (!day || (!mech && !agent)) return <div class="macro-none muted">{t('macro.noReview')}</div>;
+  const openShots = shotOpen ? day.review.shots?.[shotOpen.region] : null;
   return (
     <div class="macro-main">
       <div class="macro-grid">
@@ -738,7 +742,7 @@ function ReviewView({ day, onOpenNote }: { day: MacroDay | null; onOpenNote: (re
           </div>
         ) : null}
         {(['eu', 'us'] as Region[]).map((r) => (
-          <ReviewRegionCard region={r} rv={mech?.regions[r]} reflection={agent?.regions?.[r]} zones={day.zones} />
+          <ReviewRegionCard region={r} rv={mech?.regions[r]} reflection={agent?.regions?.[r]} zones={day.zones} shots={day.review.shots?.[r] ?? null} onOpenShot={(index) => setShotOpen({ region: r, index })} />
         ))}
         {agent?.lessons?.length ? (
           <div class="card wide">
@@ -753,6 +757,10 @@ function ReviewView({ day, onOpenNote }: { day: MacroDay | null; onOpenNote: (re
           </div>
         ) : null}
       </div>
+
+      {shotOpen && openShots?.ok && openShots.shots.length ? (
+        <ShotsLightbox shots={openShots} index={shotOpen.index} onIndex={(index) => setShotOpen({ region: shotOpen.region, index })} onClose={() => setShotOpen(null)} />
+      ) : null}
 
       <details class="more">
         <summary>{t('macro.moreReview')}</summary>
@@ -793,7 +801,7 @@ function ReviewView({ day, onOpenNote }: { day: MacroDay | null; onOpenNote: (re
 
 const PLAN_TEXT: Record<string, string> = { да: 'planYes', нет: 'planNo', 'нет пробоя': 'planNoBreak', 'пробой без IB1': 'planHalf' };
 
-function ReviewRegionCard({ region, rv, reflection, zones }: { region: Region; rv?: ReviewRegion; reflection?: { what_worked?: string; what_failed?: string; discussion?: string }; zones: { neutral: number; strong: number } }) {
+function ReviewRegionCard({ region, rv, reflection, zones, shots, onOpenShot }: { region: Region; rv?: ReviewRegion; reflection?: { what_worked?: string; what_failed?: string; discussion?: string }; zones: { neutral: number; strong: number }; shots: MacroShots | null; onOpenShot: (i: number) => void }) {
   if (!rv || rv.missing) {
     return (
       <div class="card">
@@ -832,6 +840,7 @@ function ReviewRegionCard({ region, rv, reflection, zones }: { region: Region; r
           {rv.after != null && sc.needle_hit ? <span class="chip">{t(sc.needle_hit === '1' ? 'macro.morningRight' : 'macro.morningWrong')}</span> : null}
           {plan ? <span class={`chip ${plan === 'planYes' ? 'good' : plan === 'planNo' ? 'bad' : ''}`}>{t(`macro.${plan}`)}</span> : null}
         </div>
+        <ShotsInline shots={shots} onOpen={onOpenShot} />
         {reflection ? (
           <div class="reflect">
             {reflection.what_worked ? (

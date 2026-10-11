@@ -562,3 +562,20 @@ if CFG_SRC and CFG_SRC.exists():
 (CONFIG / "scale.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=1), encoding="utf-8")
 (OUT / "README.md").write_text("# Демо-данные Strategy Desk\n\nПридуманные дни 14–24.09.2026 для проверки вкладки «Обзор дня». Создано scripts/make-demo-vault.py.\n", encoding="utf-8")
 print("demo vault:", OUT.resolve(), "days:", sorted({p.name.split("_")[1][:10] for p in STATE.glob("*_2026-*.json")}))
+
+# ---------- 20:00 picture of the window (review shots), 14.09 Europe ----------
+_src = OUT / "indices-kb" / "shots" / "2026-09-14" / "macro_eu" / "m15.png"
+if _src.exists():
+    import shutil as _sh
+    _sh.copyfile(_src, _src.with_name("review_m15.png"))
+    write("shots_2026-09-14_eu_review.json", {
+        "date": "2026-09-14", "region": "eu", "asof": "2026-09-14 13:00", "ok": True, "error": None,
+        "shots": [{"name": "review_m15", "tf": "M15", "title": "M15 — как прошло окно открытия",
+                   "path": "indices-kb/shots/2026-09-14/macro_eu/review_m15.png", "verify_ok": True,
+                   "legend": [{"key": "ib", "label": "IB — первые 30 минут", "kind": "fact", "color": "#ef6c00", "style": "solid"},
+                              {"key": "ib1_dn", "label": "IB1 вниз", "kind": "fact", "color": "#ef6c00", "style": "dashed"},
+                              {"key": "manip1", "label": "манипуляция: максимум премаркета", "kind": "manip", "color": "#d32f2f", "style": "solid"},
+                              {"key": "manip2", "label": "открытие дня — не манипуляция: за ним максимум премаркета", "kind": "manip", "color": "#757575", "style": "dashed"},
+                              {"key": "t1", "label": "цель: минимум H4 — вне ADR", "kind": "target", "color": "#1e8e3e", "style": "dashed"},
+                              {"key": "zone1", "label": "точка A: снятие максимума D1", "kind": "zone", "color": "#5c6bc0", "style": "solid"},
+                              {"key": "break", "label": "первый пробой IB вниз — 10:45", "kind": "fact", "color": "#ef6c00", "style": "solid"}]}]})

@@ -142,7 +142,16 @@ export async function loadDay(vault: string, date: string): Promise<MacroDay> {
     date,
     eu,
     us,
-    review: { mech, agent, note: reviewNote ? reviewNoteRel : null },
+    review: {
+      mech,
+      agent,
+      note: reviewNote ? reviewNoteRel : null,
+      // The 20:00 picture of each window: IB, IB1/IB2, the first break, the morning levels.
+      shots: {
+        eu: normalizeShots(await readJson<unknown>(path.join(dir, `shots_${date}_eu_review.json`)), 'eu'),
+        us: normalizeShots(await readJson<unknown>(path.join(dir, `shots_${date}_us_review.json`)), 'us'),
+      },
+    },
     lessons: lessonsMd ? lessonsTail(lessonsMd) : [],
     stats: scoresCsv ? factorStats(parseCsv(scoresCsv), date) : [],
     names,

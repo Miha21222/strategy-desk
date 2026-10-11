@@ -51,7 +51,7 @@ export function ShotLegendList({ legend }: { legend: ShotLegend[] }) {
   return (
     <ul class="shot-legend">
       {legend.map((l) => (
-        <li key={l.key || l.label} class={`lg-${l.kind}`}>
+        <li key={l.key || l.label} class={`lg-${l.kind}${(l.style ?? (l.kind === 'open' ? 'dashed' : 'solid')) === 'dashed' ? ' lg-dashed' : ''}`}>
           <i class="lg-line" style={{ '--lg': legendColor(l) } as Record<string, string>} />
           {l.label}
         </li>

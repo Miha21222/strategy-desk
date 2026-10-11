@@ -171,7 +171,8 @@ export interface MacroCollect {
 }
 
 /** What a line on a chart screenshot stands for. */
-export type ShotKind = 'manip' | 'target' | 'level' | 'open';
+/** zone = point A / POI rectangles, fact = what the window actually did (IB, IB1/IB2, the first break). */
+export type ShotKind = 'manip' | 'target' | 'level' | 'open' | 'zone' | 'fact';
 
 /** One line drawn on a screenshot, as the legend under the picture names it. */
 export interface ShotLegend {
@@ -180,6 +181,8 @@ export interface ShotLegend {
   label: string;
   kind: ShotKind | string;
   color: string;
+  /** How the line is drawn on the chart; absent in older files (then «open» is dashed, the rest solid). */
+  style?: 'solid' | 'dashed';
 }
 
 export interface MacroShot {
@@ -266,7 +269,7 @@ export interface MacroDay {
   date: string;
   eu: RegionSnapshot;
   us: RegionSnapshot;
-  review: { mech: ReviewMech | null; agent: ReviewAgent | null; note: string | null };
+  review: { mech: ReviewMech | null; agent: ReviewAgent | null; note: string | null; shots?: Partial<Record<Region, MacroShots | null>> };
   /** Newest lessons first, at most LESSONS_TAIL. */
   lessons: string[];
   /** Hit rate per factor over the last 30 days before (and including) this date. */
@@ -550,7 +553,7 @@ export function dateOfStateFile(name: string): string | null {
 const str = (x: unknown): string => (typeof x === 'string' ? x : x == null ? '' : String(x));
 
 /** Line colour per kind when the file's own colour is missing or not a plain hex. */
-export const SHOT_KIND_COLORS: Record<ShotKind, string> = { manip: '#d32f2f', target: '#1e8e3e', level: '#37474f', open: '#9e9e9e' };
+export const SHOT_KIND_COLORS: Record<ShotKind, string> = { manip: '#d32f2f', target: '#1e8e3e', level: '#37474f', open: '#9e9e9e', zone: '#5c6bc0', fact: '#ef6c00' };
 
 /**
  * A colour safe to put in a style: `#rgb`, `#rrggbb` or `#rrggbbaa` from the
@@ -582,7 +585,7 @@ export function normalizeShots(raw: unknown, region: Region): MacroShots | null 
       verify_ok: typeof x.verify_ok === 'boolean' ? x.verify_ok : null,
       legend: (Array.isArray(x.legend) ? x.legend : [])
         .filter((l): l is Record<string, unknown> => Boolean(l) && typeof l === 'object' && typeof (l as Record<string, unknown>).label === 'string')
-        .map((l) => ({ key: str(l.key), label: str(l.label), kind: str(l.kind) || 'level', color: str(l.color) })),
+        .map((l) => ({ key: str(l.key), label: str(l.label), kind: str(l.kind) || 'level', color: str(l.color), ...(l.style === 'dashed' || l.style === 'solid' ? { style: l.style } : {}) })),
     }));
   return {
     date: str(r.date),
