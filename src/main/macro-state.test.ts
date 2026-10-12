@@ -41,6 +41,14 @@ function vault(): string {
   writeFileSync(path.join(shotDir, 'm15.png'), Buffer.concat([PNG, Buffer.from('rest')]));
   writeFileSync(path.join(shotDir, 'fake.png'), 'not a png at all');
   writeFileSync(path.join(root, 'indices-kb', 'state', 'secret.png'), PNG);
+  // Note 23 §2–3: the memory cards. 2026-10-09 is a Friday.
+  writeFileSync(path.join(state, 'remember_2026-10-08_eu.json'), '﻿' + JSON.stringify({ date: '2026-10-08', region: 'eu', asof: '2026-10-08 09:31', items: [{ kind: 'lesson', text: 'В пилу ждать вторую манипуляцию', why: 'те же теги', ref: 'lessons.md 01.10', tags: ['eu', 'пила'] }], conditions: { tags: ['eu'] }, similar: null, lesson_candidates: 2, enough_history: true }));
+  writeFileSync(path.join(state, 'remember_2026-10-08_us.json'), '{"items": [');
+  writeFileSync(path.join(state, 'drift_2026-10-08_eu.json'), JSON.stringify({ date: '2026-10-08', region: 'eu', days: 20, enough_data: true, signals: [{ kind: 'phase', text: 'фаза сменилась: тренд → пила', severity: 'warn', data: {} }] }));
+  writeFileSync(path.join(state, 'drift_2026-10-08_us.json'), JSON.stringify({ date: '2026-10-08', region: 'us', days: 20, enough_data: true, signals: [] }));
+  writeFileSync(path.join(state, 'week_2026-10-09.json'), JSON.stringify({ week_start: '2026-10-05', week_end: '2026-10-09', days: 5, enough_data: true, lines: ['1', '2', '3', '4', '5'], stats: {}, trader: ['из недели'], share_proposal: null }));
+  writeFileSync(path.join(state, 'review_2026-10-09.json'), JSON.stringify({ date: '2026-10-09', regions: {}, trader: ['из дня', 7, ''] }));
+  writeFileSync(path.join(state, 'ideas.json'), JSON.stringify({ asof: '2026-10-09 20:10', items: [{ id: 'a', date: '2026-10-01', text: 'идея', side: 'LONG', region: 'eu', source: 'chat', confirmed: 3, refuted: 0, status: 'proposed', backtest: null, last_check: '2026-10-08' }] }));
   writeFileSync(path.join(journal, 'lessons.md'), '- 2026-10-07: старый\n- 2026-10-08: новый\n');
   writeFileSync(path.join(journal, 'scale_factor_scores.csv'), 'date,region,factor,group,share,side,strength,dir,hit\n2026-10-07,eu,bias_a,g,12,SHORT,1,SHORT,1\n');
   writeFileSync(path.join(root, 'indices-kb', 'config', 'scale.json'), JSON.stringify({ zones: { neutral: 15, strong: 40 }, regions: { eu: { factors: [{ id: 'bias_a', name: 'Точка A / BIAS' }] } } }));
@@ -68,6 +76,25 @@ describe('the vault reader', () => {
     expect(d.lessons).toEqual(['2026-10-08: новый', '2026-10-07: старый']);
     expect(d.stats).toEqual([{ region: 'eu', factor: 'bias_a', hits: 1, total: 1 }]);
     expect(d.names.bias_a).toBe('Точка A / BIAS');
+  });
+
+  it('reads the memory cards of note 23 §2–3, and shows nothing where there is nothing', async () => {
+    const v = vault();
+    const d = await loadDay(v, '2026-10-08');
+    expect(d.eu.remember?.items).toEqual([{ kind: 'lesson', text: 'В пилу ждать вторую манипуляцию', why: 'те же теги', ref: 'lessons.md 01.10', tags: ['eu', 'пила'] }]);
+    expect(d.us.remember).toBeNull();
+    expect(d.eu.drift?.signals[0]).toMatchObject({ kind: 'phase', severity: 'warn' });
+    expect(d.us.drift?.signals).toEqual([]);
+    expect(d.week).toBeNull();
+    expect(d.trader).toEqual([]);
+    expect(d.ideas?.items[0]).toMatchObject({ id: 'a', status: 'proposed', confirmed: 3 });
+    const fri = await loadDay(v, '2026-10-09');
+    expect(fri.week?.lines).toEqual(['1', '2', '3', '4', '5']);
+    expect(fri.week?.trader).toEqual(['из недели']);
+    expect(fri.trader).toEqual(['из дня']);
+    expect(fri.eu.remember).toBeNull();
+    expect(fri.eu.drift).toBeNull();
+    expect((await listDays(v)).days).toEqual(['2026-10-09', '2026-10-08', '2026-10-07']);
   });
 
   it('survives a half-written file', async () => {

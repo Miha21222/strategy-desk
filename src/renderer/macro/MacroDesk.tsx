@@ -20,15 +20,18 @@ import { createPortal } from 'preact/compat';
 import { useCallback, useEffect, useMemo, useState } from 'preact/hooks';
 import type { ChatMeta, Settings } from '@shared/api';
 import {
+  DATELESS_CHANGE,
   defaultWindow,
   discussPrompt,
   fmt,
   HUMAN_SIDES,
   humanHit,
+  isFriday,
   kyivNow,
   MACRO_WINDOWS,
   runCommand,
   splitFactors,
+  traderLines,
   WINDOW_TIMES,
   windowState,
   zoneOf,
@@ -54,6 +57,7 @@ import { Markdown } from '../chat/Markdown';
 import { t } from '../i18n';
 import type { UiMessage } from '../state';
 import { Gauge, GroupBar, signed, SplitBar, zoneLabel } from './Gauge';
+import { DriftStrip, IdeasCard, RememberCard, TraderCard, WeekCard } from './memoryCards';
 import { ShotsCard, ShotsInline, ShotsLightbox } from './Shots';
 
 interface Props {
@@ -111,7 +115,7 @@ export function MacroDesk(p: Props) {
     () =>
       window.desk.macro.onChanged((dates) => {
         void loadIndex();
-        if (dates.includes(date)) {
+        if (dates.includes(date) || dates.includes(DATELESS_CHANGE)) {
           void loadDay(date);
           setFlash(true);
           setTimeout(() => setFlash(false), 1600);
@@ -387,6 +391,9 @@ function RegionView({ snap, day, date, past, peek, onPeek, busy, onDiscuss, onOp
   return (
     <div class="macro-main">
       {askRead || human ? <HumanReadCard region={region} human={human} scaleSide={res ? zoneOf(res.needle, zones) : null} onPick={sendRead} /> : null}
+      {/* Note 23 §2: the memory first — what to keep in mind today, and what changed — then the gauge. */}
+      <RememberCard remember={snap.remember} />
+      <DriftStrip drift={snap.drift} />
       <div class="macro-grid">
         {s && res ? (
           <div class="card hero">
@@ -973,6 +980,8 @@ function ReviewView({ day, date, past, onOpenNote }: { day: MacroDay | null; dat
     );
   }
   const openShots = shotOpen ? day.review.shots?.[shotOpen.region] : null;
+  const friday = isFriday(date) && Boolean(day.week?.lines.length);
+  const trader = traderLines(day);
   return (
     <div class="macro-main">
       {askDay ? <DayAnswersCard answers={answers} onSave={saveAnswers} /> : null}
@@ -996,6 +1005,9 @@ function ReviewView({ day, date, past, onOpenNote }: { day: MacroDay | null; dat
         {(['eu', 'us'] as Region[]).map((r) => (
           <ReviewRegionCard region={r} rv={mech?.regions[r]} reflection={agent?.regions?.[r]} zones={day.zones} shots={day.review.shots?.[r] ?? null} human={day[r].human} answer={answers?.regions[r]} past={past} onOpenShot={(index) => setShotOpen({ region: r, index })} />
         ))}
+        {/* Note 23 §3: on a Friday the day's result becomes the week's; «О тебе» rides along, else it stands alone. */}
+        {friday ? <WeekCard week={day.week} trader={trader} /> : <TraderCard lines={trader} />}
+        <IdeasCard ideas={day.ideas} />
         {agent?.lessons?.length ? (
           <div class="card wide">
             <div class="card-head">{t('macro.lessonsToday')}</div>

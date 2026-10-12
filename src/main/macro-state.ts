@@ -6,25 +6,36 @@
 // it, the same way it follows a run started by the Windows Task Scheduler
 // while the desk was open. The exception is the owner's own two files (note
 // 23): his read of a window before the gauge, and his two evening answers.
-// Those are written here, instantly, under exactly two file names.
+// Those are written here, instantly, under exactly two file names. The memory
+// cards of note 23 §2–3 (remember_*, drift_*, week_*, ideas.json) are the
+// skill's files and are only read.
 import { promises as fs, watch, type FSWatcher } from 'node:fs';
 import path from 'node:path';
 import {
+  DATELESS_CHANGE,
   dateOfStateFile,
   dayAnswersFile,
   DEFAULT_ZONES,
+  driftFile,
   factorStats,
   HUMAN_SIDES,
   humanReadFile,
+  ideasFile,
   isShotPath,
   kyivNow,
   lessonsTail,
   normalizeDayAnswers,
+  normalizeDrift,
   normalizeHumanRead,
+  normalizeIdeas,
+  normalizeRemember,
   normalizeScale,
   normalizeShots,
+  normalizeWeek,
   parseCsv,
+  rememberFile,
   VAULT_PATHS,
+  weekFile,
   type DayAnswers,
   type HumanRead,
   type HumanSide,
@@ -112,12 +123,14 @@ function trimCollect(raw: Record<string, unknown> | null): MacroCollect | null {
 
 async function regionSnapshot(vault: string, date: string, region: Region): Promise<RegionSnapshot> {
   const dir = statePath(vault);
-  const [scale, verdictFile, collectRaw, shotsRaw, humanRaw] = await Promise.all([
+  const [scale, verdictFile, collectRaw, shotsRaw, humanRaw, rememberRaw, driftRaw] = await Promise.all([
     readJson<ScaleState>(path.join(dir, `scale_${date}_${region}.json`)),
     readJson<MacroVerdict>(path.join(dir, `macro_${date}_${region}_verdict.json`)),
     readJson<Record<string, unknown>>(path.join(dir, `macro_${date}_${region}.json`)),
     readJson<unknown>(path.join(dir, `shots_${date}_${region}.json`)),
     readJson<unknown>(path.join(dir, humanReadFile(date, region))),
+    readJson<unknown>(path.join(dir, rememberFile(date, region))),
+    readJson<unknown>(path.join(dir, driftFile(date, region))),
   ]);
   // `note` copies the verdict into the collect file too; the verdict file is
   // the one the agent writes, so it wins when both exist.
@@ -133,6 +146,9 @@ async function regionSnapshot(vault: string, date: string, region: Region): Prom
     note: (await exists(path.join(vault, noteRel))) ? noteRel : null,
     shots: normalizeShots(shotsRaw, region),
     human: normalizeHumanRead(humanRaw, date, region),
+    // Note 23 §2–3: what the skill picked out of its memory for this window. Read-only here.
+    remember: normalizeRemember(rememberRaw, date, region),
+    drift: normalizeDrift(driftRaw, date, region),
   };
 }
 
@@ -140,7 +156,7 @@ export async function loadDay(vault: string, date: string): Promise<MacroDay> {
   const dir = statePath(vault);
   const jdir = journalPath(vault);
   const reviewNoteRel = path.join(...VAULT_PATHS.notes, `${date} Итог дня.md`);
-  const [eu, us, mech, agent, answersRaw, lessonsMd, scoresCsv, cfg, reviewNote] = await Promise.all([
+  const [eu, us, mech, agent, answersRaw, lessonsMd, scoresCsv, cfg, reviewNote, weekRaw, ideasRaw] = await Promise.all([
     regionSnapshot(vault, date, 'eu'),
     regionSnapshot(vault, date, 'us'),
     readJson<ReviewMech>(path.join(dir, `review_${date}.json`)),
@@ -150,6 +166,8 @@ export async function loadDay(vault: string, date: string): Promise<MacroDay> {
     readText(path.join(jdir, 'scale_factor_scores.csv')),
     readJson<{ zones?: { neutral?: number; strong?: number }; regions?: Record<string, { factors?: { id: string; name: string }[] }> }>(path.join(vault, ...VAULT_PATHS.config)),
     exists(path.join(vault, reviewNoteRel)),
+    readJson<unknown>(path.join(dir, weekFile(date))),
+    readJson<unknown>(path.join(dir, ideasFile())),
   ]);
   const names: Record<string, string> = {};
   for (const r of Object.values(cfg?.regions ?? {})) for (const f of r.factors ?? []) names[f.id] = f.name;
@@ -172,6 +190,9 @@ export async function loadDay(vault: string, date: string): Promise<MacroDay> {
     stats: scoresCsv ? factorStats(parseCsv(scoresCsv), date) : [],
     names,
     zones: { neutral: cfg?.zones?.neutral ?? DEFAULT_ZONES.neutral, strong: cfg?.zones?.strong ?? DEFAULT_ZONES.strong },
+    week: normalizeWeek(weekRaw),
+    ideas: normalizeIdeas(ideasRaw),
+    trader: Array.isArray(mech?.trader) ? mech.trader.filter((x): x is string => typeof x === 'string' && x.trim() !== '') : [],
   };
 }
 
@@ -292,7 +313,8 @@ export function watchVault(vault: string, onChange: (dates: string[]) => void): 
   if (!dir) return;
   try {
     watcher = watch(dir, { persistent: false }, (_ev, name) => {
-      const d = name ? dateOfStateFile(String(name)) : null;
+      // `ideas.json` carries no date: whichever day is on screen re-reads it.
+      const d = name ? (String(name) === ideasFile() ? DATELESS_CHANGE : dateOfStateFile(String(name))) : null;
       if (!d) return;
       pending.add(d);
       if (timer) clearTimeout(timer);

@@ -307,6 +307,248 @@ export function humanHit(side: HumanSide | null | undefined, dir: string | null 
   return side === dir;
 }
 
+// ---------------------------------------------------------------- the memory cards (note 23 §2–3)
+//
+// «Сегодня помни», «Что изменилось», «Неделя в пять строк», «Идеи на проверке»:
+// the skill picks what matters today out of the lessons, the rules, the history
+// and the owner's own ideas, and writes it to small state files. The desk only
+// reads them — a card is simply not drawn when its file is missing or empty.
+
+export type RememberKind = 'lesson' | 'rule' | 'similar';
+const REMEMBER_KINDS: RememberKind[] = ['lesson', 'rule', 'similar'];
+
+/** One line of «Сегодня помни»: a lesson whose tags match today, a rule that is on today, or a similar day. */
+export interface RememberItem {
+  kind: RememberKind;
+  text: string;
+  /** Why this line today («пятница в Европе», «те же теги: пила, ночь ≥ 0.8 ADR»). */
+  why: string;
+  /** Where it comes from («lessons.md 08.10», «заметка 20, п. 7», «2026-10-08 eu»). */
+  ref: string;
+  tags: string[];
+}
+
+/** `state/remember_<D>_<region>.json` */
+export interface Remember {
+  date: string;
+  region: Region;
+  asof: string;
+  /** At most three; the skill chose them. */
+  items: RememberItem[];
+  conditions: {
+    region?: string;
+    weekday?: string;
+    phase?: string;
+    night?: string;
+    night_adr?: number | null;
+    light?: string;
+    earnings_giant_prev?: boolean;
+    tags: string[];
+  } | null;
+  /** The nearest day by factor vector, and how it ended. */
+  similar: { date: string; region: string; distance: number | null; needle: number | null; dir: string; chg_adr: number | null; human_side: string } | null;
+  lesson_candidates: number;
+  enough_history: boolean;
+}
+
+export type DriftKind = 'phase' | 'adr' | 'factor' | 'needle';
+
+/** One thing that changed («фаза сменилась на тренд», «фактор X три дня подряд мимо»). */
+export interface DriftSignal {
+  kind: DriftKind | string;
+  text: string;
+  severity: 'info' | 'warn';
+  data: Record<string, unknown>;
+}
+
+/** `state/drift_<D>_<region>.json` — shown only when `signals` is not empty. */
+export interface Drift {
+  date: string;
+  region: Region;
+  days: number;
+  enough_data: boolean;
+  signals: DriftSignal[];
+}
+
+/** `state/week_<D>.json` (D = the Friday): the week in five lines. */
+export interface WeekSummary {
+  week_start: string;
+  week_end: string;
+  days: number;
+  enough_data: boolean;
+  /** Five lines: the market, what worked, the lesson that repeated, one idea to check, one share proposal. */
+  lines: string[];
+  stats: Record<string, unknown>;
+  /** Observations about the trader himself («4 стопа из 5 — вход до закрытия IB»). */
+  trader: string[];
+  /** One sentence; the decision is the owner's, in chat. */
+  share_proposal: { factor: string; from: number | string | null; to: number | string | null; why: string } | null;
+}
+
+export type IdeaStatus = 'open' | 'proposed' | 'rule' | 'dropped';
+const IDEA_STATUSES: IdeaStatus[] = ['open', 'proposed', 'rule', 'dropped'];
+
+/** One idea the owner voiced, with its running score from the evening checks. */
+export interface Idea {
+  id: string;
+  date: string;
+  text: string;
+  side: string;
+  region: string;
+  source: string;
+  confirmed: number;
+  refuted: number;
+  status: IdeaStatus;
+  backtest: { days: number; hit: number; rate: number | null } | null;
+  last_check: string;
+}
+
+/** `state/ideas.json` — no date: the one list, as it stands now. */
+export interface Ideas {
+  asof: string;
+  items: Idea[];
+}
+
+export const REMEMBER_MAX = 3;
+export const IDEAS_MAX = 5;
+
+export function rememberFile(date: string, region: Region): string {
+  return `remember_${date}_${region}.json`;
+}
+
+export function driftFile(date: string, region: Region): string {
+  return `drift_${date}_${region}.json`;
+}
+
+export function weekFile(date: string): string {
+  return `week_${date}.json`;
+}
+
+export function ideasFile(): string {
+  return 'ideas.json';
+}
+
+const rec = (x: unknown): Record<string, unknown> | null => (x && typeof x === 'object' && !Array.isArray(x) ? (x as Record<string, unknown>) : null);
+const strs = (x: unknown): string[] => (Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string' && s.trim() !== '').map((s) => s.trim()) : []);
+const numOrNull = (x: unknown): number | null => (typeof x === 'number' && Number.isFinite(x) ? x : null);
+const intOf = (x: unknown): number => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.round(x)) : 0);
+
+/** A parsed remember file, or null when it is not one. Items without text or with an unknown kind are dropped; at most three stay. */
+export function normalizeRemember(raw: unknown, date: string, region: Region): Remember | null {
+  const r = rec(raw);
+  if (!r || !Array.isArray(r.items)) return null;
+  const items: RememberItem[] = r.items
+    .map(rec)
+    .filter((x): x is Record<string, unknown> => Boolean(x) && REMEMBER_KINDS.includes(x!.kind as RememberKind) && typeof x!.text === 'string' && x!.text.trim() !== '')
+    .map((x) => ({ kind: x.kind as RememberKind, text: str(x.text).trim(), why: str(x.why).trim(), ref: str(x.ref).trim(), tags: strs(x.tags) }))
+    .slice(0, REMEMBER_MAX);
+  const c = rec(r.conditions);
+  const s = rec(r.similar);
+  return {
+    date: typeof r.date === 'string' ? r.date : date,
+    region: r.region === 'eu' || r.region === 'us' ? r.region : region,
+    asof: str(r.asof),
+    items,
+    conditions: c
+      ? {
+          ...(typeof c.region === 'string' ? { region: c.region } : {}),
+          ...(typeof c.weekday === 'string' ? { weekday: c.weekday } : {}),
+          ...(typeof c.phase === 'string' ? { phase: c.phase } : {}),
+          ...(typeof c.night === 'string' ? { night: c.night } : {}),
+          night_adr: numOrNull(c.night_adr),
+          ...(typeof c.light === 'string' ? { light: c.light } : {}),
+          ...(typeof c.earnings_giant_prev === 'boolean' ? { earnings_giant_prev: c.earnings_giant_prev } : {}),
+          tags: strs(c.tags),
+        }
+      : null,
+    similar: s && typeof s.date === 'string' ? { date: s.date, region: str(s.region), distance: numOrNull(s.distance), needle: numOrNull(s.needle), dir: str(s.dir), chg_adr: numOrNull(s.chg_adr), human_side: str(s.human_side) } : null,
+    lesson_candidates: intOf(r.lesson_candidates),
+    enough_history: r.enough_history === true,
+  };
+}
+
+/** A parsed drift file, or null when it is not one. Signals without text are dropped; severity defaults to `info`. */
+export function normalizeDrift(raw: unknown, date: string, region: Region): Drift | null {
+  const r = rec(raw);
+  if (!r || !Array.isArray(r.signals)) return null;
+  const signals: DriftSignal[] = r.signals
+    .map(rec)
+    .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x!.text === 'string' && x!.text.trim() !== '')
+    .map((x) => ({ kind: str(x.kind) || 'factor', text: str(x.text).trim(), severity: x.severity === 'warn' ? 'warn' : 'info', data: rec(x.data) ?? {} }));
+  return {
+    date: typeof r.date === 'string' ? r.date : date,
+    region: r.region === 'eu' || r.region === 'us' ? r.region : region,
+    days: intOf(r.days),
+    enough_data: r.enough_data === true,
+    signals,
+  };
+}
+
+/** A parsed week file, or null when it is not one (no lines at all). */
+export function normalizeWeek(raw: unknown): WeekSummary | null {
+  const r = rec(raw);
+  if (!r || !Array.isArray(r.lines)) return null;
+  const p = rec(r.share_proposal);
+  return {
+    week_start: str(r.week_start),
+    week_end: str(r.week_end),
+    days: intOf(r.days),
+    enough_data: r.enough_data === true,
+    lines: strs(r.lines),
+    stats: rec(r.stats) ?? {},
+    trader: strs(r.trader),
+    share_proposal: p && typeof p.factor === 'string' ? { factor: p.factor, from: typeof p.from === 'number' || typeof p.from === 'string' ? p.from : null, to: typeof p.to === 'number' || typeof p.to === 'string' ? p.to : null, why: str(p.why).trim() } : null,
+  };
+}
+
+/** A parsed ideas file, or null when it is not one. Items without text or an unknown status are dropped. */
+export function normalizeIdeas(raw: unknown): Ideas | null {
+  const r = rec(raw);
+  if (!r || !Array.isArray(r.items)) return null;
+  const items: Idea[] = r.items
+    .map(rec)
+    .filter((x): x is Record<string, unknown> => Boolean(x) && typeof x!.text === 'string' && x!.text.trim() !== '' && IDEA_STATUSES.includes(x!.status as IdeaStatus))
+    .map((x, i) => {
+      const b = rec(x.backtest);
+      return {
+        id: str(x.id) || `idea-${i}`,
+        date: str(x.date),
+        text: str(x.text).trim(),
+        side: str(x.side),
+        region: str(x.region),
+        source: str(x.source),
+        confirmed: intOf(x.confirmed),
+        refuted: intOf(x.refuted),
+        status: x.status as IdeaStatus,
+        backtest: b ? { days: intOf(b.days), hit: intOf(b.hit), rate: numOrNull(b.rate) } : null,
+        last_check: str(x.last_check),
+      };
+    });
+  return { asof: str(r.asof), items };
+}
+
+/** The ideas worth the screen: open and proposed only, newest first, at most IDEAS_MAX. */
+export function visibleIdeas(ideas: Ideas | null | undefined): Idea[] {
+  if (!ideas) return [];
+  return ideas.items
+    .filter((x) => x.status === 'open' || x.status === 'proposed')
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, IDEAS_MAX);
+}
+
+/** The lines the trader block shows in the evening: the week's on a Friday (when it has any), else the review's. */
+export function traderLines(day: Pick<MacroDay, 'date' | 'week' | 'trader'>): string[] {
+  if (isFriday(day.date) && day.week?.trader.length) return day.week.trader;
+  return day.trader;
+}
+
+/** Is this ISO date a Friday? Dates in the vault are Kyiv calendar days, so the weekday needs no time zone. */
+export function isFriday(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const t = Date.parse(`${date}T12:00:00Z`);
+  return Number.isFinite(t) && new Date(t).getUTCDay() === 5;
+}
+
 export interface RegionSnapshot {
   region: Region;
   scale: ScaleState | null;
@@ -318,6 +560,10 @@ export interface RegionSnapshot {
   shots: MacroShots | null;
   /** The owner's own read of the window, when he gave one. */
   human: HumanRead | null;
+  /** «Сегодня помни» — null when the skill wrote nothing for this window. */
+  remember: Remember | null;
+  /** «Что изменилось» — null when the skill wrote nothing; drawn only with signals. */
+  drift: Drift | null;
 }
 
 export interface ReviewFactorRow {
@@ -349,6 +595,8 @@ export interface ReviewMech {
   date: string;
   asof?: string;
   regions: Partial<Record<Region, ReviewRegion>>;
+  /** Observations about the trader himself, when the skill has weeks enough to make them. */
+  trader?: string[];
 }
 
 export interface ReviewAgent {
@@ -379,6 +627,12 @@ export interface MacroDay {
   /** Factor id → readable name, from config/scale.json. */
   names: Record<string, string>;
   zones: { neutral: number; strong: number };
+  /** «Неделя в пять строк»: `week_<D>.json` of this date (written on a Friday); null otherwise. */
+  week: WeekSummary | null;
+  /** «Идеи на проверке»: the one dateless list; null when the skill has not written it. */
+  ideas: Ideas | null;
+  /** «О тебе» from the day's review json; empty when there is none. */
+  trader: string[];
 }
 
 export interface MacroIndex {
@@ -644,9 +898,12 @@ export function normalizeScale(s: ScaleState): ScaleState {
   return { ...s, factors: fixed, result: fixResult(s.result, rScale)!, after: fixResult(s.after, rScale) ?? s.after };
 }
 
+/** The one state file without a date; a change to it concerns whatever day is on screen. */
+export const DATELESS_CHANGE = '*';
+
 /** Which state files belong to a date: `scale_2026-10-09_us.json` → 2026-10-09. */
 export function dateOfStateFile(name: string): string | null {
-  const m = name.match(/^(?:scale|macro|review|regime|shots|human_read|day_answers)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);
+  const m = name.match(/^(?:scale|macro|review|regime|shots|human_read|day_answers|remember|drift|week)_(\d{4}-\d{2}-\d{2})(?:_|\.)/);
   return m ? m[1] : null;
 }
 

@@ -7,7 +7,8 @@ nine invented September days, each covering a different case of the interface
 (strong/neutral/red days, discussions that move the needle, half-written reviews,
 an old v1 scale, very long texts, chart screenshots in every state). Every file follows the contract of the real
 `macro-review` skill (scale.py v3.1, verdict, review, review_agent, lessons,
-factor scores, shots); the numbers are made up and say so in every summary.
+factor scores, shots, and the note-23 memory cards: remember, drift, week,
+ideas); the numbers are made up and say so in every summary.
 The screenshots are drawn with Pillow when it is installed (else their json
 says ok: false, «Pillow не установлен»).
 
@@ -212,8 +213,10 @@ def scale_state(region: str, d: str, factors: list[dict], lt: dict, price: float
     return st
 
 
-def review(d: str, regions: dict) -> None:
+def review(d: str, regions: dict, trader: list[str] | None = None) -> None:
     out = {"date": d, "asof": f"{d} 20:01", "regions": {}}
+    if trader:  # note 23 §3: observations about the trader himself, once there are weeks enough
+        out["trader"] = [(DEMO if i == 0 else "") + t for i, t in enumerate(trader)]
     for r, x in regions.items():
         if x is None:
             out["regions"][r] = {"missing": "шкалы за этот день нет"}
@@ -240,6 +243,25 @@ def score(d: str, region: str, st: dict, dirn: str) -> None:
         if f["side"] and dirn != "FLAT":
             stats_rows.append({"date": d, "region": region, "factor": f["id"], "group": f["group"], "share": f["share"], "side": f["side"],
                                "strength": f["strength"], "dir": dirn, "hit": "1" if f["side"] == dirn else "0"})
+
+
+# ---------- note 23 §2–3: the memory cards (remember_*, drift_*, week_*, ideas.json) ----------
+# The real skill picks these out of lessons.md, note 20, the scale history and
+# journal/ideas.md. Here the lines are invented; the desk only reads them.
+
+
+def remember(d: str, region: str, items: list[tuple[str, str, str, str, list[str]]], *, similar: dict | None = None, phase: str = "пила", weekday: str = "mon") -> None:
+    write(f"remember_{d}_{region}.json", {
+        "date": d, "region": region, "asof": f"{d} {'09:31' if region == 'eu' else '16:01'}",
+        "items": [{"kind": k, "text": (DEMO if i == 0 else "") + text, "why": why, "ref": ref, "tags": tags} for i, (k, text, why, ref, tags) in enumerate(items)],
+        "conditions": {"region": region, "weekday": weekday, "phase": phase, "night": "wide", "night_adr": 0.85, "light": "yellow",
+                       "earnings_giant_prev": False, "tags": [region, phase, weekday, "ночь ≥ 0.8 ADR"]},
+        "similar": similar, "lesson_candidates": len([i for i in items if i[0] == "lesson"]), "enough_history": True})
+
+
+def drift(d: str, region: str, signals: list[tuple[str, str, str]]) -> None:
+    write(f"drift_{d}_{region}.json", {"date": d, "region": region, "days": 20, "enough_data": True,
+                                        "signals": [{"kind": k, "text": (DEMO if i == 0 else "") + text, "severity": sev, "data": {}} for i, (k, text, sev) in enumerate(signals)]})
 
 
 def note(d: str, title: str) -> None:
@@ -413,7 +435,20 @@ write(f"human_read_{d}_eu.json", {"date": d, "region": "eu", "side": "SHORT", "a
 write(f"human_read_{d}_us.json", {"date": d, "region": "us", "side": "LONG", "at": f"{d} 16:03", "before_scale": False})
 write(f"day_answers_{d}.json", {"date": d, "at": f"{d} 20:04", "regions": {"eu": {"trade": "short", "by_rule": "yes"}, "us": {"trade": "none"}},
       "note": "Ждал вторую манипуляцию, как в уроке — сработало; в США не входил: вялое открытие"})
-review(d, {"eu": (eu, "SHORT", -0.42, "да", True, False), "us": (us, "SHORT", -0.25, "пробой без IB1", True, False)})
+remember(d, "eu", [
+    ("lesson", "В пилу на DAX первая манипуляция у открытия дня не держит — ждать вторую.", "те же условия: пила, ночь ≥ 0.8 ADR", "уроки 08.09", ["eu", "пила", "ночь ≥ 0.8 ADR"]),
+    ("rule", "Понедельник после широкой ночи — цель только IB1, риск ×0.5.", "сегодня понедельник, ночь прошла 0.85 ADR", "заметка 20, п. 7", ["eu", "mon", "ночь ≥ 0.8 ADR"]),
+    ("similar", "Похожий день — 08.09: стрелка −41, окно пошло вниз на 0.4 ADR, ты тогда сказал «вниз».", "ближайший по факторам из 20 дней", "08.09 Европа", ["eu", "пила"]),
+], similar={"date": "2026-09-08", "region": "eu", "distance": 0.14, "needle": -41, "dir": "SHORT", "chg_adr": -0.4, "human_side": "SHORT"})
+drift(d, "eu", [("phase", "Фаза сменилась: две недели был тренд, последние 5 дней — пила.", "warn"),
+                ("factor", "«Место до цели» три дня подряд мимо — раньше угадывало 6 из 10.", "info")])
+remember(d, "us", [
+    ("lesson", "Уровень ближе 0.1 ADR — не цель, а шум.", "те же условия: вялая ночь на ES", "уроки 10.09", ["us", "пила"]),
+    ("rule", "Сетап 1 только до 17:30 — после закрытия IB ждать сетап 2.", "сегодня светофор зелёный, ночь обычная", "заметка 20, п. 4", ["us"]),
+])
+drift(d, "us", [])  # a file with nothing to say — the card stays silent
+review(d, {"eu": (eu, "SHORT", -0.42, "да", True, False), "us": (us, "SHORT", -0.25, "пробой без IB1", True, False)},
+       trader=["4 стопа из 5 за две недели — вход до закрытия IB.", "В пилу входишь чаще, чем в тренд, а угадываешь реже."])
 write(f"review_{d}_agent.json", {"summary": DEMO + "Оба окна пошли вниз, как показывала стрелка. Европа дошла до цели, США — пробой без цели.",
       "regions": {"eu": {"what_worked": "Снятие ночного максимума с отказом дало вход по сетапу 3.", "what_failed": "«Место до цели» голосовало за лонг — уровень был вплотную к цене.",
                          "discussion": "Довод про недельный минимум не подтвердился, но ограничил цель IB1 — это было верно."},
@@ -484,7 +519,23 @@ shots(d, "eu", eu, verify_ok=False)
 write(f"macro_{d}_eu.json", collect("eu", d, "TRADE", EV_EU, -1))
 write(f"macro_{d}_eu_verdict.json", verdict("SHORT", "low", "Фон слабо за шорт, но день экспирации.", ["Утром — сильный шорт.", "После обсуждения перевеса нет — по правилам пропуск."]))
 note(d, "Европа")
-review(d, {"eu": (eu, "LONG", 0.12, None, None, False), "us": None})
+remember(d, "eu", [
+    ("rule", "Пятница в Европе — риск ×0.5, выносы у открытия чаще ложные.", "сегодня пятница", "заметка 20, п. 9", ["eu", "fri"]),
+    ("lesson", "День квартальной экспирации — по умолчанию пропуск в первые 30 минут.", "сегодня экспирация", "уроки 12.09", ["eu", "экспирация"]),
+], weekday="fri")
+review(d, {"eu": (eu, "LONG", 0.12, None, None, False), "us": None}, trader=["За неделю 3 входа из 4 — против своего утреннего взгляда."])
+# Note 23 §3: Friday 20:00 — the day's result becomes the week's.
+write(f"week_{d}.json", {
+    "week_start": "2026-09-14", "week_end": d, "days": 5, "enough_data": True,
+    "lines": [DEMO + "Рынок: пила всю неделю, три дня из пяти окно Европы не дошло до IB1.",
+              "Сработало: сетап 3 после второй манипуляции — 2 из 2.",
+              "Урок повторился: первая манипуляция у открытия дня в пилу не держит.",
+              "На проверку: в день экспирации окно чаще идёт против ночи.",
+              "По доле: «Место до цели» 12 % → 8 % — три промаха из четырёх."],
+    "stats": {"days": 5, "needle_hits": 2, "needle_total": 4, "human_hits": 3, "human_total": 4},
+    "trader": [DEMO + "Трижды из четырёх ты был прав, а шкала — дважды: твой взгляд пока точнее стрелки.",
+               "Все стопы недели — вход до закрытия IB."],
+    "share_proposal": {"factor": "Место до цели", "from": 12, "to": 8, "why": "Три промаха из четырёх за неделю; решение — в чате, после первого разбора месяца."}})
 write(f"review_{d}_agent.json", {"summary": DEMO + "Владелец был прав: в день экспирации окно пошло вверх, шорт по утренней стрелке дал бы стоп.",
       "regions": {"eu": {"what_worked": "Довод про экспирацию перевёл день в пропуск.", "what_failed": "Механика не знает про экспирацию.", "discussion": "Прав владелец: довод на 20 % оказался решающим. Мой довод про открытие недели — мимо."}},
       "lessons": ["День квартальной экспирации — по умолчанию пропуск в первые 30 минут."], "weight_ideas": ["Добавить фактор «экспирация» в светофор, а не в стрелку."]})
@@ -535,6 +586,20 @@ write(f"scale_{d}_us.json", {"region": "us", "date": d, "asof": f"{d} 16:00", "s
       "result": {"long": L, "short": S, "max": 14, "needle": round((L - S) / (L + S) * 100), "zone": "сильный лонг", "side": "LONG",
                  "groups": {"техника": {"long": 7.0, "short": 1.4, "needle": 67}, "сессия": {"long": 1.88, "short": 0.33, "needle": 70}}},
       "light": light("green", []), "levels": {}, "plan": plan("us", "LONG", 7900, 60), "discussion": [], "history": []})
+
+# ---------- note 23 §3: «Идеи на проверке» (one dateless list) ----------
+write("ideas.json", {"asof": "2026-09-18 20:10", "items": [
+    {"id": "i1", "date": "2026-09-02", "text": DEMO + "После широкой ночи (≥ 0.8 ADR) окно Европы чаще разворачивается против ночи.", "side": "", "region": "eu", "source": "chat",
+     "confirmed": 3, "refuted": 1, "status": "proposed", "backtest": {"days": 30, "hit": 19, "rate": 0.63}, "last_check": "2026-09-17"},
+    {"id": "i2", "date": "2026-09-14", "text": DEMO + "DAX у недельного минимума — шортить в самый низ поздно.", "side": "LONG", "region": "eu", "source": "discuss",
+     "confirmed": 1, "refuted": 1, "status": "open", "backtest": None, "last_check": "2026-09-14"},
+    {"id": "i3", "date": "2026-09-18", "text": DEMO + "В день квартальной экспирации цену держат у страйка — выносы у открытия ложные.", "side": "", "region": "eu", "source": "discuss",
+     "confirmed": 1, "refuted": 0, "status": "open", "backtest": {"days": 60, "hit": 4, "rate": 0.57}, "last_check": "2026-09-18"},
+    {"id": "i4", "date": "2026-09-10", "text": DEMO + "Ход ночи и «что сняла ночь» — одна история, считать одним фактором.", "side": "", "region": "us", "source": "weight_ideas",
+     "confirmed": 0, "refuted": 2, "status": "dropped", "backtest": None, "last_check": "2026-09-16"},
+    {"id": "i5", "date": "2026-09-05", "text": DEMO + "После CPI первые 15 минут не входить.", "side": "", "region": "us", "source": "chat",
+     "confirmed": 4, "refuted": 0, "status": "rule", "backtest": None, "last_check": "2026-09-17"},
+]})
 
 # ---------- journal ----------
 (JOURNAL / "lessons.md").write_text("# Уроки вечерних разборов\n\n" + "".join(

@@ -1,7 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
   dayAnswersFile,
+  driftFile,
   humanHit,
+  ideasFile,
+  isFriday,
+  normalizeDrift,
+  normalizeIdeas,
+  normalizeRemember,
+  normalizeWeek,
+  rememberFile,
+  traderLines,
+  visibleIdeas,
+  weekFile,
+  DATELESS_CHANGE,
   humanReadFile,
   normalizeDayAnswers,
   normalizeHumanRead,
@@ -30,7 +42,7 @@ import {
   type ScaleFactor,
 } from './macro';
 
-const emptyRegion = (region: 'eu' | 'us') => ({ region, scale: null, verdict: null, collect: null, note: null, shots: null, human: null });
+const emptyRegion = (region: 'eu' | 'us') => ({ region, scale: null, verdict: null, collect: null, note: null, shots: null, human: null, remember: null, drift: null });
 const day = (over: Partial<MacroDay> = {}): MacroDay => ({
   date: '2026-10-12',
   eu: emptyRegion('eu'),
@@ -41,6 +53,9 @@ const day = (over: Partial<MacroDay> = {}): MacroDay => ({
   stats: [],
   names: {},
   zones: { neutral: 15, strong: 40 },
+  week: null,
+  ideas: null,
+  trader: [],
   ...over,
 });
 
@@ -285,5 +300,106 @@ describe("the owner's two files (note 23)", () => {
     expect(dayAnswersFile('2026-10-12')).toBe('day_answers_2026-10-12.json');
     expect(dateOfStateFile('human_read_2026-10-12_us.json')).toBe('2026-10-12');
     expect(dateOfStateFile('day_answers_2026-10-12.json')).toBe('2026-10-12');
+  });
+});
+
+describe('the memory cards (note 23 §2–3)', () => {
+  it('reads «Сегодня помни», keeps at most three good items and tolerates missing keys', () => {
+    const r = normalizeRemember(
+      {
+        date: '2026-10-12', region: 'eu', asof: '2026-10-12 09:31',
+        items: [
+          { kind: 'lesson', text: 'В пилу ждать вторую манипуляцию', why: 'те же теги: пила, пятница', ref: 'lessons.md 08.10', tags: ['eu', 'пила'] },
+          { kind: 'rule', text: 'Пятница в Европе — риск ×0.5' },
+          { kind: 'similar', text: 'Похожий день 2026-10-08: шорт, −0.4 ADR', why: '', ref: '2026-10-08 eu', tags: 'nope' },
+          { kind: 'lesson', text: 'четвёртый — лишний' },
+          { kind: 'joke', text: 'не тот вид' },
+          { kind: 'lesson', text: '' },
+          'garbage',
+        ],
+        conditions: { region: 'eu', weekday: 'fri', phase: 'пила', night: 'wide', night_adr: 0.9, light: 'yellow', earnings_giant_prev: false, tags: ['eu', 'пила', 3] },
+        similar: { date: '2026-10-08', region: 'eu', distance: 0.12, needle: -38, dir: 'SHORT', chg_adr: -0.4, human_side: 'SHORT' },
+        lesson_candidates: 4, enough_history: true,
+      },
+      '2026-10-12', 'eu',
+    );
+    expect(r?.items.map((x) => x.kind)).toEqual(['lesson', 'rule', 'similar']);
+    expect(r?.items[1]).toEqual({ kind: 'rule', text: 'Пятница в Европе — риск ×0.5', why: '', ref: '', tags: [] });
+    expect(r?.items[2].tags).toEqual([]);
+    expect(r?.conditions?.tags).toEqual(['eu', 'пила']);
+    expect(r?.conditions?.night_adr).toBe(0.9);
+    expect(r?.similar).toEqual({ date: '2026-10-08', region: 'eu', distance: 0.12, needle: -38, dir: 'SHORT', chg_adr: -0.4, human_side: 'SHORT' });
+    expect(r?.lesson_candidates).toBe(4);
+    expect(r?.enough_history).toBe(true);
+    // the minimum: a file with an empty list is a file (the card stays silent), anything else is not
+    expect(normalizeRemember({ items: [] }, '2026-10-12', 'us')).toMatchObject({ date: '2026-10-12', region: 'us', items: [], conditions: null, similar: null, lesson_candidates: 0, enough_history: false });
+    expect(normalizeRemember({ date: '2026-10-12' }, '2026-10-12', 'us')).toBeNull();
+    expect(normalizeRemember([], '2026-10-12', 'us')).toBeNull();
+    expect(normalizeRemember('x', '2026-10-12', 'us')).toBeNull();
+    expect(normalizeRemember(null, '2026-10-12', 'us')).toBeNull();
+  });
+
+  it('reads «Что изменилось» and keeps only signals with text', () => {
+    const d = normalizeDrift({ date: '2026-10-12', region: 'eu', days: 20, enough_data: true, signals: [{ kind: 'phase', text: 'фаза: тренд → пила', severity: 'warn', data: { from: 'тренд' } }, { kind: 'adr', text: 'ADR сжался на 30 %' }, { kind: 'factor', text: '', severity: 'warn' }, { severity: 'warn' }, 5] }, '2026-10-12', 'eu');
+    expect(d?.signals).toEqual([
+      { kind: 'phase', text: 'фаза: тренд → пила', severity: 'warn', data: { from: 'тренд' } },
+      { kind: 'adr', text: 'ADR сжался на 30 %', severity: 'info', data: {} },
+    ]);
+    expect(d?.days).toBe(20);
+    expect(normalizeDrift({ signals: [] }, '2026-10-12', 'us')).toMatchObject({ region: 'us', days: 0, enough_data: false, signals: [] });
+    expect(normalizeDrift({ date: '2026-10-12' }, '2026-10-12', 'us')).toBeNull();
+    expect(normalizeDrift(null, '2026-10-12', 'us')).toBeNull();
+  });
+
+  it('reads the week in five lines, the trader block and the share proposal', () => {
+    const w = normalizeWeek({ week_start: '2026-09-14', week_end: '2026-09-18', days: 5, enough_data: true, lines: ['рынок: пила', 'сработало: сетап 3', '', 3, 'урок повторился'], stats: { hits: 3 }, trader: ['4 стопа из 5 — вход до закрытия IB', ''], share_proposal: { factor: 'Точка A', from: 12, to: 10, why: '3 промаха из 5.' } });
+    expect(w?.lines).toEqual(['рынок: пила', 'сработало: сетап 3', 'урок повторился']);
+    expect(w?.trader).toEqual(['4 стопа из 5 — вход до закрытия IB']);
+    expect(w?.share_proposal).toEqual({ factor: 'Точка A', from: 12, to: 10, why: '3 промаха из 5.' });
+    expect(w?.stats).toEqual({ hits: 3 });
+    expect(normalizeWeek({ lines: [] })?.lines).toEqual([]);
+    expect(normalizeWeek({ lines: ['x'], share_proposal: { why: 'no factor' } })?.share_proposal).toBeNull();
+    expect(normalizeWeek({ lines: ['x'], share_proposal: { factor: 'f' } })?.share_proposal).toEqual({ factor: 'f', from: null, to: null, why: '' });
+    expect(normalizeWeek({ week_start: '2026-09-14' })).toBeNull();
+    expect(normalizeWeek(null)).toBeNull();
+  });
+
+  it('reads the ideas and shows only open and proposed ones, newest first, five at most', () => {
+    const mk = (i: number, status: string, date = `2026-10-${String(i).padStart(2, '0')}`) => ({ id: `i${i}`, date, text: `идея ${i}`, side: 'LONG', region: 'eu', source: 'chat', confirmed: i, refuted: 1, status, backtest: i % 2 ? { days: 30, hit: 18, rate: 0.6 } : null, last_check: date });
+    const ideas = normalizeIdeas({ asof: '2026-10-12', items: [mk(1, 'open'), mk(2, 'rule'), mk(3, 'proposed'), mk(4, 'dropped'), mk(5, 'open'), mk(6, 'open'), mk(7, 'open'), mk(8, 'open'), { status: 'open', text: '' }, { status: 'maybe', text: 'x' }, null] });
+    expect(ideas?.items.length).toBe(8);
+    expect(ideas?.items[0].backtest).toEqual({ days: 30, hit: 18, rate: 0.6 });
+    expect(ideas?.items[1].backtest).toBeNull();
+    expect(visibleIdeas(ideas).map((x) => x.id)).toEqual(['i8', 'i7', 'i6', 'i5', 'i3']);
+    expect(visibleIdeas(null)).toEqual([]);
+    expect(normalizeIdeas({ items: [{ text: 'без id', status: 'open' }] })?.items[0]).toMatchObject({ id: 'idea-0', confirmed: 0, refuted: 0, date: '', backtest: null });
+    expect(normalizeIdeas({ asof: 'x' })).toBeNull();
+    expect(normalizeIdeas([])).toBeNull();
+  });
+
+  it('knows a Friday and picks the trader lines for the evening', () => {
+    expect(isFriday('2026-09-18')).toBe(true);
+    expect(isFriday('2026-10-09')).toBe(true);
+    expect(isFriday('2026-09-14')).toBe(false);
+    expect(isFriday('2026-10-12')).toBe(false);
+    expect(isFriday('nope')).toBe(false);
+    expect(isFriday('')).toBe(false);
+    const week = normalizeWeek({ lines: ['a'], trader: ['из недели'] })!;
+    expect(traderLines({ date: '2026-09-18', week, trader: ['из дня'] })).toEqual(['из недели']);
+    expect(traderLines({ date: '2026-09-17', week, trader: ['из дня'] })).toEqual(['из дня']);
+    expect(traderLines({ date: '2026-09-18', week: normalizeWeek({ lines: ['a'] }), trader: ['из дня'] })).toEqual(['из дня']);
+    expect(traderLines({ date: '2026-09-18', week: null, trader: [] })).toEqual([]);
+  });
+
+  it('names the files and lets the watcher see them', () => {
+    expect(rememberFile('2026-10-12', 'eu')).toBe('remember_2026-10-12_eu.json');
+    expect(driftFile('2026-10-12', 'us')).toBe('drift_2026-10-12_us.json');
+    expect(weekFile('2026-10-16')).toBe('week_2026-10-16.json');
+    expect(ideasFile()).toBe('ideas.json');
+    expect(dateOfStateFile('remember_2026-10-12_eu.json')).toBe('2026-10-12');
+    expect(dateOfStateFile('drift_2026-10-12_us.json')).toBe('2026-10-12');
+    expect(dateOfStateFile('week_2026-10-16.json')).toBe('2026-10-16');
+    expect(dateOfStateFile('ideas.json')).toBeNull();
+    expect(DATELESS_CHANGE).toBe('*');
   });
 });

@@ -80,8 +80,14 @@ prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro
   (`writeHumanRead` / `writeDayAnswers` in `macro-state.ts`, atomic, names built from a checked date). The
   skill reads them: `scale.py review` scores the read like the needle and keeps the answers, `scale.py stats`
   prints «владелец против шкалы». The review tab shows «Кто был прав» per window from the facts alone.
-  Next steps from note 23: «Сегодня помни» (lesson / rule of the day / similar day), «Что изменилось» (drift),
-  the weekly digest, «Идеи на проверке».
+- **The memory cards (note 23 §2–3, 2026-10-12)** are READ-ONLY files the skill writes into `state/`:
+  `remember_<D>_<region>.json` → «Сегодня помни» (≤ 3 lines: lesson / rule / similar day, under «Твой взгляд»,
+  above the gauge, same gating as the gauge), `drift_<D>_<region>.json` → «Что изменилось» (only with
+  `signals`), `week_<D>.json` (D = the Friday) → «Неделя в пять строк» in the evening of a Friday, with «О тебе»
+  (`trader` of the week file, else of `review_<D>.json`), and the dateless `ideas.json` → «Идеи на проверке»
+  (open + proposed, newest first, ≤ 5, no buttons). Types + `normalize*` in `src/shared/macro.ts`, the cards
+  in `src/renderer/macro/memoryCards.tsx`. A card with nothing to show is not rendered at all. The watcher
+  reports `ideas.json` as `DATELESS_CHANGE` («*»), which the tab takes as «reload whatever day is on screen».
 - **«Сначала человек» is the whole screen, not a veil.** On the day itself a window with a review and no read
   shows only the question — the tile's needle, the agent's text and the plan are withheld (`unread()` in
   MacroDesk) — because a blurred gauge next to a tile that says «сильный лонг» is theatre. «Показать обзор без

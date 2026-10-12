@@ -734,3 +734,163 @@ details.more[open] > summary { margin-bottom: var(--space-6); }
 .factor-dialog .neg { color: var(--err); }
 .factor-dialog .muted { color: var(--fg-muted); }
 .factor-dialog .small { font-size: var(--text-sm); }
+
+/* ---------------------------------------------------------------- note 23 §2–3: the memory cards */
+/* «Сегодня помни», «Что изменилось», «Неделя в пять строк», «Идеи на проверке» —
+   quiet cards in the tone of «Твой взгляд»: few lines, no buttons. */
+
+.macro .card.memo .card-body {
+  padding-top: var(--space-4);
+}
+.macro .memo-list,
+.macro .memo-plain,
+.macro .idea-list,
+.macro .week-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.macro .memo-item {
+  display: grid;
+  grid-template-columns: 10.5em 1fr;
+  gap: var(--space-2) var(--space-5);
+  align-items: baseline;
+  padding: var(--space-3) 0;
+}
+.macro .memo-item + .memo-item {
+  border-top: 1px solid var(--border);
+}
+.macro .memo-kind {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+.macro .memo-item.kind-lesson .memo-kind { color: var(--accent); }
+.macro .memo-item.kind-rule .memo-kind { color: var(--warn); }
+.macro .memo-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.macro .memo-text {
+  font-size: 15px;
+  line-height: var(--leading-base);
+}
+.macro .memo-ref {
+  white-space: nowrap;
+  font-weight: var(--weight-regular);
+}
+.macro .memo-why {
+  line-height: 1.35;
+}
+@media (max-width: 640px) {
+  .macro .memo-item { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* «Что изменилось»: one line per signal; a warning keeps the warning tint */
+.macro .card.drift {
+  border-left: 3px solid var(--border-strong);
+}
+.macro .card.drift .card-body {
+  display: grid;
+  gap: var(--space-2);
+}
+.macro .drift-line {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  line-height: var(--leading-base);
+}
+.macro .drift-dot {
+  flex: 0 0 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  position: relative;
+  top: -1px;
+}
+.macro .drift-line.sev-warn {
+  color: var(--warn);
+}
+.macro .drift-line.sev-warn .drift-dot {
+  background: var(--warn);
+}
+
+/* «Неделя в пять строк» */
+.macro .week-lines {
+  counter-reset: week;
+  display: grid;
+  gap: var(--space-3);
+}
+.macro .week-lines li {
+  counter-increment: week;
+  display: grid;
+  grid-template-columns: 1.6em 1fr;
+  gap: var(--space-3);
+  font-size: 15px;
+  line-height: var(--leading-base);
+}
+.macro .week-lines li::before {
+  content: counter(week);
+  color: var(--fg-muted);
+  font-weight: var(--weight-semibold);
+  text-align: right;
+}
+.macro .week-lines + .trader {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.macro .card.week .trader + .week-share,
+.macro .week-lines + .week-share {
+  margin-top: var(--space-4);
+}
+.macro .memo-plain li {
+  line-height: var(--leading-base);
+  padding: 2px 0;
+}
+.macro .week-share {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  line-height: var(--leading-base);
+}
+
+/* «Идеи на проверке» */
+.macro .idea {
+  padding: var(--space-3) 0;
+}
+.macro .idea + .idea {
+  border-top: 1px solid var(--border);
+}
+.macro .idea-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-5);
+}
+.macro .idea-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: var(--leading-base);
+}
+.macro .idea-score {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: var(--text-md);
+}
+.macro .idea.st-proposed {
+  border-left: 3px solid var(--ok);
+  padding-left: var(--space-4);
+  margin-left: calc(-1 * var(--space-4) - 3px);
+}
+.macro .idea-proposed {
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--ok);
+}

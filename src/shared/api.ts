@@ -327,7 +327,8 @@ export interface DeskApi {
   /**
    * The macro-review files in the vault, read-only. `onChanged` fires with the
    * dates whose state files moved (a run from the desk, the Task Scheduler or
-   * a terminal — the desk does not care who wrote them).
+   * a terminal — the desk does not care who wrote them); `DATELESS_CHANGE`
+   * («*») stands for the dateless `ideas.json`.
    */
   macro: {
     index(): Promise<MacroIndex>;
