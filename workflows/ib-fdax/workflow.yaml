@@ -1,0 +1,227 @@
+# «День IB DAX» — the owner's Initial Balance day on the DAX future (Xetra session).
+# UI labels are Russian, everything the model reads is English.
+#
+# Canon: Cryptology Flow, EU indices stream (17) + setups stream (19). Only Setup 3
+# (narrow IB + held breakout) is traded on the DAX; the 5-minute setup and the 0.5 IB
+# retest are not. Spec: vault note «19 - Воркфлоу IB FDAX — спецификация.md».
+#
+# The `panel` section is what the APP runs, deterministically, through the tvmcp CLI:
+# levels, calendar, risk and a sentinel run over the Xetra session. Only the event
+# types in `askModelOn` buy one chat turn. «Запустить день целиком» chains the
+# pre-open block, the `plan` turn and the sentinel start in one press.
+id: ib-fdax
+title: День IB (FDAX)
+description: >-
+  Торговый день DAX по Initial Balance 10:00–10:30 (Киев): уровни премаркета и
+  вчерашней Xetra, локальный план к открытию, сторож сессии 10:00–18:30 и
+  вердикт по событиям. Только сетап 3 (узкий IB + пробой).
+promptBlock: prompt.md
+shelves: [ib-day, journal]
+
+quickPrompts:
+  - id: plan
+    label: План к открытию (09:30)
+    prompt: >-
+      Build the pre-open plan for EUREX:FDAX1! for today by the DAX protocol: direction
+      from D1/H4 in two lines (point A → point B, what cancels it), then the LOCAL plan —
+      at most three entry zones by the local-zone rules (H1/M15 FVGs and course-rule OBs from
+      yesterday's Xetra session, each zone ≤ 0.1 × ADR wide and within 0.5 × ADR of the current price, none
+      formed in the premarket), each tied to the liquidity it expects to be taken at 10:00
+      (premarket high/low, Xetra prev high/low/close, previous day high/low). Name the
+      target (IB2 / nearest liquidity inside the ADR budget). Finish with a `chartcard`
+      of type levels and a `workflowstate` block, phase "plan".
+  - id: premarket
+    label: Скан премаркета (09:50)
+    prompt: >-
+      Pre-open premarket scan for EUREX:FDAX1!: what the premarket (02:15–10:00) took —
+      its high/low against yesterday's Xetra high/low/close and the previous day high/low;
+      was it sideways (good) or trending (harder); did it already reach the plan's target;
+      how far is price from the plan's zones now. Answer: plan confirmed / zones to drop /
+      bias none. Check EUREX:FESX1! for an SMT on the premarket high/low. Finish with a
+      `workflowstate` block, phase "premarket".
+  - id: ibClass
+    label: Разбор IB (10:30)
+    prompt: >-
+      The DAX initial balance (10:00–10:30) has closed. Classify it against ADR(5 Xetra):
+      narrow (< 1/3 ADR) → setup 3 allowed; 1/3 … 0.5 → only with a clean manipulation and
+      a level behind the target, TP IB1; wide (> 0.5 ADR, or ≥ 0.5 % of price) → no trade.
+      Give 0.5 / IB1 / IB2 both ways, the remaining ADR budget, whether the open took a
+      listed level against the bias, and the exact trigger: which side, full-bodied close
+      beyond, entry, stop beyond the opposite side, TP IB2. `workflowstate`, phase "ib".
+  - id: signalCheck
+    label: Проверить сигнал
+    prompt: >-
+      Check the DAX setup on the table right now: breakout side vs bias, the breakout candle's
+      body (full-bodied close beyond the IB?), entry (market after the close, or limit on the
+      boundary retest), stop beyond the opposite IB side (+1 tick + 0.02 %), TP1 = IB1,
+      TP2 = IB2, the RR, the time it is valid until (entries end 12:00, hard 13:00) and the
+      cancel conditions. If RR < 1.5 say so and give no recommendation.
+  - id: usCheck
+    label: Проверка США (16:15)
+    prompt: >-
+      It is 16:15. If a DAX position from today's signal is open: look at CME_MINI:ES1! —
+      did it take its premarket/overnight high or low against my position, invert, or sit in
+      a sideways range into 16:30? Answer in two lines: close fully before 16:30 / may hold
+      to target, and why. If no position, say the day is over for the DAX.
+  - id: journal
+    label: Строка журнала
+    prompt: >-
+      Write today's DAX journal line: date, verdict, stop reasons, flags, bias, premarket
+      status, ADR(5 Xetra), IB range and class, the open's manipulation, the breakout, the
+      signal, whether I entered, the result in R, the root cause and the day's fact (Xetra
+      high/low, were IB1/IB2 reached, by what time). Ask me for the entry facts you cannot
+      know. Short plain sentences.
+
+reports:
+  - id: dayVerdict
+    label: Вердикт дня
+    prompt: >-
+      Day verdict for EUREX:FDAX1!: calendar layer (EU red news, ECB, US NFP/FOMC/CPI),
+      context layer, premarket layer and account layer, each either clear or with one named
+      reason. Three lines plus a `workflowstate` block, phase "verdict".
+  - id: levels
+    label: Таблица уровней
+    prompt: >-
+      Today's level table for EUREX:FDAX1! (provider session): Xetra prev high/low/close,
+      previous day high/low, premarket high/low, Xetra open, ADR(5 Xetra) and its
+      projections. Emit them as a `chartcard` of type levels, never a markdown table.
+  - id: replayReview
+    label: Разбор реплея
+    prompt: >-
+      Review the replayed DAX day from the event feed I paste: did the open take a level,
+      how did the IB close against ADR, did a full-bodied breakout hold in the bias direction
+      before 12:00, where would IB2 have been hit and when. Say plainly whether the rules
+      would have kept me out and whether that was right. One `workflowstate` block at the end.
+
+panel:
+  kind: session-watch
+  pollFloorSeconds: 5
+
+  # Handed to tv_sentinel_start; the app adds `day` and `levels`.
+  sentinel:
+    # The owner bought the Eurex data package: FDAX1! is realtime on the account feed
+    # (verified 2026-09-28 09:44 Kyiv, last M1 bar 29 s old).
+    symbol: EUREX:FDAX1!
+    timeframe: M5
+    provider: session
+    session:
+      start: "10:00"
+      end: "18:30"
+      tz: Europe/Kyiv
+    # The initial balance: 10:00–10:30, the first six M5 bars of the Xetra session.
+    range:
+      source: session_open
+      minutes: 30
+    watch:
+      breaks: true
+      break_range: true
+      sweep: true
+      levels: true
+      stale_bars: 2
+      # FDAX trades in whole index points.
+      tick_size: 1
+    # DAX canon: enter right after ONE full-bodied close beyond the narrow IB. The
+    # sentinel confirms on one close; the body check is the model's, from `payload.bar`.
+    confirm:
+      mode: closes
+      closes: 1
+
+  # Handed to tv_scan_levels; its `levels[]` become the sentinel's watched levels.
+  levels:
+    include: [prev_day, prev_session, sessions, anchors, adr, opening_range]
+    sessions:
+      # Eurex opens 02:15 Kyiv; only the premarket HIGH/LOW count (no FVG/OB from it).
+      - {name: Premarket, start: "02:15", end: "10:00", tz: Europe/Kyiv}
+      - {name: Xetra, start: "10:00", end: "18:30", tz: Europe/Kyiv}
+    prev_session_name: Xetra
+    anchors:
+      - {name: Xetra open, time: "10:00", tz: Europe/Kyiv}
+    adr_days: 5
+    # ADR over the Xetra session (the setups stream measures ADR over the main session).
+    adr_session: Xetra
+    adr_anchor: auto
+    adr_multiples: [0.5, 1]
+    opening_range_session: Xetra
+    opening_range_minutes: 30
+    timeframe: M15
+    # The account feed has no end anchor: it returns the LAST `count` bars.
+    count: 3000
+    provider: session
+    tz: Europe/Kyiv
+
+  # The liquidity the 10:00 manipulation is measured against. Names exactly as
+  # tv_scan_levels prints them (checked on 2026-09-25 and 2026-09-28). The sentinel
+  # gets them as they stand when it starts: the premarket runs until 10:00, so press
+  # «Запустить день целиком» at ~09:45 for fresh premarket high/low (the premarket_scan
+  # turn re-reads them either way). The Xetra open exists only after 10:00, so it is a
+  # scan level for the model, not a watched one.
+  levelNames:
+    - Xetra prev high
+    - Xetra prev low
+    - Xetra prev close
+    - Previous day high
+    - Previous day low
+    - Premarket high
+    - Premarket low
+
+  # Clocks fire on the first closed M5 bar at or after the mark, so each sits ~5 min
+  # before the moment it stands for.
+  clocks:
+    - {name: premarket_scan, at: "09:45", tz: Europe/Kyiv}
+    - {name: ib_close, at: "10:25", tz: Europe/Kyiv}
+    - {name: late_entry, at: "10:55", tz: Europe/Kyiv}
+    - {name: entries_closed, at: "12:55", tz: Europe/Kyiv}
+    - {name: us_news_check, at: "15:10", tz: Europe/Kyiv}
+    - {name: us_open_check, at: "16:10", tz: Europe/Kyiv}
+    - {name: flat, at: "18:25", tz: Europe/Kyiv}
+
+  # The only events worth a model turn. Everything else the app renders alone.
+  askModelOn: [RANGE_CLOSED, BREAK_CONFIRMED, SWEEP, CLOCK]
+
+  calendar:
+    countries: [EUR, USD]
+    min_impact: high
+
+  # today / journal / rules_path come from the settings. The canon runs Europe on its
+  # own prop account; until the settings hold paths per workflow, a local copy of this
+  # file may name `rules_path` / `journal` here and the panel will keep them.
+  risk: {}
+
+  prompts:
+    plan: >-
+      Pre-open plan for the DAX initial-balance day {date}, from the panel's own numbers.
+      Levels (tv_scan_levels): {levels_json}
+      Calendar: {calendar_json}
+      Account: {risk_json}
+      Follow the protocol's order: day verdict in three lines (calendar, account, context),
+      direction A → B in two lines from D1/H4, then the LOCAL plan by the local-zone rules —
+      at most three zones, each with its liquidity trigger, width and distance in points and
+      as a share of ADR, and what happens to it at 10:00. Scan H1/M15 FVGs yourself
+      (tv_scan_fvg, provider "session") and read order blocks from the bars by the course
+      rule (not the tv_scan_ob swing boxes); keep only zones formed inside a Xetra session,
+      drop any zone formed 02:15–10:00 or after 18:30. End with a `chartcard` of type levels and one
+      `workflowstate` block, phase "plan". The sentinel starts right after this answer.
+    event: >-
+      The day panel saw a {event_type} on the FDAX initial-balance watch at {event_time}.
+      Event: {event_json}
+      Run state: {state_json}
+      These are measured observations — do not re-fetch them. Judge them against the DAX
+      protocol: is this the open's manipulation, is the IB narrow enough, is this breakout a
+      full-bodied close in the bias direction before 12:00, is it the time to close before
+      the US? A CLOCK event means the step named in the protocol for that clock. At most four
+      short lines, then one `workflowstate` block with the phase, the verdict and any signal
+      you can actually price (entry, stop, TP1 IB1, TP2 IB2, RR, valid-until). If nothing
+      changes, say so in one line.
+    verdict: >-
+      Day verdict for the DAX initial-balance day, from the panel's own numbers:
+      Run state: {state_json}
+      Calendar: {calendar_json}
+      Account: {risk_json}
+      Three lines — what we do, why, what cancels it — then one `workflowstate` block.
+    review: >-
+      Replay review of {date} on the FDAX initial-balance watch.
+      Events: {events_json}
+      Walk the day against the DAX protocol: what the open took, how the IB closed against
+      ADR, whether a full-bodied breakout held in the bias direction before 12:00, whether
+      IB2 came before 16:30. Say plainly where the rules would have kept me out and whether
+      skipping was justified. Finish with one `workflowstate` block.
