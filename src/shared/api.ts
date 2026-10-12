@@ -5,11 +5,19 @@ import type { PanelDayState, PanelDef, TvCallResult } from './panel';
 import type { PreflightResult } from './preflight';
 import type { TaskEvent, TaskId, TaskState } from './tasks';
 import type { EngineId } from './engine';
+import type { DayAnswers, HumanRead, HumanSide, MacroDay, MacroIndex, Region } from './macro';
 
 export type { PanelDayState, PanelDef, TvCallResult, PreflightResult, TaskEvent, TaskId, TaskState, EngineId };
 
-export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day';
-export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
+/**
+ * `macro` is the shelf of the macro-review MVP: one chat per day that runs the
+ * owner's `macro-review` skill inside the vault (see `macroSpec` in agent.ts).
+ * `ask` (note 23) is a free question to the same agent in the same vault — the
+ * one that remembers every review, lesson and note — which is what «+ Новый
+ * чат» opens in the MVP instead of the Strategy Lab copilot.
+ */
+export type ChatKind = 'chat' | 'strategy' | 'indicator' | 'performance' | 'journal' | 'ib-day' | 'macro' | 'ask';
+export const CHAT_KINDS: ChatKind[] = ['chat', 'strategy', 'indicator', 'performance', 'journal', 'ib-day', 'macro', 'ask'];
 
 export interface ChatMeta {
   key: string;
@@ -125,9 +133,42 @@ export interface Settings {
   setupCompletedAt: number;
   /** Wizard steps the user chose to skip; the affected feature says why it is limited. */
   setupSkipped: string[];
+  /**
+   * The owner's Obsidian vault folder (the one holding `indices-kb/` and
+   * `.claude/skills/macro-review`). The macro tab reads its state files, and a
+   * macro chat runs Claude Code with this folder as its working directory.
+   */
+  vaultPath: string;
+  /**
+   * Show the pre-MVP tabs (День, Воркфлоу) and the workflow quick prompts.
+   * Off by default since the macro-review MVP; the code stays, only hidden.
+   */
+  legacyUi: boolean;
+  /**
+   * Where a macro chat gets its `tradingview` MCP server from. `bundled` = the
+   * desk passes its own tvmcp (the one it provisioned) into the session, so a
+   * fresh install has calendar and news tools without any `~/.claude` setup;
+   * `user` = nothing is passed and the owner's own `~/.claude` config provides
+   * it (how the owner's machine has always worked). A config file written
+   * before this field existed is read as `user`; a fresh install is `bundled`.
+   */
+  macroMcp: MacroMcp;
+  /** The TradingView `sessionid` cookie is stored (safeStorage); the value never crosses the bridge. */
+  hasTvSession: boolean;
+  /**
+   * When the stored sessionid last passed the `session-check` task (0 = never,
+   * or the cookie changed since). Cleared whenever the secret is set or removed.
+   */
+  tvSessionVerifiedAt: number;
 }
 
-export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'>>;
+export type MacroMcp = 'bundled' | 'user';
+
+export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession'>>;
+
+/** The secrets the renderer may set or clear, never read. */
+export type SecretName = 'apiKey' | 'oauthToken' | 'tvSession';
+export const SECRET_NAMES: SecretName[] = ['apiKey', 'oauthToken', 'tvSession'];
 
 export interface TraderProfile {
   callName: string;
@@ -191,7 +232,7 @@ export type ChatEvent = { chatKey: string } & ChatEventBody;
 
 /** Persisted transcript entries (renderer-facing shape, not the model context). */
 export type TranscriptItem =
-  | { role: 'user'; text: string; at: number }
+  | { role: 'user'; text: string; at: number; /** Names of the files attached to this message, when any. */ files?: string[] }
   | { role: 'assistant'; text: string; at: number; tools: ToolCallItem[]; thinking: boolean };
 
 export interface ToolCallItem {
@@ -208,14 +249,30 @@ export interface TvLaunchResult {
   detail?: string;
 }
 
+/**
+ * A file the owner attached to a message (note 23: a screenshot of his chart,
+ * a PDF, a CSV). The main process saves it next to the session's working
+ * directory and tells the model where it is; the model opens it with Read.
+ */
+export interface Attachment {
+  name: string;
+  /** MIME type as the browser reported it; '' when unknown. */
+  type: string;
+  /** Base64 of the bytes, no data: prefix. */
+  data: string;
+}
+export const ATTACH_MAX_FILES = 10;
+export const ATTACH_MAX_BYTES = 20 * 1024 * 1024;
+
 export interface SendArgs {
   chatKey: string;
   text: string;
   mode: ChatMode;
+  attachments?: Attachment[];
 }
 
 /** What `dialog.pick` should open; the main process owns the filters. */
-export type PickKind = 'tvmcp-dir' | 'gt-rag-dir' | 'risk-rules' | 'journal' | 'field-notes';
+export type PickKind = 'tvmcp-dir' | 'gt-rag-dir' | 'risk-rules' | 'journal' | 'field-notes' | 'vault-dir';
 
 export interface DeskApi {
   status: { get(): Promise<Status> };
@@ -235,8 +292,8 @@ export interface DeskApi {
   settings: {
     get(): Promise<Settings>;
     set(patch: SettingsPatch): Promise<Settings>;
-    setSecret(name: 'apiKey' | 'oauthToken', value: string): Promise<Settings>;
-    clearSecret(name: 'apiKey' | 'oauthToken'): Promise<Settings>;
+    setSecret(name: SecretName, value: string): Promise<Settings>;
+    clearSecret(name: SecretName): Promise<Settings>;
   };
   /**
    * The four operations the app may perform for the user, each on one press:
@@ -250,6 +307,8 @@ export interface DeskApi {
   tasks: {
     run(id: TaskId): Promise<TaskState>;
     stop(id: TaskId): void;
+    /** One line into a running task's stdin (the login code `claude auth login` asks for). */
+    input(id: TaskId, text: string): void;
     state(id: TaskId): Promise<TaskState>;
     list(): Promise<TaskState[]>;
     command(id: TaskId): Promise<string>;
@@ -288,6 +347,32 @@ export interface DeskApi {
     /** Start the session this chat's next turn will need, before the text exists. */
     prewarm(args: { chatKey: string | null; mode: ChatMode }): void;
     onEvent(cb: (ev: ChatEvent) => void): () => void;
+  };
+  /**
+   * The macro-review files in the vault, read-only. `onChanged` fires with the
+   * dates whose state files moved (a run from the desk, the Task Scheduler or
+   * a terminal — the desk does not care who wrote them); `DATELESS_CHANGE`
+   * («*») stands for the dateless `ideas.json`.
+   */
+  macro: {
+    index(): Promise<MacroIndex>;
+    day(date: string): Promise<MacroDay>;
+    /** Open a note under `Макро-обзоры/` in the default app (Obsidian); false when refused. */
+    openNote(rel: string): Promise<boolean>;
+    /**
+     * A chart screenshot (`MacroShot.path`, a PNG under `indices-kb/shots/`) as a
+     * `data:image/png;base64,…` URL; null when it is missing or refused.
+     */
+    image(rel: string): Promise<string | null>;
+    /**
+     * The owner's own two files (note 23) — the only writes the desk makes
+     * into the vault. His read of a window, given before the gauge is shown
+     * (`beforeScale`: no gauge was on screen), and his two evening answers.
+     * Each returns what was written, or null when refused.
+     */
+    humanRead(args: { date: string; region: Region; side: HumanSide; beforeScale: boolean }): Promise<HumanRead | null>;
+    dayAnswers(args: { date: string; regions: DayAnswers['regions']; note: string }): Promise<DayAnswers | null>;
+    onChanged(cb: (dates: string[]) => void): () => void;
   };
   /** Applies the window zoom factor (settings.uiScale); returns the clamped value. */
   ui: { zoom(factor: number): Promise<number> };

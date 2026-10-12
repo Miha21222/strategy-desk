@@ -35,7 +35,12 @@ const prewarm = (args: unknown) => listeners.get('chat:prewarm')?.({}, args);
 describe('chat:send carries the mode', () => {
   it('passes saver through', () => {
     send({ chatKey: 'c1', text: 'привет', mode: 'saver' });
-    expect(startChat).toHaveBeenCalledWith({ chatKey: 'c1', text: 'привет', mode: 'saver' }, expect.any(Function));
+    expect(startChat).toHaveBeenCalledWith({ chatKey: 'c1', text: 'привет', mode: 'saver', attachments: [] }, expect.any(Function));
+  });
+
+  it('keeps well-formed attachments and drops the rest', () => {
+    send({ chatKey: 'c1', text: 'смотри', mode: 'full', attachments: [{ name: 'a.png', type: 'image/png', data: 'AAAA' }, { name: 7 }, 'junk', { name: 'b.csv', data: 'QQ==' }] });
+    expect(startChat).toHaveBeenCalledWith(expect.objectContaining({ attachments: [{ name: 'a.png', type: 'image/png', data: 'AAAA' }, { name: 'b.csv', type: '', data: 'QQ==' }] }), expect.any(Function));
   });
 
   it('passes full through', () => {

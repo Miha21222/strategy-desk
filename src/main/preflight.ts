@@ -20,9 +20,25 @@ import path from 'node:path';
 import type { Settings } from '@shared/api';
 import { DEFAULT_CDP_PORT, DEFAULT_TVMCP_REPO } from '@shared/defaults';
 import { emptyOfficialFact, OFFICIAL_MCP_NAME, parseMcpGet, type OfficialMcpFact } from '@shared/official-mcp';
-import { buildChecks, firstLine, PORT_CANDIDATES, resultOf, type CodexFact, type FileFact, type PreflightFacts, type PreflightResult } from '@shared/preflight';
+import {
+  buildChecks,
+  firstLine,
+  PORT_CANDIDATES,
+  resultOf,
+  SCHEDULER_TASKS,
+  type CodexFact,
+  type FileFact,
+  type PreflightFacts,
+  type PreflightResult,
+  type SchedulerFact,
+  type ToolsPythonFact,
+  type VaultFact,
+} from '@shared/preflight';
 import { authFile, codexHomeDir, hasCodexAuth, userCodexHome } from './drivers/codex/home';
-import { claudeBin, initRuntimePaths, kbFact, runtimeFact } from './runtime';
+import { macroPython, TOOLS_IMPORT_CODE } from './macro-env';
+import { claudeBin, initRuntimePaths, kbFact, runtimeFact, vaultTemplateDir } from './runtime';
+import { runtimeEnv, type RuntimePaths } from './runtime-spec';
+import { readTemplateVersion, VAULT_MARKERS } from './vault-template';
 import { cdpProbe, claudeAuthStatus, invalidateTvmcpCache, isTradingViewRunning, tvmcpStatus } from './status';
 
 function run(cmd: string, args: string[], timeout: number): Promise<{ ok: boolean; notFound: boolean; out: string }> {
@@ -166,6 +182,87 @@ async function codexFact(cfg: Settings): Promise<CodexFact> {
   return fact;
 }
 
+/**
+ * The vault folder: is it there, is anything in it, and does it hold the
+ * three files that make it a vault. Reads only.
+ */
+async function vaultFact(dir: string): Promise<VaultFact> {
+  const clean = (dir || '').trim();
+  const fact: VaultFact = {
+    path: clean,
+    exists: false,
+    nonEmpty: false,
+    hasSkill: false,
+    hasScaleTool: false,
+    hasScaleConfig: false,
+    templateVersion: '',
+    templateAvailable: Boolean(await vaultTemplateDir()),
+  };
+  if (!clean) return fact;
+  fact.exists = await exists(clean);
+  if (!fact.exists) return fact;
+  try {
+    fact.nonEmpty = (await fs.readdir(clean)).length > 0;
+  } catch {
+    fact.nonEmpty = false;
+  }
+  const [skill, tool, config] = await Promise.all(VAULT_MARKERS.map((m) => exists(path.join(clean, ...m.split('/')))));
+  fact.hasSkill = skill;
+  fact.hasScaleTool = tool;
+  fact.hasScaleConfig = config;
+  fact.templateVersion = await readTemplateVersion(clean);
+  return fact;
+}
+
+/**
+ * The Python the vault tools run on, and whether `import pandas, tvmcp` passes
+ * in it. The import is the one probe here that starts a process (~1 s); it
+ * runs only when the interpreter is there, and with the runtime's cache
+ * locations so a first import does not write into the installation directory.
+ */
+async function toolsPythonFact(cfg: Settings, paths: RuntimePaths): Promise<ToolsPythonFact> {
+  const python = macroPython(cfg, paths);
+  const fact: ToolsPythonFact = { python, exists: false, checked: false, importOk: false, error: '' };
+  if (!python) return fact;
+  fact.exists = await exists(python);
+  if (!fact.exists) return fact;
+  const r = await runWithEnv(python, ['-c', TOOLS_IMPORT_CODE], 30_000, { ...runtimeEnv(paths), PYTHONIOENCODING: 'utf-8' });
+  fact.checked = true;
+  fact.importOk = r.ok;
+  fact.error = r.ok ? '' : r.out;
+  return fact;
+}
+
+/**
+ * The three Task Scheduler jobs, by name. `Get-ScheduledTask` is read-only and
+ * needs no elevation for the current user's tasks; on a non-Windows machine
+ * the question has no answer and the check says so.
+ */
+async function schedulerFact(vault: string): Promise<SchedulerFact> {
+  const script = vault ? path.join(vault, 'indices-kb', 'tools', 'macro_schedule.ps1') : '';
+  const fact: SchedulerFact = { queried: false, tasks: [], script: script && (await exists(script)) ? script : '' };
+  if (process.platform !== 'win32') return fact;
+  const names = SCHEDULER_TASKS.map((n) => `'${n}'`).join(',');
+  const ps = `Get-ScheduledTask -TaskName ${names} -ErrorAction SilentlyContinue | ForEach-Object { $_.TaskName + '|' + $_.State }`;
+  const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], 20_000);
+  if (r.notFound) return fact;
+  fact.queried = true;
+  for (const line of r.out.split(/\r?\n/)) {
+    const [name, state] = line.split('|').map((x) => x.trim());
+    if (name && (SCHEDULER_TASKS as readonly string[]).includes(name)) fact.tasks.push({ name, state: state || '' });
+  }
+  return fact;
+}
+
+/** The PC's zone as ICU names it (`Europe/Kyiv`; older ICU data says `Europe/Kiev`). */
+function timezoneFact(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return '';
+  }
+}
+
 export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   const port = cfg.cdpPort || DEFAULT_CDP_PORT;
   const repo = (cfg.tvmcpRepo || DEFAULT_TVMCP_REPO).trim();
@@ -174,7 +271,7 @@ export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   // resolved its paths yet when the wizard opens on the very first frame.
   const paths = await initRuntimePaths();
 
-  const [uv, clone, runtime, kb, claude, official, codex, running, cdp, workflows, riskRules, journal] = await Promise.all([
+  const [uv, clone, runtime, kb, claude, official, codex, running, cdp, workflows, riskRules, journal, vault, toolsPython, scheduler] = await Promise.all([
     uvFact(),
     cloneFact((cfg.tvmcpPath || '').trim(), repo),
     runtimeFact(cfg, paths),
@@ -187,6 +284,9 @@ export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
     workflowFacts(),
     fileFact(cfg.riskRulesPath),
     fileFact(cfg.journalPath),
+    vaultFact(cfg.vaultPath),
+    toolsPythonFact(cfg, paths),
+    schedulerFact((cfg.vaultPath || '').trim()),
   ]);
 
   // The boot probe is the expensive one (~2.5 s of Python) and is pointless
@@ -196,7 +296,26 @@ export async function gatherFacts(cfg: Settings): Promise<PreflightFacts> {
   const boot = bootable ? { ran: true, ...(await tvmcpStatus(cfg)) } : { ran: false, ok: false, tools: 0, error: '' };
   const freePort = cdp.up && !cdp.tradingview ? await findFreePort(port) : null;
 
-  return { uv, clone, runtime, kb, boot, claude, official, codex, tv: { running, port, cdp }, freePort, workflows, files: { riskRules, journal }, platform: process.platform };
+  return {
+    uv,
+    clone,
+    runtime,
+    kb,
+    boot,
+    claude,
+    official,
+    codex,
+    tv: { running, port, cdp },
+    freePort,
+    workflows,
+    files: { riskRules, journal },
+    platform: process.platform,
+    vault,
+    toolsPython,
+    tvSession: { set: Boolean(cfg.hasTvSession), verifiedAt: cfg.tvSessionVerifiedAt || 0 },
+    scheduler,
+    timezone: timezoneFact(),
+  };
 }
 
 /** The whole diagnosis: probe everything, map it, never throw. */

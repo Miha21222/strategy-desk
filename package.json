@@ -14,8 +14,9 @@
     "icons": "node scripts/make-icons.mjs",
     "stage:tvmcp": "node scripts/stage-tvmcp.mjs",
     "stage:gtrag": "node scripts/stage-gtrag.mjs",
-    "dist": "npm run stage:tvmcp && npm run stage:gtrag && electron-vite build && electron-builder --win nsis",
-    "dist:dir": "npm run stage:tvmcp && npm run stage:gtrag && electron-vite build && electron-builder --dir",
+    "stage:vault": "node scripts/stage-vault.mjs",
+    "dist": "npm run stage:tvmcp && npm run stage:gtrag && npm run stage:vault && electron-vite build && electron-builder --win nsis",
+    "dist:dir": "npm run stage:tvmcp && npm run stage:gtrag && npm run stage:vault && electron-vite build && electron-builder --dir",
     "dist:check": "node scripts/dist-check.mjs"
   },
   "dependencies": {

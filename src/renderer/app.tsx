@@ -1,7 +1,7 @@
 // Application shell: sidebar + tabbed main area + report drawer. Owns all
 // renderer state, the single chat:event subscription and the card actions.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
+import type { Attachment, AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, SecretName, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
 import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
@@ -11,6 +11,9 @@ import { CardActionsContext, type CardActions } from './blocks';
 import { blocksOfKind } from './chat/blocks';
 import { ChatView } from './chat/ChatView';
 import { DayPanel } from './components/DayPanel';
+import { MacroDesk } from './macro/MacroDesk';
+import { MacroBoundary } from './macro/Boundary';
+import { macroChatTitle } from '@shared/macro';
 import { HelpTab } from './components/HelpTab';
 import { ReportDrawer } from './components/ReportDrawer';
 import { SettingsTab } from './components/SettingsTab';
@@ -20,12 +23,17 @@ import { Toasts } from './components/Toasts';
 import { WorkflowsTab } from './components/WorkflowsTab';
 import { t } from './i18n';
 import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
-import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizard, STEP_IDS, type StepId } from './setup';
+import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizard, stepIdsFor, type StepId } from './setup';
 import type { UiMessage } from './state';
 import { addToast, TOAST_MS, type Toast, type ToastLevel } from './toasts';
 
-type Tab = 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
-const TABS: Tab[] = ['copilot', 'day', 'workflows', 'settings', 'help'];
+type Tab = 'macro' | 'copilot' | 'day' | 'workflows' | 'settings' | 'help';
+/**
+ * The macro-review MVP shows four tabs; the day panel and the workflow tab are
+ * still here, behind `settings.legacyUi`, until they are rebuilt or removed.
+ */
+const MVP_TABS: Tab[] = ['macro', 'copilot', 'settings', 'help'];
+const LEGACY_TABS: Tab[] = ['macro', 'copilot', 'day', 'workflows', 'settings', 'help'];
 const STATUS_POLL_MS = 20_000;
 
 function applyTheme(theme: Settings['theme']): void {
@@ -36,7 +44,7 @@ function applyTheme(theme: Settings['theme']): void {
 
 export function App() {
   const desk = window.desk;
-  const [tab, setTab] = useState<Tab>('copilot');
+  const [tab, setTab] = useState<Tab>('macro');
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [profile, setProfile] = useState<TraderProfile>(DEFAULT_PROFILE);
   const [status, setStatus] = useState<Status | null>(null);
@@ -78,6 +86,7 @@ export function App() {
   currentKeyRef.current = currentKey;
   const profileRef = useRef(profile);
   profileRef.current = profile;
+  const patchSettingsRef = useRef<(patch: SettingsPatch) => Promise<void>>(async () => {});
 
   const dismissToast = useCallback((id: number) => setToasts((list) => list.filter((x) => x.id !== id)), []);
 
@@ -110,6 +119,11 @@ export function App() {
       const r = await desk.preflight.run();
       setPreflight(r);
       setSkipped((prev) => reconcileSkips(prev, r.checks));
+      // The command a task would run depends on the settings (the vault path,
+      // the provisioned python): refresh the previews with the diagnosis.
+      void Promise.all(TASK_IDS.map(async (id) => [id, await desk.tasks.command(id).catch(() => '')] as const))
+        .then((commands) => setTaskCommands(Object.fromEntries(commands)))
+        .catch(() => undefined);
       return r;
     } catch {
       return null;
@@ -165,7 +179,7 @@ export function App() {
       desk.chat.prewarm({ chatKey: null, mode });
       // A fresh install opens the wizard by itself; afterwards it lives in the settings.
       if (shouldOpenWizard(s)) {
-        setWizardStep(STEP_IDS[0]);
+        setWizardStep(stepIdsFor(s)[0]);
         void runPreflight();
       }
     })();
@@ -178,7 +192,7 @@ export function App() {
   const catalog = useMemo(() => (activeWorkflow?.reports.length ? activeWorkflow.reports : REPORT_CATALOG), [activeWorkflow]);
 
   const openChat = useCallback(
-    async (key: string) => {
+    async (key: string, focus = true) => {
       const res = await desk.chats.open(key);
       if (!res) return;
       setCurrentKey(key);
@@ -188,7 +202,7 @@ export function App() {
       setInit(null);
       setDrawerOpen(false);
       setDrawerReportId(null);
-      setTab('copilot');
+      if (focus) setTab('copilot');
       setConnecting(false);
       prewarm(key);
     },
@@ -284,7 +298,8 @@ export function App() {
 
   const newChat = useCallback(
     async (focus = true): Promise<string> => {
-      const chat = await desk.chats.create('chat', settings.activeWorkflow || null);
+      // The MVP's free chat is a question to the vault agent (note 23); the Strategy Lab copilot stays behind legacyUi.
+      const chat = await desk.chats.create(settings.legacyUi ? 'chat' : 'ask', settings.legacyUi ? settings.activeWorkflow || null : null);
       await refreshChats();
       setCurrentKey(chat.key);
       setMessages([]);
@@ -303,14 +318,14 @@ export function App() {
    * the "new chat" button in the sidebar.
    */
   const send = useCallback(
-    async (text: string, key = currentKeyRef.current) => {
+    async (text: string, key = currentKeyRef.current, attachments: Attachment[] = []) => {
       const chatKey = key ?? (await newChat());
       currentKeyRef.current = chatKey;
-      setMessages((ms) => [...ms, { role: 'user', text, at: Date.now() }]);
+      setMessages((ms) => [...ms, { role: 'user', text, at: Date.now(), ...(attachments.length ? { files: attachments.map((a) => a.name) } : {}) }]);
       setStreaming(true);
       setThinking(false);
       setConnecting(true);
-      desk.chat.send({ chatKey, text, mode });
+      desk.chat.send({ chatKey, text, mode, ...(attachments.length ? { attachments } : {}) });
     },
     [desk, mode, newChat],
   );
@@ -330,6 +345,46 @@ export function App() {
     },
     [newChat, send, streaming],
   );
+
+  // ----- macro review: one chat per day runs the skill in the vault -----
+  const macroChatFor = useCallback((date: string) => chats.find((c) => c.kind === 'macro' && c.title === macroChatTitle(date)) ?? null, [chats]);
+
+  const ensureMacroChat = useCallback(
+    async (date: string): Promise<string> => {
+      const found = macroChatFor(date);
+      if (found) return found.key;
+      const chat = await desk.chats.create('macro', null);
+      setChats(await desk.chats.rename(chat.key, macroChatTitle(date)));
+      return chat.key;
+    },
+    [desk, macroChatFor],
+  );
+
+  /** Send one turn to the day's macro chat without leaving the macro tab. */
+  const macroSend = useCallback(
+    async (date: string, text: string) => {
+      if (streaming) return;
+      const key = await ensureMacroChat(date);
+      if (key !== currentKeyRef.current) await openChat(key, false);
+      currentKeyRef.current = key;
+      await send(text, key);
+    },
+    [ensureMacroChat, openChat, send, streaming],
+  );
+
+  const macroOpenChat = useCallback(
+    async (date: string) => {
+      const key = await ensureMacroChat(date);
+      if (key !== currentKeyRef.current) await openChat(key, true);
+      else setTab('copilot');
+    },
+    [ensureMacroChat, openChat],
+  );
+
+  const pickVault = useCallback(async () => {
+    const picked = await desk.dialog.pick('vault-dir');
+    if (picked) await patchSettingsRef.current({ vaultPath: picked });
+  }, [desk]);
 
   const healthCheck = useCallback(
     async (key: string) => {
@@ -369,6 +424,8 @@ export function App() {
     [desk, refreshStatus],
   );
 
+  patchSettingsRef.current = patchSettings;
+
   // Ctrl +/-/0 walks the same zoom steps the settings offer, so the keyboard
   // and the dropdown can never disagree about the stored value.
   useEffect(() => {
@@ -388,11 +445,13 @@ export function App() {
   }, [patchSettings, settings.uiScale]);
 
   const setSecret = useCallback(
-    async (name: 'apiKey' | 'oauthToken', value: string | null) => {
+    async (name: SecretName, value: string | null) => {
       setSettings(value === null ? await desk.settings.clearSecret(name) : await desk.settings.setSecret(name, value));
       void refreshStatus();
+      // The cookie has its own preflight row («set, unverified» / «ok»).
+      if (name === 'tvSession') void runPreflight();
     },
-    [desk, refreshStatus],
+    [desk, refreshStatus, runPreflight],
   );
 
   const launchTv = useCallback(async () => {
@@ -447,9 +506,9 @@ export function App() {
   }, [desk, pushToast, runPreflight]);
 
   const openWizard = useCallback(() => {
-    setWizardStep(STEP_IDS[0]);
+    setWizardStep(stepIdsFor(settings)[0]);
     void runPreflight();
-  }, [runPreflight]);
+  }, [runPreflight, settings]);
 
   const skipStep = useCallback((id: StepId, on: boolean) => setSkipped((prev) => applySkip(prev, id, on)), []);
 
@@ -516,7 +575,7 @@ export function App() {
         chats={chats}
         currentKey={currentKey}
         launching={launching}
-        quickPrompts={activeWorkflow?.quickPrompts ?? []}
+        quickPrompts={settings.legacyUi ? (activeWorkflow?.quickPrompts ?? []) : []}
         onToggleSection={toggleSection}
         onLaunchTv={launchTv}
         onRefreshStatus={refreshStatus}
@@ -532,15 +591,28 @@ export function App() {
       />
       <main class="main">
         <nav class="tabs">
-          {TABS.map((id) => (
+          {(settings.legacyUi ? LEGACY_TABS : MVP_TABS).map((id) => (
             <button type="button" key={id} class={tab === id ? 'on' : ''} onClick={() => setTab(id)}>
               {t(`tabs.${id}`)}
             </button>
           ))}
         </nav>
         <CardActionsContext.Provider value={cardActions}>
-          {tab === 'copilot' ? (
-            <ChatView chat={current} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text) => void send(text)} onQuick={(p) => void quick(p)} onStop={stop} />
+          {tab === 'macro' ? (
+            <MacroBoundary>
+            <MacroDesk
+              settings={settings}
+              chatFor={macroChatFor}
+              currentKey={currentKey}
+              messages={messages}
+              streaming={streaming}
+              onSend={(date, text) => void macroSend(date, text)}
+              onOpenChat={(date) => void macroOpenChat(date)}
+              onPickVault={() => void pickVault()}
+            />
+            </MacroBoundary>
+          ) : tab === 'copilot' ? (
+            <ChatView chat={current} simple={!settings.legacyUi} messages={messages} streaming={streaming} thinking={thinking} connecting={connecting} init={init} mode={mode} catalog={catalog} onModeChange={changeMode} onSend={(text, files) => void send(text, undefined, files)} onQuick={(p) => void quick(p)} onStop={stop} />
           ) : tab === 'day' ? (
             <DayPanel workflow={activeWorkflow} settings={settings} busy={streaming} onAsk={(prompt, focus) => void quick(prompt, focus)} />
           ) : tab === 'workflows' ? (
@@ -556,17 +628,19 @@ export function App() {
               tasks={tasks}
               taskCommands={taskCommands}
               onTaskStop={(id) => desk.tasks.stop(id)}
+              onTaskInput={(id, text) => desk.tasks.input(id, text)}
               onPreflight={() => void runPreflight()}
               onFix={(fix) => void applyFix(fix)}
               onOpenWizard={openWizard}
               onClearRuntime={() => void clearRuntime()}
               onSettings={(patch) => void patchSettings(patch)}
               onSecret={(n, v) => void setSecret(n, v)}
+              onPickVault={() => void pickVault().then(() => runPreflight())}
               onProfile={(p) => void desk.profile.set(p).then(setProfile)}
               onToast={pushToast}
             />
           ) : (
-            <HelpTab onOpenWizard={openWizard} />
+            <HelpTab onOpenWizard={openWizard} simple={!settings.legacyUi} />
           )}
           {tab === 'copilot' && current ? (
             <ReportDrawer open={drawerOpen} reports={reports} selectedId={drawerReportId} onSelect={setDrawerReportId} onDelete={(id) => void chatOp(desk.chats.deleteReport(current.key, id))} onClose={() => setDrawerOpen(false)} />
@@ -583,6 +657,11 @@ export function App() {
           tasks={tasks}
           taskCommands={taskCommands}
           onTaskStop={(id) => desk.tasks.stop(id)}
+          onTaskInput={(id, text) => desk.tasks.input(id, text)}
+          settings={settings}
+          onSecret={(n, v) => void setSecret(n, v)}
+          onPickVault={() => void pickVault().then(() => runPreflight())}
+          onTask={(id) => void runTask(id)}
           onStep={setWizardStep}
           onSkip={skipStep}
           onRecheck={() => void runPreflight()}

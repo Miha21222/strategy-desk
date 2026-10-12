@@ -57,6 +57,7 @@ export function fingerprintOptions(options: Options): string {
     maxTurns: options.maxTurns ?? 0,
     cwd: options.cwd ?? '',
     mcpServers: options.mcpServers ?? {},
+    settingSources: options.settingSources ?? null,
   };
   return createHash('sha256').update(JSON.stringify(shape), 'utf8').digest('hex').slice(0, 16);
 }

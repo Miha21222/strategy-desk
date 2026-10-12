@@ -30,6 +30,22 @@ export interface TurnSpec {
   mcpServers: ServerMap;
   /** What the model may do; each engine expresses it with what it has. */
   permissionPreset: PermissionPreset;
+  /**
+   * `macro`: the turn runs the owner's own Claude Code setup inside the vault —
+   * its CLAUDE.md, skills and MCP servers — instead of the desk's isolated one.
+   * `systemPrompt` is then appended to Claude Code's preset rather than
+   * replacing it, because the skills need the preset to be found and run.
+   * Claude-only: a macro chat never runs on another engine.
+   */
+  profile?: 'macro';
+  /**
+   * Extra environment for the engine process, on top of the auth env the
+   * driver builds. A macro turn puts the vault contract here (MACRO_VAULT,
+   * MACRO_PYTHON, TV_SESSIONID, …) so the skill's tools find their Python and
+   * their cookie. Not part of the fingerprint — a session is identified by
+   * what it may do, not by the cookie it carries.
+   */
+  env?: Record<string, string>;
 }
 
 /**

@@ -15,9 +15,9 @@ import { registerIpc } from './ipc';
 import { buildMcpServers } from './mcp';
 import { runPreflight } from './preflight';
 import { assemblePrompt, loadBasePrompt, loadFieldNotes } from './prompt';
-import { resourceRoots } from './resources';
+import { readResource, resourceRoots } from './resources';
 import { getPropFirms } from './rules';
-import { initRuntimePaths, kbFact, runtimeFact } from './runtime';
+import { initRuntimePaths, kbFact, runtimeFact, vaultTemplateDir } from './runtime';
 import { kbCheckSpec, modeOf } from './runtime-spec';
 import { runTask, taskCommand } from './tasks';
 import { getStatus, tvmcpStatus } from './status';
@@ -91,6 +91,25 @@ async function runPackSmoke(): Promise<void> {
   console.log('[pack] roots', JSON.stringify(resourceRoots()));
   for (const iconPath of [appIconIco, appIconPng]) {
     if (!existsSync(iconPath)) problems.push(`missing bundled icon: ${iconPath}`);
+  }
+
+  // The macro-review MVP is what the installer is FOR: the two appendices the
+  // macro chat and the free question are built on, and the vault template the
+  // wizard lays down. These are the asserts that matter now; the ones below
+  // them stay only because those files still ship (`files:` lists them).
+  for (const name of ['macro-review.md', 'ask.md']) {
+    const text = await readResource('prompt', name);
+    console.log('[pack] prompt/' + name, text ? `${text.length} chars` : 'NOT FOUND');
+    if (!text || text.trim().length < 100) problems.push(`prompt/${name} is missing or empty in the packaged build`);
+  }
+  const template = await vaultTemplateDir();
+  console.log('[pack] vault-template', template ?? 'NOT FOUND');
+  if (!template) problems.push('no vault template shipped (extraResources resources/vault-template → vault-template; run `npm run stage:vault`)');
+  else {
+    const must = ['.claude/skills/macro-review/SKILL.md', 'indices-kb/tools/scale.py', 'indices-kb/tools/macro_schedule.ps1', 'indices-kb/tools/macro_review.ps1', 'indices-kb/config/scale.json'];
+    const missing = must.filter((rel) => !existsSync(path.join(template, ...rel.split('/'))));
+    console.log('[pack] vault-template files', missing.length ? `MISSING ${missing.join(', ')}` : `${must.length} checked`);
+    if (missing.length) problems.push(`the vault template is incomplete: ${missing.join(', ')}`);
   }
 
   const workflows = await listWorkflows();
@@ -361,7 +380,7 @@ app.whenReady().then(async () => {
   // payload plus the provisioned environment in a packaged install, `uv` and
   // the configured checkout in a dev run. Read-only — it resolves paths, it
   // never creates the environment; that is a task, and a task needs a press.
-  const runtime = await initRuntimePaths();
+  const runtime = await initRuntimePaths(await getSettings());
   console.log(`[main] tvmcp runtime: ${modeOf(runtime)}${runtime.payloadDir ? ` (${runtime.payloadDir})` : ''}`);
   registerIpc(() => mainWindow);
   mainWindow = createWindow();

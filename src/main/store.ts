@@ -5,16 +5,24 @@ import { app, safeStorage } from 'electron';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { ChatKind, ChatMeta, NewReport, Settings, SettingsPatch, StoredReport, TraderProfile, TranscriptItem } from '@shared/api';
+import type { ChatKind, ChatMeta, NewReport, SecretName, Settings, SettingsPatch, StoredReport, TraderProfile, TranscriptItem } from '@shared/api';
 import { MAX_REPORTS } from '@shared/api';
-import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
+import { DEFAULT_PROFILE, DEFAULT_SETTINGS, DEFAULT_VAULT_DIRNAME, legacyConfigPatch } from '@shared/defaults';
 import { MAX_PANEL_DAYS, MAX_PANEL_EVENTS, type PanelDayState, type SentinelEvent } from '@shared/panel';
 
-interface ConfigFile extends Omit<Settings, 'hasApiKey' | 'hasOauthToken'> {
+interface ConfigFile extends Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession'> {
   /** base64 of safeStorage.encryptString(); absent when not set. */
   apiKeyEnc?: string;
   oauthTokenEnc?: string;
+  /** The TradingView sessionid cookie, same encryption; the macro tools read it as TV_SESSIONID. */
+  tvSessionEnc?: string;
 }
+
+const SECRET_FIELD: Record<SecretName, 'apiKeyEnc' | 'oauthTokenEnc' | 'tvSessionEnc'> = {
+  apiKey: 'apiKeyEnc',
+  oauthToken: 'oauthTokenEnc',
+  tvSession: 'tvSessionEnc',
+};
 
 const userData = () => app.getPath('userData');
 const filePath = (name: string) => path.join(userData(), name);
@@ -56,17 +64,45 @@ function decrypt(enc: string | undefined): string | null {
 // ---------- config ----------
 
 const CONFIG_DEFAULTS: ConfigFile = (() => {
-  const { hasApiKey: _a, hasOauthToken: _b, ...rest } = DEFAULT_SETTINGS;
+  const { hasApiKey: _a, hasOauthToken: _b, hasTvSession: _c, ...rest } = DEFAULT_SETTINGS;
   return rest;
 })();
 
+/**
+ * A config file written before a field existed keeps the meaning it had then
+ * (`legacyConfigPatch`): the owner's install must not wake up with a second
+ * `tradingview` server or a switched-off knowledge base. A missing file is a
+ * fresh install and takes the defaults as they are.
+ */
 async function readConfig(): Promise<ConfigFile> {
-  return readJson<ConfigFile>(filePath('config.json'), CONFIG_DEFAULTS);
+  let raw: Record<string, unknown> | null = null;
+  try {
+    const parsed = JSON.parse(await fs.readFile(filePath('config.json'), 'utf8')) as unknown;
+    raw = parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    raw = null;
+  }
+  return { ...CONFIG_DEFAULTS, ...legacyConfigPatch(raw), ...(raw ?? {}) } as ConfigFile;
+}
+
+/** Where a fresh install keeps its vault: Documents\Strategy Desk, resolved here because the renderer has no home directory. */
+export function defaultVaultPath(): string {
+  try {
+    return path.join(app.getPath('documents'), DEFAULT_VAULT_DIRNAME);
+  } catch {
+    return path.join(app.getPath('home'), 'Documents', DEFAULT_VAULT_DIRNAME);
+  }
 }
 
 function toSettings(cfg: ConfigFile): Settings {
-  const { apiKeyEnc, oauthTokenEnc, ...rest } = cfg;
-  return { ...rest, hasApiKey: Boolean(apiKeyEnc), hasOauthToken: Boolean(oauthTokenEnc) };
+  const { apiKeyEnc, oauthTokenEnc, tvSessionEnc, ...rest } = cfg;
+  return {
+    ...rest,
+    vaultPath: (rest.vaultPath || '').trim() || defaultVaultPath(),
+    hasApiKey: Boolean(apiKeyEnc),
+    hasOauthToken: Boolean(oauthTokenEnc),
+    hasTvSession: Boolean(tvSessionEnc),
+  };
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -81,27 +117,28 @@ export async function setSettings(patch: SettingsPatch): Promise<Settings> {
   return toSettings(next);
 }
 
-export async function setSecret(name: 'apiKey' | 'oauthToken', value: string): Promise<Settings> {
+export async function setSecret(name: SecretName, value: string): Promise<Settings> {
   const cfg = await readConfig();
-  const field = name === 'apiKey' ? 'apiKeyEnc' : 'oauthTokenEnc';
-  const next: ConfigFile = { ...cfg, [field]: encrypt(value.trim()) };
+  const next: ConfigFile = { ...cfg, [SECRET_FIELD[name]]: encrypt(value.trim()) };
+  // A new cookie is unproven until the check runs again.
+  if (name === 'tvSession') next.tvSessionVerifiedAt = 0;
   await writeJsonAtomic(filePath('config.json'), next);
   return toSettings(next);
 }
 
-export async function clearSecret(name: 'apiKey' | 'oauthToken'): Promise<Settings> {
+export async function clearSecret(name: SecretName): Promise<Settings> {
   const cfg = await readConfig();
-  const field = name === 'apiKey' ? 'apiKeyEnc' : 'oauthTokenEnc';
   const next: ConfigFile = { ...cfg };
-  delete next[field];
+  delete next[SECRET_FIELD[name]];
+  if (name === 'tvSession') next.tvSessionVerifiedAt = 0;
   await writeJsonAtomic(filePath('config.json'), next);
   return toSettings(next);
 }
 
 /** Main-process only: plaintext secrets for the agent environment. */
-export async function getSecrets(): Promise<{ apiKey: string | null; oauthToken: string | null }> {
+export async function getSecrets(): Promise<{ apiKey: string | null; oauthToken: string | null; tvSession: string | null }> {
   const cfg = await readConfig();
-  return { apiKey: decrypt(cfg.apiKeyEnc), oauthToken: decrypt(cfg.oauthTokenEnc) };
+  return { apiKey: decrypt(cfg.apiKeyEnc), oauthToken: decrypt(cfg.oauthTokenEnc), tvSession: decrypt(cfg.tvSessionEnc) };
 }
 
 // ---------- profile ----------

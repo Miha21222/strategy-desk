@@ -19,7 +19,7 @@
     "daily_loss": { "enabled": true, "limit": { "pct": 2.0 }, "status": "stop", "_": "E1" },
     "weekly_loss": { "enabled": true, "limit": { "pct": 3.0 }, "window": "calendar", "status": "stop", "_": "E7" },
     "monthly_loss": { "enabled": true, "limit": { "pct": 6.0 }, "window": "calendar", "status": "stop", "_": "E8" },
-    "max_losses_per_day": { "enabled": true, "max": 1, "status": "stop", "_": "E3 — one attempt a day" },
+    "max_losses_per_day": { "enabled": true, "max": 0, "status": "stop", "_": "E3 — one stop a day: max is the largest count still ALLOWED, so 0 stops the day after the first loss" },
     "max_trades_per_day": { "enabled": true, "max": 1, "status": "flag", "_": "E5 — one position" },
     "max_trades_per_week": { "enabled": true, "max": 3, "status": "flag", "_": "E6 — the course expects 1–2 a week" },
     "consecutive_losses": { "enabled": true, "losses": 2, "cooldown_sessions": 1, "status": "stop", "_": "E9" },

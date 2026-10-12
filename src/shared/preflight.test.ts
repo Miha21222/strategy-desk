@@ -6,7 +6,28 @@
 import { describe, expect, it } from 'vitest';
 import type { Settings } from './api';
 import { DEFAULT_SETTINGS } from './defaults';
-import { buildChecks, CHECK_IDS, cdpOwner, EMPTY_CDP, resultOf, worstStatus, type CdpProbe, type CheckId, type CheckStatus, type KbFact, type PreflightFacts, type RuntimeFact } from './preflight';
+import {
+  buildChecks,
+  CHECK_IDS,
+  cdpOwner,
+  EMPTY_CDP,
+  resultOf,
+  SCHEDULER_TASKS,
+  schedulerCheck,
+  timezoneCheck,
+  toolsPythonCheck,
+  tvSessionCheck,
+  vaultCheck,
+  worstStatus,
+  type CdpProbe,
+  type CheckId,
+  type CheckStatus,
+  type KbFact,
+  type PreflightFacts,
+  type RuntimeFact,
+  type SchedulerFact,
+  type VaultFact,
+} from './preflight';
 
 const cfg: Settings = { ...DEFAULT_SETTINGS };
 
@@ -82,8 +103,31 @@ function healthyFacts(): PreflightFacts {
     workflows: { loaded: ['ib-es', 'strategy-lab'], failed: [] },
     files: { riskRules: { path: 'C:\\rules.json', exists: true }, journal: { path: 'C:\\journal.csv', exists: true } },
     platform: 'win32',
+    vault: { ...healthyVault },
+    toolsPython: { python: 'C:\\userData\\py\\venv\\Scripts\\python.exe', exists: true, checked: true, importOk: true, error: '' },
+    tvSession: { set: true, verifiedAt: 1_700_000_000_000 },
+    scheduler: { ...registered },
+    timezone: 'Europe/Kyiv',
   };
 }
+
+/** A vault laid down from the template, complete. */
+const healthyVault: VaultFact = {
+  path: 'C:\\Users\\T\\Documents\\Strategy Desk',
+  exists: true,
+  nonEmpty: true,
+  hasSkill: true,
+  hasScaleTool: true,
+  hasScaleConfig: true,
+  templateVersion: '2026-10-12',
+  templateAvailable: true,
+};
+
+const registered: SchedulerFact = {
+  queried: true,
+  tasks: SCHEDULER_TASKS.map((name) => ({ name, state: 'Ready' })),
+  script: 'C:\\Users\\T\\Documents\\Strategy Desk\\indices-kb\\tools\\macro_schedule.ps1',
+};
 
 function statusOf(checks: ReturnType<typeof buildChecks>, id: CheckId): CheckStatus {
   const c = checks.find((x) => x.id === id);
@@ -212,7 +256,7 @@ describe('status mapping, one faked probe at a time', () => {
     expect(c.vars?.error).toBe("ModuleNotFoundError: No module named 'httpx'");
   });
 
-  it('Claude: each login route is ok, "none" fails with a copyable command, not a button', () => {
+  it('Claude: each login route is ok, "none" fails with the bundled binary login as a task', () => {
     for (const mode of ['subscription', 'api-key', 'setup-token'] as const) {
       const f = healthyFacts();
       f.claude = mode;
@@ -224,8 +268,9 @@ describe('status mapping, one faked probe at a time', () => {
     f.claude = 'none';
     const c = buildChecks(cfg, f).find((x) => x.id === 'claude')!;
     expect(c.status).toBe('fail');
-    expect(c.fix?.kind).toBe('copy');
-    expect(c.fix?.kind === 'copy' && c.fix.noteKey).toBe('preflight.claude.note');
+    expect(c.fix?.kind).toBe('run-task');
+    expect(c.fix?.kind === 'run-task' && c.fix.task).toBe('claude-login');
+    expect(c.fix?.kind === 'run-task' && c.fix.noteKey).toBe('preflight.claude.note');
   });
 
   it('TradingView: not running -> the launch button; running flagless -> an explanation, never a kill', () => {
@@ -498,5 +543,97 @@ describe('the Codex engine', () => {
     expect(check?.status).toBe('warn');
     expect(check?.optional).toBe(true);
     expect(check?.fix).toMatchObject({ kind: 'run-task', task: 'codex-mcp-add' });
+  });
+});
+
+// ---------- the macro-review checks (the MVP wizard's own pages) ----------
+
+describe('the vault check', () => {
+  it('creates from the template when the folder is missing or empty, never when it holds something else', () => {
+    const missing = vaultCheck({ ...healthyVault, exists: false, nonEmpty: false, hasSkill: false, hasScaleTool: false, hasScaleConfig: false, templateVersion: '' });
+    expect(missing.status).toBe('fail');
+    expect(missing.fix).toMatchObject({ kind: 'run-task', task: 'vault-create' });
+
+    const empty = vaultCheck({ ...healthyVault, nonEmpty: false, hasSkill: false, hasScaleTool: false, hasScaleConfig: false, templateVersion: '' });
+    expect(empty.detailKey).toBe('preflight.vault.empty');
+    expect(empty.fix).toMatchObject({ kind: 'run-task', task: 'vault-create' });
+
+    const stranger = vaultCheck({ ...healthyVault, hasSkill: false, hasScaleTool: false, hasScaleConfig: false, templateVersion: '' });
+    expect(stranger.detailKey).toBe('preflight.vault.notVault');
+    expect(stranger.fix).toMatchObject({ kind: 'pick-file', field: 'vaultPath' });
+  });
+
+  it('completes a partial vault in place, and says so with a different button', () => {
+    const partial = vaultCheck({ ...healthyVault, hasSkill: false });
+    expect(partial.status).toBe('fail');
+    expect(partial.detailKey).toBe('preflight.vault.incomplete');
+    expect(partial.fix).toMatchObject({ kind: 'run-task', task: 'vault-create', labelKey: 'preflight.fix.vaultComplete' });
+  });
+
+  it('offers no task when the build shipped no template', () => {
+    const c = vaultCheck({ ...healthyVault, exists: false, nonEmpty: false, hasSkill: false, hasScaleTool: false, hasScaleConfig: false, templateVersion: '', templateAvailable: false });
+    expect(c.fix?.kind).toBe('explain');
+  });
+
+  it('is green for a complete vault, naming the template version when there is one', () => {
+    expect(vaultCheck(healthyVault)).toMatchObject({ status: 'ok', detailKey: 'preflight.vault.okTemplate', vars: { version: '2026-10-12' } });
+    expect(vaultCheck({ ...healthyVault, templateVersion: '' }).detailKey).toBe('preflight.vault.ok');
+    expect(vaultCheck({ ...healthyVault, path: '' }).status).toBe('fail');
+  });
+});
+
+describe('the tools-python check', () => {
+  it('points at provisioning when the interpreter is missing or cannot import', () => {
+    expect(toolsPythonCheck({ python: 'C:\\py\\python.exe', exists: false, checked: false, importOk: false, error: '' }).fix).toMatchObject({ task: 'provision-runtime' });
+    const bad = toolsPythonCheck({ python: 'C:\\py\\python.exe', exists: true, checked: true, importOk: false, error: "ModuleNotFoundError: No module named 'tvmcp'\n" });
+    expect(bad.status).toBe('fail');
+    expect(bad.vars?.error).toBe("ModuleNotFoundError: No module named 'tvmcp'");
+    expect(toolsPythonCheck({ python: '', exists: false, checked: false, importOk: false, error: '' }).status).toBe('fail');
+    expect(toolsPythonCheck({ python: 'C:\\py\\python.exe', exists: true, checked: true, importOk: true, error: '' }).status).toBe('ok');
+  });
+});
+
+describe('the sessionid check', () => {
+  it('explains where the cookie comes from, then offers the cheap check, then is green', () => {
+    expect(tvSessionCheck({ set: false, verifiedAt: 0 })).toMatchObject({ status: 'fail', fix: { kind: 'explain' } });
+    expect(tvSessionCheck({ set: true, verifiedAt: 0 })).toMatchObject({ status: 'warn', fix: { kind: 'run-task', task: 'session-check' } });
+    expect(tvSessionCheck({ set: true, verifiedAt: 1 }).status).toBe('ok');
+  });
+});
+
+describe('the scheduler check', () => {
+  const vault = healthyVault;
+  it('is green only with all three jobs, and offers to register otherwise', () => {
+    expect(schedulerCheck(registered, vault).status).toBe('ok');
+    const two = schedulerCheck({ ...registered, tasks: registered.tasks.slice(0, 2) }, vault);
+    expect(two).toMatchObject({ status: 'warn', detailKey: 'preflight.scheduler.partial', fix: { task: 'scheduler-register' } });
+    expect(two.vars?.found).toBe('Trading Macro EU, Trading Macro US');
+    expect(schedulerCheck({ ...registered, tasks: [] }, vault)).toMatchObject({ status: 'warn', detailKey: 'preflight.scheduler.none', fix: { task: 'scheduler-register' } });
+  });
+
+  it('warns about disabled jobs and about a vault without the script', () => {
+    const disabled = schedulerCheck({ ...registered, tasks: registered.tasks.map((t, i) => (i === 2 ? { ...t, state: 'Disabled' } : t)) }, vault);
+    expect(disabled).toMatchObject({ status: 'warn', detailKey: 'preflight.scheduler.disabled', vars: { list: 'Trading Review' } });
+    expect(schedulerCheck({ ...registered, tasks: [], script: '' }, vault)).toMatchObject({ status: 'warn', detailKey: 'preflight.scheduler.noVault' });
+    expect(schedulerCheck({ ...registered, tasks: [], script: '' }, vault).fix).toBeUndefined();
+    expect(schedulerCheck({ queried: false, tasks: [], script: '' }, vault).status).toBe('unknown');
+  });
+});
+
+describe('the timezone check', () => {
+  it('accepts the Kyiv zone under its three names and warns about any other', () => {
+    for (const tz of ['Europe/Kyiv', 'Europe/Kiev', 'FLE Standard Time']) expect(timezoneCheck(tz).status).toBe('ok');
+    expect(timezoneCheck('Europe/Berlin')).toMatchObject({ status: 'warn', vars: { tz: 'Europe/Berlin' }, fix: { kind: 'explain' } });
+    expect(timezoneCheck('').status).toBe('unknown');
+  });
+});
+
+describe('the macro checks in the full list', () => {
+  it('come last, in both engine branches, and are green on the healthy machine', () => {
+    for (const engine of ['claude', 'codex'] as const) {
+      const checks = buildChecks({ ...cfg, engine }, healthyFacts());
+      expect(checks.slice(-5).map((c) => c.id)).toEqual(['vault', 'toolsPython', 'tvSession', 'scheduler', 'timezone']);
+      expect(checks.slice(-5).every((c) => c.status === 'ok')).toBe(true);
+    }
   });
 });

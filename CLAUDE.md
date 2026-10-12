@@ -44,13 +44,91 @@ src/preload/index.ts        contextBridge → window.desk
 src/renderer/app.tsx        shell: sidebar + tabs, owns state and the single chat:event subscription
 src/renderer/chat/          blocks.ts (fenced-block parser + test), Markdown.tsx, ChatView.tsx
 src/renderer/components/    Sidebar, DayPanel, SettingsTab, WorkflowsTab, HelpTab, SetupWizard, PreflightList
-src/renderer/setup.ts       the wizard's own logic: steps, skipped steps, the limitation notes (pure, tested)
+src/renderer/setup.ts       the wizard's own logic: steps (MVP vs legacy), skipped steps, the limitation notes (pure, tested)
+src/main/macro-env.ts       the vault contract (MACRO_VAULT/MACRO_PYTHON/MACRO_CLAUDE/TV_SESSIONID/…) a macro session gets (pure, tested)
+src/main/vault-template.ts  vault-create: the template → the user's folder, missing files only (pure plan, tested)
 src/renderer/panel/cards.tsx   presentational cards for the «День» tab (levels, calendar, risk, journal, event feed)
 workflows/<id>/             workflow.yaml + prompt.md (+ risk-rules.example.json): every strategy number lives here
 src/renderer/i18n/          ru.ts (source of truth), en.ts (stub), t()
 src/renderer/styles.css     hand-written CSS, theme via CSS variables
 docs/PLAN.md                stage roadmap and checklists
 ```
+
+## The macro-review MVP (branch `mvp-macro`, 2026-10-11)
+
+The app now opens on «Макро-ревью»: the owner's `macro-review` skill (vault `.claude/skills/macro-review`,
+note 22) drawn as a desk. Tabs «День» and «Воркфлоу» and the chart quick actions are hidden behind
+`settings.legacyUi` — the code stays.
+
+```
+src/shared/macro.ts          the data contract (state/scale_<D>_<region>.json etc.) + pure helpers: zones, gauge geometry,
+                             window states 09:30/16:00/20:00, CSV stats, the prompts the desk sends
+src/main/macro-state.ts      reads <vault>/indices-kb/{state,journal,config}, watches state/ (debounced); writes only the owner's two files (note 23)
+src/renderer/macro/          MacroDesk.tsx (the tab), Gauge.tsx (Fear & Greed dial, split bar, group bars), macro.css
+prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro chat
+```
+
+- **The desk computes nothing.** Numbers come from the files the skill writes; an argument from the owner is a
+  chat turn (`discussPrompt`), and the agent records it with `scale.py discuss` — the watcher redraws.
+- **A macro chat (`kind: 'macro'`, one per day, «Макро-ревью DD.MM») is the owner's own Claude Code**: cwd =
+  `settings.vaultPath`, `settingSources: user+project+local`, `skills: 'all'`, preset prompt + appendix, no desk MCP
+  map, tools `MACRO_ALLOWED` (Bash/Write/Skill…, no Task). Same session the Task Scheduler opens, so a run from the
+  desk and a scheduled run write the same files. Always the Claude engine.
+- Scheduled runs still come from the Windows Task Scheduler; the tab picks them up through the watcher.
+- **Note 23 (2026-10-11): the desk augments the trader, it does not replace him.** Before the gauge the owner
+  taps his own read of the window («Твой взгляд» → `state/human_read_<D>_<region>.json`; the gauge is veiled
+  until then, with «Показать без ответа» as the honest escape), and at 20:00 he answers two questions
+  («Твой день» → `state/day_answers_<D>.json`). These are the ONLY two files the desk writes into the vault
+  (`writeHumanRead` / `writeDayAnswers` in `macro-state.ts`, atomic, names built from a checked date). The
+  skill reads them: `scale.py review` scores the read like the needle and keeps the answers, `scale.py stats`
+  prints «владелец против шкалы». The review tab shows «Кто был прав» per window from the facts alone.
+- **The memory cards (note 23 §2–3, 2026-10-12)** are READ-ONLY files the skill writes into `state/`:
+  `remember_<D>_<region>.json` → «Сегодня помни» (≤ 3 lines: lesson / rule / similar day, under «Твой взгляд»,
+  above the gauge, same gating as the gauge), `drift_<D>_<region>.json` → «Что изменилось» (only with
+  `signals`), `week_<D>.json` (D = the Friday) → «Неделя в пять строк» in the evening of a Friday, with «О тебе»
+  (`trader` of the week file, else of `review_<D>.json`), and the dateless `ideas.json` → «Идеи на проверке»
+  (open + proposed, newest first, ≤ 5, no buttons). Types + `normalize*` in `src/shared/macro.ts`, the cards
+  in `src/renderer/macro/memoryCards.tsx`. A card with nothing to show is not rendered at all. The watcher
+  reports `ideas.json` as `DATELESS_CHANGE` («*»), which the tab takes as «reload whatever day is on screen».
+- **«Сначала человек» is the whole screen, not a veil.** On the day itself a window with a review and no read
+  shows only the question — the tile's needle, the agent's text and the plan are withheld (`unread()` in
+  MacroDesk) — because a blurred gauge next to a tile that says «сильный лонг» is theatre. «Показать обзор без
+  ответа» is the way around, and a read given after it is stored with `before_scale: false`.
+- **Installable on another trader's PC (2026-10-12).** Nothing in `src/shared/defaults.ts` names the owner's
+  machine any more: `DEFAULT_TVMCP_PATH` is '' («bundled»), `DEFAULT_VAULT_PATH` is '' and the store substitutes
+  `defaultVaultPath()` = `Documents\Strategy Desk`. The pieces, each with its pure half tested:
+  - `src/main/macro-env.ts` — the ONE spelling of the vault contract a macro session (chat or scheduled run)
+    gets: `MACRO_VAULT`, `MACRO_PYTHON` (the provisioned venv's python.exe; the clone's `.venv` in a dev run),
+    `MACRO_CLAUDE` (the SDK's bundled claude.exe when it resolves, else unset), `TV_SESSIONID`, `TV_CDP_URL`,
+    `PYTHONIOENCODING=utf-8`, and the venv `Scripts` dir in front of PATH. `macroSpec` puts it in `TurnSpec.env`;
+    the Claude driver spreads it over the auth env.
+  - `settings.macroMcp: 'bundled' | 'user'` — a macro chat's `mcpServers`: the desk's own `tradingview` server
+    (fresh installs) or `{}` with the owner's `~/.claude` providing it. `legacyConfigPatch` (defaults.ts) reads a
+    config file written before the field as `'user'` (and an absent `knowledgeBase` as on; fresh installs start
+    with the course OFF).
+  - The sessionid is a third secret (`tvSession`, safeStorage, `settings:setSecret`), with `hasTvSession` /
+    `tvSessionVerifiedAt` as the renderer-visible flags; the `session-check` task exchanges it for a token
+    (`fetch_auth_token`) through the venv python, the cookie travelling in the environment, never on argv.
+  - Checks `vault`, `toolsPython`, `tvSession`, `scheduler`, `timezone` (shared/preflight.ts, facts in
+    main/preflight.ts) and tasks `vault-create` (copies `resources/vault-template` → the chosen folder, missing
+    files only, never overwrites; `src/main/vault-template.ts`), `session-check`, `scheduler-register` /
+    `scheduler-unregister` (PowerShell → the vault's own `indices-kb/tools/macro_schedule.ps1` with
+    -Vault/-Python/-Claude; register also writes the contract into the USER's environment variables, cookie
+    included, because a scheduled run does not start from the desk; unregister clears them).
+  - The wizard for the MVP is six pages — `stepIdsFor()` in `renderer/setup.ts`: vault → claude → tvmcp →
+    tradingview → session → schedule; `legacyUi` shows every page. The vault, session and schedule pages have
+    their own extras in `SetupWizard.tsx` (picker, cookie field with the how-to, the three times + the PC zone).
+  - Packaging: `scripts/stage-vault.mjs` (owned with the template) → `resources/vault-template/` (gitignored)
+    → extraResources `vault-template`; `build-installer.cmd` = `SD_BUNDLE_KB=0` + `npm run dist`; the pack
+    smoke and `dist:check` assert `prompt/macro-review.md`, `prompt/ask.md` and the template's five files.
+- **The MVP's «+ Новый чат» is `kind: 'ask'`** (note 23): the same vault session as a macro chat
+  (`macroSpec(mode, 'ask')`, appendix `prompt/ask.md`) told to answer from memory — reviews, lessons, journal —
+  and never to run a review or write state. The Strategy Lab copilot (`kind: 'chat'`, tvmcp chips) stays
+  behind `legacyUi`.
+- **Looking at the renderer without Electron:** `scripts/preview/preview.sh` serves `out/renderer` with a
+  `window.desk` shim (`desk-mock.js`) fed by the real `loadDay()` over the demo vault and screenshots the steps in
+  `scripts/preview/steps.json` with Playwright (`NOW=` fakes the Kyiv clock, `H=` the viewport height). This is
+  how the note-23 screens were reviewed; use it before changing the tab.
 
 ## Branches
 
@@ -81,6 +159,8 @@ npm run build       electron-vite build → out/
 npm run icons       redraw build/icon.png|ico|icns
 npm run stage:tvmcp copy the tvmcp sources + a uv binary into build/ for packaging (runs inside dist)
 npm run stage:gtrag copy gt-rag + the course content, index and model into build/ (runs inside dist)
+npm run stage:vault stage the vault template out of the owner's vault into resources/vault-template (runs inside dist)
+build-installer.cmd SD_BUNDLE_KB=0 + npm run dist: the installer for the other traders (no course)
 npm run dist        build + electron-builder --win nsis → release/Strategy-Desk-<version>-<arch>.exe
 npm run dist:dir    build + electron-builder --dir → release/win-unpacked (fast, no installer)
 npm run dist:check  launch the packaged binary with DESK_SMOKE=pack and fail if it did not start
@@ -117,9 +197,13 @@ tvmcp spawn in the app goes through it: the MCP server (`mcp.ts`), the `--check`
 deterministic CLI (`tv-cli.ts`). `src/main/runtime.ts` is the Electron half — it resolves the paths at boot and
 reports; it installs nothing.
 
-**Two modes, decided by whether the payload exists, never by a setting.** No payload (a dev run) = EXTERNAL:
-`uv` from PATH plus the checkout in `settings.tvmcpPath`, exactly as before bundling. Payload present =
-BUNDLED. The preflight shows `uv` + `tvmcpClone` in one mode and `tvmcpRuntime` in the other.
+**Two modes, decided by whether the payload exists — with one exception for what is already there.** No
+payload (a dev run) = EXTERNAL: `uv` from PATH plus the checkout in `settings.tvmcpPath`, exactly as before
+bundling. Payload present = BUNDLED, unless `settings.tvmcpPath` names a COMPLETE checkout (`pyproject.toml`
++ `.venv` interpreter) and `uv` is on PATH: then `initRuntimePaths(settings)` drops the payload and the
+app runs EXTERNAL (`preferExternal`, runtime-spec.ts, tested) — the owner's rule of 2026-10-12 that what
+is on the PC is not installed again. A fresh install has no path set, so it provisions. The preflight shows
+`uv` + `tvmcpClone` in one mode and `tvmcpRuntime` in the other.
 
 To exercise the bundled path in a dev run, put a payload where `binaryRoots` looks — the repo root:
 
@@ -248,14 +332,41 @@ The things the app may do FOR the user — provision the runtime, fetch the head
 knowledge base, download its embedding model, register and authenticate the official TradingView MCP —
 share one runner (`src/main/tasks.ts`, contract in
 `src/shared/tasks.ts`). **The renderer names a task id, never a command**, the same rule `tv:call` keeps for
-tools. Nothing starts at launch: a task runs from a button in the preflight, which shows the command before
-running it and streams the output while it runs.
+tools. Nothing starts at launch: a task runs from the wizard or the preflight, which show the command before
+running it and stream the output while it runs. Since the installer work of 2026-10-12 a wizard PAGE presses
+for the user on `AUTO_TASKS` (`src/renderer/setup.ts`: `provision-runtime`, `install-chromium`,
+`session-check`) the moment it opens — once per task per wizard session, never a retry loop. The vault is
+asked for (path, picker, «Создать здесь»), because the folder is the owner's choice. The Claude login (`claude-login` = the SDK's bundled `claude.exe auth login --claudeai`: it opens the browser and then waits
+on «Paste code here» — verified 2026-10-12 — so it is the one task planned with `stdin: true`; the code field in
+`TaskFix` delivers the line through `tasks.input`), the schedule (writes the sessionid into HKCU) and anything that
+removes something still wait for the button.
 
 The official MCP's registration lives in Claude Code's own store rather than ours, because that is where its
 OAuth token lives — and that store is consulted even though the app passes `mcpServers` programmatically with
 `strictMcpConfig: true` and `settingSources: []` (verified 2026-09-22: `status: connected, source: dynamic`).
 `claude mcp add` runs with `-s user`: the default `local` scope is private to one working directory, and the
 app's own directory is not where the user works.
+
+## The installer (`build/installer.nsh`, 2026-10-12)
+
+The distribution model: the trader downloads ONE installer; nothing else is required from outside. Claude
+Code (the SDK's `claude.exe`), Python + tvmcp (`uv` builds the venv on first run) and the vault template ship
+inside; the login is a button in the wizard; Obsidian is optional (the vault is a folder) and is not mentioned.
+`build/installer.nsh` is picked up by electron-builder by itself (default `nsis.include`), compiled twice
+(installer and, with `BUILD_UNINSTALLER`, the uninstaller; `-WX`, so unreferenced functions fail the build —
+hence the `!ifdef` fences, and the functions live INSIDE the macros because the file is read before MUI2 and
+nsDialogs are included). What it adds:
+
+- `customPageAfterChangeDir`: one page after the directory page — is TradingView Desktop on this PC
+  (`Get-AppxPackage TradingView.Desktop`, it is an MSIX package, no Uninstall registry key)? If not and winget
+  answers, a checkbox installs `TradingView.TradingViewDesktop` during the install (`customInstall`, failure =
+  a message, never a failed install); without winget the checkbox opens tradingview.com/desktop afterwards.
+  Skipped on `--updated` runs.
+- `customUnInstall`: asks whether to remove `%APPDATA%\strategy-desk\py` (the ~600 MB runtime the app built).
+  `deleteAppDataOnUninstall` stays false; the vault is never touched. `/SD IDNO` for silent uninstalls.
+
+Cannot be unit-tested: `npm run dist` (or `build-installer.cmd`) is the compile check, and a clean-account
+install is the real one (`state/install_smoke_<date>.md` in the owner's vault).
 
 ## Conventions
 
@@ -265,8 +376,10 @@ app's own directory is not where the user works.
   and is loaded with dynamic `import()` from the CJS main bundle.
 - Chat events are the union `ChatEvent` in `api.ts`; the renderer treats the trailing assistant message with `at === -1` as live.
 - Secrets never cross IPC; the renderer sees `hasApiKey` / `hasOauthToken` only.
-- CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'` (meta tag in `index.html`). No external scripts/styles.
+- CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:` (meta tag in `index.html`; `data:` for the macro chart screenshots, see `macro:image`). No external scripts/styles.
 - Keep `tv-launch.ts` small: it will move into the tvmcp tool `tv_desktop_launch`.
+- A new secret is three edits too: `SecretName` in `src/shared/api.ts`, `SECRET_FIELD` in `store.ts`, and the
+  place it is consumed (the auth env, or the macro env).
 - **Anything read at runtime from a file that ships with the app** goes through `src/main/resources.ts`
   (`readResource()` / `resourceCandidates()`), never through `process.cwd()` or a bare `app.getAppPath()`.
   The order is dev cwd → `app.getAppPath()` (= `app.asar` when packaged) → `process.resourcesPath`, and the

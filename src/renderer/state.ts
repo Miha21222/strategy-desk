@@ -25,7 +25,7 @@ export function versionCount(chat: ChatMeta): number {
   return new Set((chat.reports ?? []).map((r) => r.version)).size;
 }
 
-export const SHELF_KINDS: ChatKind[] = ['strategy', 'indicator', 'performance', 'journal', 'ib-day'];
+export const SHELF_KINDS: ChatKind[] = ['macro', 'ask', 'strategy', 'indicator', 'performance', 'journal', 'ib-day'];
 
 export type Bucket = 'today' | 'yesterday' | 'week' | 'older';
 
@@ -49,7 +49,7 @@ export function groupChats(chats: ChatMeta[], filter: string): ChatGroups {
   const visible = q ? chats.filter((c) => (c.title || '').toLowerCase().includes(q)) : chats;
   const groups: ChatGroups = {
     pinned: [],
-    shelves: { chat: [], strategy: [], indicator: [], performance: [], journal: [], 'ib-day': [] },
+    shelves: { chat: [], strategy: [], indicator: [], performance: [], journal: [], 'ib-day': [], macro: [], ask: [] },
     buckets: { today: [], yesterday: [], week: [], older: [] },
   };
   for (const c of visible) {

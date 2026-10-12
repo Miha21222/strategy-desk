@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Settings } from '@shared/api';
 import { DEFAULT_SETTINGS } from '@shared/defaults';
-import { buildKbEnv, buildTvEnv, EXTERNAL_PATHS, gtRagSpawn, kbMode, modeOf, pythonBin, runtimeEnv, tvmcpSpawn, type RuntimePaths } from './runtime-spec';
+import { buildKbEnv, buildTvEnv, EXTERNAL_PATHS, externalCloneFiles, gtRagSpawn, kbMode, modeOf, preferExternal, pythonBin, runtimeEnv, tvmcpSpawn, type RuntimePaths } from './runtime-spec';
 
 const cfg: Settings = { ...DEFAULT_SETTINGS, tvmcpPath: 'C:\\Projects\\tradingview-mcp', toolsets: 'hybrid,desktop', cdpPort: 9223 };
 
@@ -134,9 +134,33 @@ describe('the knowledge base server', () => {
   });
 
   it('is off when the switch is off, whatever shipped', () => {
+    // A fresh install starts with the switch OFF (macro-review build, no
+    // course); an old config file without the field still reads as on, which
+    // the store's `legacyConfigPatch` handles before the settings get here.
     expect(kbMode({ ...cfg, knowledgeBase: false }, bundled)).toBe('off');
-    expect(kbMode(cfg, bundled)).toBe('bundled');
-    expect(kbMode({ ...cfg, gtRagPath: 'C:\\Projects\\gt-rag' }, EXTERNAL_PATHS)).toBe('external');
-    expect(kbMode(cfg, EXTERNAL_PATHS)).toBe('off');
+    expect(kbMode({ ...cfg, knowledgeBase: true }, bundled)).toBe('bundled');
+    expect(kbMode({ ...cfg, knowledgeBase: true, gtRagPath: 'C:\\Projects\\gt-rag' }, EXTERNAL_PATHS)).toBe('external');
+    expect(kbMode({ ...cfg, knowledgeBase: true }, EXTERNAL_PATHS)).toBe('off');
+  });
+});
+
+describe('a checkout already on the PC beats the payload', () => {
+  const clone = 'C:\\Projects\\tradingview-mcp';
+  const complete = new Set(['C:\\Projects\\tradingview-mcp\\pyproject.toml', 'C:\\Projects\\tradingview-mcp\\.venv\\Scripts\\python.exe']);
+  const has = (p: string) => complete.has(p);
+
+  it('names the project file and the venv interpreter, per platform', () => {
+    expect(externalCloneFiles(clone, 'win32')).toEqual([...complete]);
+    expect(externalCloneFiles('/home/t/tradingview-mcp', 'linux')).toEqual(['/home/t/tradingview-mcp/pyproject.toml', '/home/t/tradingview-mcp/.venv/bin/python']);
+    expect(externalCloneFiles('', 'win32')).toEqual([]);
+    expect(externalCloneFiles('   ', 'win32')).toEqual([]);
+  });
+
+  it('only when the checkout is complete AND uv is on PATH; a fresh install (no path) stays bundled', () => {
+    expect(preferExternal(clone, has, true, 'win32')).toBe(true);
+    expect(preferExternal(clone, has, false, 'win32')).toBe(false);
+    expect(preferExternal(clone, (p) => p.endsWith('pyproject.toml'), true, 'win32')).toBe(false);
+    expect(preferExternal('', has, true, 'win32')).toBe(false);
+    expect(preferExternal('C:\\elsewhere', has, true, 'win32')).toBe(false);
   });
 });

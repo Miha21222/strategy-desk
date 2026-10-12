@@ -5,9 +5,13 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@shared/defaults';
 import { CHECK_IDS, type PreflightCheck } from '@shared/preflight';
+import { emptyTask } from '@shared/tasks';
 import {
   applySkip,
+  AUTO_TASKS,
+  autoFixes,
   checksOfStep,
+  stepTaskIds,
   finishPatch,
   isSkipped,
   limitationKeys,
@@ -17,6 +21,7 @@ import {
   reconcileSkips,
   shouldOpenWizard,
   stepDone,
+  stepIdsFor,
   stepStatus,
   STEP_IDS,
   visibleStepIds,
@@ -35,11 +40,23 @@ describe('the wizard steps', () => {
     expect(new Set(covered).size).toBe(covered.length);
   });
 
-  it('runs the engine first, then the market server, the knowledge base, the official MCP, TradingView and the files', () => {
-    expect(STEP_IDS).toEqual(['claude', 'codex', 'tvmcp', 'knowledge', 'official', 'tradingview', 'files']);
+  it('runs the vault first, then the engine, the market server, the knowledge base, the official MCP, TradingView, the session, the schedule and the files', () => {
+    expect(STEP_IDS).toEqual(['vault', 'claude', 'codex', 'tvmcp', 'knowledge', 'official', 'tradingview', 'session', 'schedule', 'files']);
     expect(nextStep('files')).toBeNull();
-    expect(prevStep('claude')).toBeNull();
+    expect(prevStep('vault')).toBeNull();
     expect(prevStep('tradingview')).toBe('official');
+  });
+
+  // The macro-review MVP: six pages, the legacy desk's pages hidden — their
+  // checks still run (Settings → «Диагностика» shows them), only the wizard
+  // pages go.
+  it('shows six pages for the MVP and every page for the legacy desk', () => {
+    expect(stepIdsFor({ legacyUi: false })).toEqual(['vault', 'claude', 'tvmcp', 'tradingview', 'session', 'schedule']);
+    expect(stepIdsFor({ legacyUi: true })).toEqual(STEP_IDS);
+    const mvpRun = [check('vault', 'ok'), check('claude', 'ok'), check('tvmcpRuntime', 'ok'), check('toolsPython', 'ok'), check('knowledgeBase', 'warn'), check('tvDesktop', 'ok'), check('tvSession', 'warn'), check('scheduler', 'warn'), check('timezone', 'ok'), check('workflows', 'ok')];
+    expect(visibleStepIds(mvpRun, stepIdsFor({ legacyUi: false }))).toEqual(['vault', 'claude', 'tvmcp', 'tradingview', 'session', 'schedule']);
+    expect(nextStep('tradingview', visibleStepIds(mvpRun, stepIdsFor({ legacyUi: false })))).toBe('session');
+    expect(checksOfStep('tvmcp', mvpRun).map((c) => c.id)).toEqual(['tvmcpRuntime', 'toolsPython']);
   });
 
   // Only the engine that answers the chat is diagnosed, so exactly one of the
@@ -62,7 +79,7 @@ describe('the wizard steps', () => {
   // The tvmcp step lists the checks of BOTH runtime modes; a run produces only
   // one mode's worth, and the step shows exactly what it got.
   it('shows a step its own checks, in list order, skipping ones the run did not produce', () => {
-    expect(checksOfStep('tvmcp', allOk()).map((c) => c.id)).toEqual(['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium']);
+    expect(checksOfStep('tvmcp', allOk()).map((c) => c.id)).toEqual(['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium', 'toolsPython']);
     expect(checksOfStep('tvmcp', [check('tvmcpBoot', 'ok')]).map((c) => c.id)).toEqual(['tvmcpBoot']);
     const packaged = [check('tvmcpRuntime', 'ok'), check('tvmcpBoot', 'ok'), check('chromium', 'warn')];
     expect(checksOfStep('tvmcp', packaged).map((c) => c.id)).toEqual(['tvmcpRuntime', 'tvmcpBoot', 'chromium']);
@@ -127,7 +144,65 @@ describe('a skipped step is remembered', () => {
 
 describe('the pick-file fixes', () => {
   it('maps every settings path field to a dialog kind', () => {
-    expect(Object.keys(PICK_FOR_FIELD).sort()).toEqual(['fieldNotesPath', 'gtRagPath', 'journalPath', 'riskRulesPath', 'tvmcpPath']);
+    expect(Object.keys(PICK_FOR_FIELD).sort()).toEqual(['fieldNotesPath', 'gtRagPath', 'journalPath', 'riskRulesPath', 'tvmcpPath', 'vaultPath']);
+    expect(PICK_FOR_FIELD.vaultPath).toBe('vault-dir');
     expect(PICK_FOR_FIELD.tvmcpPath).toBe('tvmcp-dir');
+  });
+});
+
+describe('what a step starts by itself', () => {
+  const vaultFix = { kind: 'run-task', labelKey: 'x', task: 'vault-create' } as const;
+  const runtimeFix = { kind: 'run-task', labelKey: 'x', task: 'provision-runtime' } as const;
+  const loginFix = { kind: 'run-task', labelKey: 'x', task: 'claude-login' } as const;
+  const regFix = { kind: 'run-task', labelKey: 'x', task: 'scheduler-register' } as const;
+  const checks: PreflightCheck[] = [
+    { id: 'vault', status: 'fail', detailKey: 'k', fix: vaultFix },
+    { id: 'tvmcpRuntime', status: 'fail', detailKey: 'k', fix: runtimeFix },
+    { id: 'claude', status: 'fail', detailKey: 'k', fix: loginFix },
+    { id: 'scheduler', status: 'warn', detailKey: 'k', fix: regFix },
+  ];
+
+  it('starts the runtime; never the vault (the folder is asked), the login or the schedule', () => {
+    expect(autoFixes('tvmcp', checks, {}, new Set())).toEqual([runtimeFix]);
+    expect(autoFixes('vault', checks, {}, new Set())).toEqual([]);
+    expect(AUTO_TASKS).not.toContain('vault-create');
+    expect(autoFixes('claude', checks, {}, new Set())).toEqual([]);
+    expect(autoFixes('schedule', checks, {}, new Set())).toEqual([]);
+    expect(AUTO_TASKS).not.toContain('claude-login');
+    expect(AUTO_TASKS).not.toContain('scheduler-register');
+    expect(AUTO_TASKS).not.toContain('scheduler-unregister');
+  });
+
+  it('starts a task once: not while it runs, not after it finished, not twice in one wizard session', () => {
+    expect(autoFixes('tvmcp', checks, { 'provision-runtime': { ...emptyTask('provision-runtime'), running: true } }, new Set())).toEqual([]);
+    expect(autoFixes('tvmcp', checks, { 'provision-runtime': { ...emptyTask('provision-runtime'), ok: false, error: 'boom' } }, new Set())).toEqual([]);
+    expect(autoFixes('tvmcp', checks, { 'provision-runtime': { ...emptyTask('provision-runtime'), ok: true } }, new Set())).toEqual([]);
+    expect(autoFixes('tvmcp', checks, {}, new Set<'provision-runtime'>(['provision-runtime']))).toEqual([]);
+    // Never run and never started: go.
+    expect(autoFixes('tvmcp', checks, { 'provision-runtime': emptyTask('provision-runtime') }, new Set())).toEqual([runtimeFix]);
+  });
+
+  it('ignores steps without a task fix and fixes of other kinds', () => {
+    const other: PreflightCheck[] = [{ id: 'vault', status: 'fail', detailKey: 'k', fix: { kind: 'pick-file', labelKey: 'x', field: 'vaultPath', directory: true } }];
+    expect(autoFixes('vault', other, {}, new Set())).toEqual([]);
+    expect(autoFixes('tradingview', checks, {}, new Set())).toEqual([]);
+    expect(stepTaskIds('claude', checks)).toEqual(['claude-login']);
+    expect(stepTaskIds('vault', other)).toEqual([]);
+  });
+
+  it('starts one task at a time, in page order, and none whose plan was refused (empty command)', () => {
+    const chromiumFix = { kind: 'run-task', labelKey: 'x', task: 'install-chromium' } as const;
+    const two: PreflightCheck[] = [
+      { id: 'tvmcpRuntime', status: 'fail', detailKey: 'k', fix: runtimeFix },
+      { id: 'chromium', status: 'warn', detailKey: 'k', fix: chromiumFix },
+    ];
+    expect(autoFixes('tvmcp', two, {}, new Set())).toEqual([runtimeFix]);
+    // The runtime is running: nothing else starts meanwhile.
+    expect(autoFixes('tvmcp', two, { 'provision-runtime': { ...emptyTask('provision-runtime'), running: true } }, new Set())).toEqual([]);
+    // The runtime is done (ok): the browser is next.
+    expect(autoFixes('tvmcp', two, { 'provision-runtime': { ...emptyTask('provision-runtime'), ok: true } }, new Set())).toEqual([chromiumFix]);
+    // A development run: the plan refused both (empty commands) — nothing starts, no refusal toast.
+    expect(autoFixes('tvmcp', two, {}, new Set(), { 'provision-runtime': '', 'install-chromium': '' })).toEqual([]);
+    expect(autoFixes('tvmcp', two, {}, new Set(), { 'provision-runtime': 'uv sync' })).toEqual([runtimeFix]);
   });
 });

@@ -113,7 +113,8 @@ panel:
 
   # Handed to tv_scan_levels; its `levels[]` become the sentinel's watched levels.
   levels:
-    include: [prev_day, sessions, adr, opening_range]
+    # `anchors` must be listed, or the Daily open below is never computed.
+    include: [prev_day, sessions, anchors, adr, opening_range]
     sessions:
       - {name: ETH, start: "01:00", end: "16:30", tz: Europe/Kyiv}
       - {name: RTH, start: "16:30", end: "23:00", tz: Europe/Kyiv}

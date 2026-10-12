@@ -23,6 +23,7 @@ const api: DeskApi = {
   tasks: {
     run: (id) => ipcRenderer.invoke('tasks:run', id),
     stop: (id) => ipcRenderer.send('tasks:stop', id),
+    input: (id, text) => ipcRenderer.send('tasks:input', id, text),
     state: (id) => ipcRenderer.invoke('tasks:state', id),
     list: () => ipcRenderer.invoke('tasks:list'),
     command: (id) => ipcRenderer.invoke('tasks:command', id),
@@ -58,6 +59,19 @@ const api: DeskApi = {
       const handler = (_e: Electron.IpcRendererEvent, ev: ChatEvent) => cb(ev);
       ipcRenderer.on('chat:event', handler);
       return () => ipcRenderer.removeListener('chat:event', handler);
+    },
+  },
+  macro: {
+    index: () => ipcRenderer.invoke('macro:index'),
+    day: (date: string) => ipcRenderer.invoke('macro:day', date),
+    openNote: (rel: string) => ipcRenderer.invoke('macro:openNote', rel),
+    image: (rel: string) => ipcRenderer.invoke('macro:image', rel),
+    humanRead: (args) => ipcRenderer.invoke('macro:humanRead', args),
+    dayAnswers: (args) => ipcRenderer.invoke('macro:dayAnswers', args),
+    onChanged: (cb) => {
+      const handler = (_e: Electron.IpcRendererEvent, dates: string[]) => cb(dates);
+      ipcRenderer.on('macro:changed', handler);
+      return () => ipcRenderer.removeListener('macro:changed', handler);
     },
   },
   ui: { zoom: (factor: number) => ipcRenderer.invoke('ui:zoom', factor) },
