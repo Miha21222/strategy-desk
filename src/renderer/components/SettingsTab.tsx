@@ -1,7 +1,7 @@
 // Settings tab: the diagnosis, Claude auth, tvmcp, the day/risk files,
 // model/effort, permissions, theme, trader profile.
 import { useEffect, useState } from 'preact/hooks';
-import type { ChatKind, EffortLevel, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
+import type { ChatKind, EffortLevel, SecretName, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
 import type { TaskId, TaskState } from '@shared/tasks';
 import { ZOOM_STEPS } from '@shared/zoom';
@@ -30,8 +30,10 @@ export interface SettingsTabProps {
   onSettings: (patch: SettingsPatch) => void;
   /** System notice in the corner of the window (saved, failed, launched). */
   onToast: (text: string, level?: 'info' | 'warn' | 'error') => void;
-  onSecret: (name: 'apiKey' | 'oauthToken', value: string | null) => void;
+  onSecret: (name: SecretName, value: string | null) => void;
   onProfile: (p: TraderProfile) => void;
+  /** Native folder picker for the vault; the result lands in settings.vaultPath. */
+  onPickVault: () => void;
 }
 
 const EFFORTS: EffortLevel[] = ['', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -123,6 +125,22 @@ export function SettingsTab(p: SettingsTabProps) {
     </label>
   );
 
+  /** A path with a native picker next to it, and the check that says whether it is right. */
+  const vaultStatus = p.preflight?.checks.find((c) => c.id === 'vault');
+  const pathField = (key: 'vaultPath', label: string, hint: string, onPick: () => void) => (
+    <label class="field">
+      <span>{label}</span>
+      <div class="inline">
+        <input value={text[key]} onInput={(e) => setText({ ...text, [key]: (e.target as HTMLInputElement).value })} onBlur={() => commitText(key)} onKeyDown={(e) => e.key === 'Enter' && commitText(key)} />
+        <button type="button" onClick={onPick}>
+          {t('preflight.fix.pickDir')}
+        </button>
+      </div>
+      <small>{hint}</small>
+      {vaultStatus ? <small class={`pf-inline ${vaultStatus.status}`}>{t(vaultStatus.detailKey, vaultStatus.vars)}</small> : null}
+    </label>
+  );
+
   const saveProfile = () => {
     const next = { ...profile, morningChecklist: checklist.split('\n').map((l) => l.trim()).filter(Boolean) };
     p.onProfile(next);
@@ -142,7 +160,14 @@ export function SettingsTab(p: SettingsTabProps) {
 
       <fieldset>
         <legend>{t('settings.macro')}</legend>
-        {textField('vaultPath', t('settings.vaultPath'), t('settings.vaultHint'))}
+        {pathField('vaultPath', t('settings.vaultPath'), t('settings.vaultHint'), p.onPickVault)}
+        <SecretField label={t('settings.tvSession')} isSet={s.hasTvSession} onSave={(v) => p.onSecret('tvSession', v)} onClear={() => p.onSecret('tvSession', null)} />
+        <p class="muted">{t('settings.tvSessionHint')}</p>
+        <label class="check">
+          <input type="checkbox" checked={(s.macroMcp ?? 'bundled') === 'bundled'} onChange={(e) => p.onSettings({ macroMcp: (e.target as HTMLInputElement).checked ? 'bundled' : 'user' })} />
+          <span>{t('settings.macroMcp')}</span>
+        </label>
+        <p class="muted">{t('settings.macroMcpHint')}</p>
       </fieldset>
 
       <fieldset>

@@ -9,7 +9,7 @@
 import type { PickKind, Settings, SettingsPatch } from '@shared/api';
 import { worstStatus, type CheckId, type CheckStatus, type PathField, type PreflightCheck } from '@shared/preflight';
 
-export type StepId = 'claude' | 'codex' | 'tvmcp' | 'knowledge' | 'official' | 'tradingview' | 'files';
+export type StepId = 'vault' | 'claude' | 'codex' | 'tvmcp' | 'knowledge' | 'official' | 'tradingview' | 'session' | 'schedule' | 'files';
 
 export interface WizardStep {
   id: StepId;
@@ -27,18 +27,35 @@ export interface WizardStep {
  * shows two rows or three, never an empty one.
  */
 export const WIZARD_STEPS: WizardStep[] = [
+  // The macro-review MVP starts with the folder everything else lives in.
+  { id: 'vault', checks: ['vault'] },
   { id: 'claude', checks: ['claude'] },
   // Only the selected engine produces checks, so exactly one of these two
   // steps has rows; `visibleStepIds` drops the other one entirely.
   { id: 'codex', checks: ['codex', 'codexAuth'] },
-  { id: 'tvmcp', checks: ['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium'] },
+  { id: 'tvmcp', checks: ['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium', 'toolsPython'] },
   { id: 'knowledge', checks: ['knowledgeBase', 'kbModel'] },
   { id: 'official', checks: ['officialMcp', 'codexOfficialMcp'] },
   { id: 'tradingview', checks: ['tvDesktop', 'cdpPort'] },
+  { id: 'session', checks: ['tvSession'] },
+  { id: 'schedule', checks: ['scheduler', 'timezone'] },
   { id: 'files', checks: ['workflows', 'riskRules', 'journal'] },
 ];
 
 export const STEP_IDS: StepId[] = WIZARD_STEPS.map((s) => s.id);
+
+/**
+ * The steps the macro-review MVP hides: the second engine, the course, the
+ * official MCP and the Strategy Lab's files are the legacy desk's business
+ * (`settings.legacyUi`). Their checks still run and still show in Settings →
+ * «Диагностика»; only the wizard pages go.
+ */
+export const LEGACY_ONLY_STEPS: StepId[] = ['codex', 'knowledge', 'official', 'files'];
+
+/** The step order of this install: six pages for the MVP, every page for the legacy desk. */
+export function stepIdsFor(settings: Pick<Settings, 'legacyUi'>): StepId[] {
+  return settings.legacyUi ? STEP_IDS : STEP_IDS.filter((id) => !LEGACY_ONLY_STEPS.includes(id));
+}
 
 /**
  * The steps this diagnosis actually has something to say about. The engine the
@@ -48,9 +65,9 @@ export const STEP_IDS: StepId[] = WIZARD_STEPS.map((s) => s.id);
  * Before the first diagnosis arrives there is nothing to filter on, so every
  * step is shown rather than none.
  */
-export function visibleStepIds(checks: PreflightCheck[]): StepId[] {
-  if (!checks.length) return STEP_IDS;
-  return STEP_IDS.filter((id) => checksOfStep(id, checks).length > 0);
+export function visibleStepIds(checks: PreflightCheck[], ids: StepId[] = STEP_IDS): StepId[] {
+  if (!checks.length) return ids;
+  return ids.filter((id) => checksOfStep(id, checks).length > 0);
 }
 
 /** Every check id appears on exactly one step; a new check must be placed. */
@@ -131,4 +148,12 @@ export const PICK_FOR_FIELD: Record<PathField, PickKind> = {
   riskRulesPath: 'risk-rules',
   journalPath: 'journal',
   fieldNotesPath: 'field-notes',
+  vaultPath: 'vault-dir',
 };
+
+/** The three scheduled runs, as the «Расписание» step lists them (Kyiv time, Mon–Fri). */
+export const SCHEDULE_TIMES: { region: 'eu' | 'us' | 'review'; at: string }[] = [
+  { region: 'eu', at: '09:30' },
+  { region: 'us', at: '16:00' },
+  { region: 'review', at: '20:00' },
+];

@@ -163,6 +163,18 @@ describe('macro chat options', () => {
     expect(o.disallowedTools).toContain('Task');
   });
 
+  // `macroMcp: 'bundled'` (a fresh install): the spec carries the desk's own
+  // tvmcp and the options pass it through — still not strict, so the user's
+  // own servers from ~/.claude keep working next to it.
+  it('passes the bundled tradingview server through when the spec carries one', async () => {
+    const { optionsFor } = await import('./claude');
+    const tv = { type: 'stdio' as const, command: 'C:/py/python.exe', args: ['-m', 'tvmcp'], env: {} };
+    const o = optionsFor({ ...spec, profile: 'macro', cwd: 'C:/vault', mcpServers: { tradingview: tv } });
+    expect(o.mcpServers).toEqual({ tradingview: tv });
+    expect(o.strictMcpConfig).toBeUndefined();
+    expect(o.settingSources).toEqual(['user', 'project', 'local']);
+  });
+
   it('keeps the desk chat isolated as before', async () => {
     const { optionsFor } = await import('./claude');
     const o = optionsFor(spec);

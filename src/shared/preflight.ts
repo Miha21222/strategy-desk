@@ -36,13 +36,21 @@ export const CHECK_IDS = [
   'workflows',
   'riskRules',
   'journal',
+  // The macro-review MVP on a fresh PC: the vault folder, the Python the vault
+  // tools run on, the TradingView sessionid, the Task Scheduler jobs and the
+  // clock they are set against.
+  'vault',
+  'toolsPython',
+  'tvSession',
+  'scheduler',
+  'timezone',
 ] as const;
 export type CheckId = (typeof CHECK_IDS)[number];
 
 export type CheckStatus = 'ok' | 'warn' | 'fail' | 'unknown';
 
 /** Settings fields a `pick-file` fix may write. */
-export type PathField = 'tvmcpPath' | 'gtRagPath' | 'riskRulesPath' | 'journalPath' | 'fieldNotesPath';
+export type PathField = 'tvmcpPath' | 'gtRagPath' | 'riskRulesPath' | 'journalPath' | 'fieldNotesPath' | 'vaultPath';
 
 /**
  * What the UI may offer for a broken check.
@@ -192,6 +200,64 @@ export interface KbFact {
   pages: number;
 }
 
+/**
+ * The vault, as the macro tab and the macro chat need it: the folder, and the
+ * three files that make it a vault rather than any folder — the skill, the
+ * scale tool and its config. `templateVersion` is what `template.json` says
+ * when the folder was laid down from the shipped template; '' otherwise.
+ */
+export interface VaultFact {
+  path: string;
+  exists: boolean;
+  /** Something is in there (so «create here» would overwrite someone's files). */
+  nonEmpty: boolean;
+  hasSkill: boolean;
+  hasScaleTool: boolean;
+  hasScaleConfig: boolean;
+  templateVersion: string;
+  /** The shipped template is there to copy from. */
+  templateAvailable: boolean;
+}
+
+/**
+ * The Python the vault tools run on (MACRO_PYTHON): the provisioned venv's
+ * interpreter in a packaged install, the checkout's `.venv` in a dev run.
+ * `importOk` is `python -c "import pandas, tvmcp"` — the two imports every
+ * vault tool starts with. `checked: false` = there was no interpreter to ask.
+ */
+export interface ToolsPythonFact {
+  python: string;
+  exists: boolean;
+  checked: boolean;
+  importOk: boolean;
+  error: string;
+}
+
+/** The stored sessionid and whether the cheap check ever passed for it. */
+export interface TvSessionFact {
+  set: boolean;
+  verifiedAt: number;
+}
+
+/** The three Task Scheduler jobs, as `Get-ScheduledTask` reports them. */
+export interface SchedulerFact {
+  /** PowerShell answered at all (false on a non-Windows machine or a timeout). */
+  queried: boolean;
+  tasks: { name: string; state: string }[];
+  /** The script the registration runs; '' when the vault has no tools. */
+  script: string;
+}
+
+/** The three jobs by name, in the order the wizard lists them. */
+export const SCHEDULER_TASKS = ['Trading Macro EU', 'Trading Macro US', 'Trading Review'] as const;
+
+/** Time zones under which the 09:30 / 16:00 / 20:00 triggers mean Kyiv time. */
+export const KYIV_ZONES = ['Europe/Kyiv', 'Europe/Kiev', 'FLE Standard Time'];
+
+export function isKyivZone(tz: string): boolean {
+  return KYIV_ZONES.includes((tz || '').trim());
+}
+
 export interface PreflightFacts {
   uv: { found: boolean; version: string };
   clone: { path: string; repo: string; dirExists: boolean; pyproject: 'ok' | 'missing' | 'wrong-name'; projectName: string };
@@ -208,6 +274,12 @@ export interface PreflightFacts {
   workflows: { loaded: string[]; failed: string[] };
   files: { riskRules: FileFact; journal: FileFact };
   platform: string;
+  vault: VaultFact;
+  toolsPython: ToolsPythonFact;
+  tvSession: TvSessionFact;
+  scheduler: SchedulerFact;
+  /** The PC's IANA zone (or the Windows name when that is all we got). */
+  timezone: string;
 }
 
 const UV_WINDOWS = 'powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"';
@@ -265,6 +337,7 @@ export function buildChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] 
   if (cfg.engine === 'codex') {
     checks.push(...codexChecks(f.codex));
     checks.push(...chartChecks(cfg, f));
+    checks.push(...macroChecks(f));
     return checks;
   }
   if (f.claude === 'none') {
@@ -283,7 +356,115 @@ export function buildChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] 
   checks.push(officialCheck(f.official));
 
   checks.push(...chartChecks(cfg, f));
+  checks.push(...macroChecks(f));
   return checks;
+}
+
+/**
+ * The macro-review cycle on this PC: the vault, the Python its tools run on,
+ * the sessionid, the scheduled jobs and the clock. These are the checks the
+ * MVP wizard is made of; the legacy wizard shows them on its extra steps.
+ */
+function macroChecks(f: PreflightFacts): PreflightCheck[] {
+  return [vaultCheck(f.vault), toolsPythonCheck(f.toolsPython), tvSessionCheck(f.tvSession), schedulerCheck(f.scheduler, f.vault), timezoneCheck(f.timezone)];
+}
+
+/**
+ * Is the configured folder a vault. Three answers besides «ok»: nothing there
+ * (create it from the template), a vault missing some of the template's files
+ * (complete it — the task copies only what is missing and never touches
+ * state, journal or config), and a folder full of something else (pick
+ * another one; the app will not write into a stranger's files).
+ */
+export function vaultCheck(v: VaultFact): PreflightCheck {
+  const pick: PreflightFix = { kind: 'pick-file', labelKey: 'preflight.fix.pickDir', field: 'vaultPath', directory: true };
+  const create: PreflightFix = { kind: 'run-task', labelKey: 'preflight.fix.vaultCreate', task: 'vault-create', noteKey: 'preflight.vault.createNote' };
+  const complete: PreflightFix = { kind: 'run-task', labelKey: 'preflight.fix.vaultComplete', task: 'vault-create', noteKey: 'preflight.vault.completeNote' };
+  if (!v.path.trim()) return { id: 'vault', status: 'fail', detailKey: 'preflight.vault.unset', fix: pick };
+  const isVault = v.hasSkill && v.hasScaleTool && v.hasScaleConfig;
+  if (isVault) {
+    return { id: 'vault', status: 'ok', detailKey: v.templateVersion ? 'preflight.vault.okTemplate' : 'preflight.vault.ok', vars: { path: v.path, version: v.templateVersion } };
+  }
+  if (!v.exists || !v.nonEmpty) {
+    return {
+      id: 'vault',
+      status: 'fail',
+      detailKey: v.exists ? 'preflight.vault.empty' : 'preflight.vault.missing',
+      vars: { path: v.path },
+      fix: v.templateAvailable ? create : { kind: 'explain', labelKey: 'preflight.fix.how', noteKey: 'preflight.vault.noTemplateNote' },
+    };
+  }
+  // Something is there. A partial vault (one of the three markers present) is
+  // completed in place; anything else is not ours to write into.
+  const partial = v.hasSkill || v.hasScaleTool || v.hasScaleConfig;
+  if (partial) {
+    return { id: 'vault', status: 'fail', detailKey: 'preflight.vault.incomplete', vars: { path: v.path }, fix: v.templateAvailable ? complete : pick };
+  }
+  return { id: 'vault', status: 'fail', detailKey: 'preflight.vault.notVault', vars: { path: v.path }, fix: pick };
+}
+
+/** The interpreter the vault tools (and the scheduled runs) use. */
+export function toolsPythonCheck(p: ToolsPythonFact): PreflightCheck {
+  if (!p.python) return { id: 'toolsPython', status: 'fail', detailKey: 'preflight.toolsPython.none' };
+  if (!p.exists) {
+    return {
+      id: 'toolsPython',
+      status: 'fail',
+      detailKey: 'preflight.toolsPython.missing',
+      vars: { python: p.python },
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.provision', task: 'provision-runtime', noteKey: 'preflight.runtime.note' },
+    };
+  }
+  if (!p.checked) return { id: 'toolsPython', status: 'unknown', detailKey: 'preflight.toolsPython.unchecked', vars: { python: p.python } };
+  if (p.importOk) return { id: 'toolsPython', status: 'ok', detailKey: 'preflight.toolsPython.ok', vars: { python: p.python } };
+  return {
+    id: 'toolsPython',
+    status: 'fail',
+    detailKey: 'preflight.toolsPython.importFailed',
+    vars: { python: p.python, error: firstLine(p.error) },
+    fix: { kind: 'run-task', labelKey: 'preflight.fix.provision', task: 'provision-runtime', noteKey: 'preflight.boot.noteBundled' },
+  };
+}
+
+/**
+ * The sessionid. The app cannot fetch it — it is the user's own cookie — so
+ * «not set» explains where to copy it from, and «set» offers the one cheap
+ * proof there is: exchanging it for a token, which is what every bar fetch
+ * starts with. The step's own input field lives in the wizard.
+ */
+export function tvSessionCheck(s: TvSessionFact): PreflightCheck {
+  if (!s.set) return { id: 'tvSession', status: 'fail', detailKey: 'preflight.tvSession.none', fix: { kind: 'explain', labelKey: 'preflight.fix.how', noteKey: 'preflight.tvSession.howNote' } };
+  if (s.verifiedAt) return { id: 'tvSession', status: 'ok', detailKey: 'preflight.tvSession.ok', vars: { time: new Date(s.verifiedAt).toLocaleString() } };
+  return {
+    id: 'tvSession',
+    status: 'warn',
+    detailKey: 'preflight.tvSession.unverified',
+    fix: { kind: 'run-task', labelKey: 'preflight.fix.sessionCheck', task: 'session-check', noteKey: 'preflight.tvSession.checkNote' },
+  };
+}
+
+/** The three jobs: all there, some there (re-register replaces them), none. */
+export function schedulerCheck(s: SchedulerFact, v: VaultFact): PreflightCheck {
+  const register: PreflightFix = { kind: 'run-task', labelKey: 'preflight.fix.schedulerRegister', task: 'scheduler-register', noteKey: 'preflight.scheduler.registerNote' };
+  if (!s.queried) return { id: 'scheduler', status: 'unknown', detailKey: 'preflight.scheduler.unknown' };
+  const found = SCHEDULER_TASKS.filter((name) => s.tasks.some((t) => t.name === name));
+  const canRegister = Boolean(s.script) && v.hasScaleTool;
+  if (found.length === SCHEDULER_TASKS.length) {
+    const disabled = s.tasks.filter((t) => (SCHEDULER_TASKS as readonly string[]).includes(t.name) && /disabled/i.test(t.state)).map((t) => t.name);
+    if (disabled.length) return { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.disabled', vars: { list: disabled.join(', ') }, fix: canRegister ? register : undefined };
+    return { id: 'scheduler', status: 'ok', detailKey: 'preflight.scheduler.ok' };
+  }
+  if (found.length) return { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.partial', vars: { found: found.join(', ') }, fix: canRegister ? register : undefined };
+  return canRegister
+    ? { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.none', fix: register }
+    : { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.noVault' };
+}
+
+/** The triggers are Kyiv times; a PC on another clock fires them at the wrong hour. */
+export function timezoneCheck(tz: string): PreflightCheck {
+  if (!tz) return { id: 'timezone', status: 'unknown', detailKey: 'preflight.timezone.unknown' };
+  if (isKyivZone(tz)) return { id: 'timezone', status: 'ok', detailKey: 'preflight.timezone.ok', vars: { tz } };
+  return { id: 'timezone', status: 'warn', detailKey: 'preflight.timezone.other', vars: { tz }, fix: { kind: 'explain', labelKey: 'preflight.fix.how', noteKey: 'preflight.timezone.note' } };
 }
 
 /** The old pair: a `uv` on PATH and a directory that really holds tvmcp. */

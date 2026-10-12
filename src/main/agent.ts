@@ -7,9 +7,11 @@
 // CLI looks like lives in the driver.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { ATTACH_MAX_BYTES, ATTACH_MAX_FILES, type AnswerLang, type Attachment, type ChatEvent, type ChatMeta, type ChatMode, type EffortLevel, type TokenUsage, type ToolCallItem } from '@shared/api';
+import { ATTACH_MAX_BYTES, ATTACH_MAX_FILES, type AnswerLang, type Attachment, type ChatEvent, type ChatMeta, type ChatMode, type EffortLevel, type Settings, type TokenUsage, type ToolCallItem } from '@shared/api';
 import { engineOf, type EngineId } from '@shared/engine';
-import { buildMcpServers } from './mcp';
+import { macroEnvVars, macroPython } from './macro-env';
+import { buildMcpServers, type ServerMap } from './mcp';
+import { claudeBin, initRuntimePaths } from './runtime';
 import { allDrivers, getDriver } from './drivers';
 import type { DriverEvent, EngineDriver, TurnSpec } from './drivers/types';
 import { taskInFlight } from './tasks';
@@ -127,16 +129,49 @@ export async function macroSpec(mode: ChatMode, kind: 'macro' | 'ask' = 'macro')
   // `ask` (note 23): the same agent in the same vault, told to answer from
   // memory — reviews, lessons, notes — rather than to run a review.
   const appendix = (await readResource('prompt', kind === 'ask' ? 'ask.md' : 'macro-review.md'))?.trim() ?? '';
+  // The vault contract (MACRO_VAULT, MACRO_PYTHON, MACRO_CLAUDE, TV_SESSIONID,
+  // TV_CDP_URL, PYTHONIOENCODING) — the same six things the Task Scheduler's
+  // run gets, assembled in one place (`macro-env.ts`). Wait for a provisioning
+  // in flight for the same reason `specForPrompt` does: the venv is MACRO_PYTHON.
+  await taskInFlight('provision-runtime');
+  const paths = await initRuntimePaths();
+  const secrets = await store.getSecrets();
+  const env = macroEnvVars({ vault, python: await existingPath(macroPython(cfg, paths)), claude: await existingPath(claudeBin()), sessionId: secrets.tvSession, cdpPort: cfg.cdpPort });
   return {
     engine: 'claude',
     systemPrompt: `${appendix}${modeSuffix(mode)}`,
     model: cfg.model.trim(),
     effort: saverEffort(mode, cfg.effort) ?? '',
     cwd: vault,
-    mcpServers: {},
+    mcpServers: macroMcpServers(cfg),
     permissionPreset: cfg.permissionPreset,
     profile: 'macro',
+    env,
   };
+}
+
+/**
+ * The MCP map of a macro chat. `user`: none — the owner's `~/.claude` has the
+ * `tradingview` server and `settingSources: user` brings it in. `bundled`: the
+ * desk's own tvmcp, so a fresh install's skill finds `mcp__tradingview__*`
+ * (calendar, news) without any `~/.claude` of its own. Only that server: the
+ * knowledge base and the official MCP are the Strategy Lab's business.
+ */
+export function macroMcpServers(cfg: Settings): ServerMap {
+  if ((cfg.macroMcp ?? 'bundled') !== 'bundled') return {};
+  const all = buildMcpServers(cfg);
+  return all.tradingview ? { tradingview: all.tradingview } : {};
+}
+
+/** A path only when it exists on disk; the env contract says «unset» otherwise. */
+async function existingPath(p: string): Promise<string> {
+  if (!p) return '';
+  try {
+    await fs.access(p);
+    return p;
+  } catch {
+    return '';
+  }
 }
 
 export interface StartArgs {

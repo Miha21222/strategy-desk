@@ -1,7 +1,7 @@
 // Application shell: sidebar + tabbed main area + report drawer. Owns all
 // renderer state, the single chat:event subscription and the card actions.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Attachment, AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
+import type { Attachment, AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, SecretName, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
 import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
@@ -23,7 +23,7 @@ import { Toasts } from './components/Toasts';
 import { WorkflowsTab } from './components/WorkflowsTab';
 import { t } from './i18n';
 import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
-import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizard, STEP_IDS, type StepId } from './setup';
+import { applySkip, finishPatch, PICK_FOR_FIELD, reconcileSkips, shouldOpenWizard, stepIdsFor, type StepId } from './setup';
 import type { UiMessage } from './state';
 import { addToast, TOAST_MS, type Toast, type ToastLevel } from './toasts';
 
@@ -119,6 +119,11 @@ export function App() {
       const r = await desk.preflight.run();
       setPreflight(r);
       setSkipped((prev) => reconcileSkips(prev, r.checks));
+      // The command a task would run depends on the settings (the vault path,
+      // the provisioned python): refresh the previews with the diagnosis.
+      void Promise.all(TASK_IDS.map(async (id) => [id, await desk.tasks.command(id).catch(() => '')] as const))
+        .then((commands) => setTaskCommands(Object.fromEntries(commands)))
+        .catch(() => undefined);
       return r;
     } catch {
       return null;
@@ -174,7 +179,7 @@ export function App() {
       desk.chat.prewarm({ chatKey: null, mode });
       // A fresh install opens the wizard by itself; afterwards it lives in the settings.
       if (shouldOpenWizard(s)) {
-        setWizardStep(STEP_IDS[0]);
+        setWizardStep(stepIdsFor(s)[0]);
         void runPreflight();
       }
     })();
@@ -440,11 +445,13 @@ export function App() {
   }, [patchSettings, settings.uiScale]);
 
   const setSecret = useCallback(
-    async (name: 'apiKey' | 'oauthToken', value: string | null) => {
+    async (name: SecretName, value: string | null) => {
       setSettings(value === null ? await desk.settings.clearSecret(name) : await desk.settings.setSecret(name, value));
       void refreshStatus();
+      // The cookie has its own preflight row («set, unverified» / «ok»).
+      if (name === 'tvSession') void runPreflight();
     },
-    [desk, refreshStatus],
+    [desk, refreshStatus, runPreflight],
   );
 
   const launchTv = useCallback(async () => {
@@ -499,9 +506,9 @@ export function App() {
   }, [desk, pushToast, runPreflight]);
 
   const openWizard = useCallback(() => {
-    setWizardStep(STEP_IDS[0]);
+    setWizardStep(stepIdsFor(settings)[0]);
     void runPreflight();
-  }, [runPreflight]);
+  }, [runPreflight, settings]);
 
   const skipStep = useCallback((id: StepId, on: boolean) => setSkipped((prev) => applySkip(prev, id, on)), []);
 
@@ -627,6 +634,7 @@ export function App() {
               onClearRuntime={() => void clearRuntime()}
               onSettings={(patch) => void patchSettings(patch)}
               onSecret={(n, v) => void setSecret(n, v)}
+              onPickVault={() => void pickVault().then(() => runPreflight())}
               onProfile={(p) => void desk.profile.set(p).then(setProfile)}
               onToast={pushToast}
             />
@@ -648,6 +656,10 @@ export function App() {
           tasks={tasks}
           taskCommands={taskCommands}
           onTaskStop={(id) => desk.tasks.stop(id)}
+          settings={settings}
+          onSecret={(n, v) => void setSecret(n, v)}
+          onPickVault={() => void pickVault().then(() => runPreflight())}
+          onTask={(id) => void runTask(id)}
           onStep={setWizardStep}
           onSkip={skipStep}
           onRecheck={() => void runPreflight()}

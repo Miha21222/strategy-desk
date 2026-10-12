@@ -17,6 +17,7 @@ import {
   reconcileSkips,
   shouldOpenWizard,
   stepDone,
+  stepIdsFor,
   stepStatus,
   STEP_IDS,
   visibleStepIds,
@@ -35,11 +36,23 @@ describe('the wizard steps', () => {
     expect(new Set(covered).size).toBe(covered.length);
   });
 
-  it('runs the engine first, then the market server, the knowledge base, the official MCP, TradingView and the files', () => {
-    expect(STEP_IDS).toEqual(['claude', 'codex', 'tvmcp', 'knowledge', 'official', 'tradingview', 'files']);
+  it('runs the vault first, then the engine, the market server, the knowledge base, the official MCP, TradingView, the session, the schedule and the files', () => {
+    expect(STEP_IDS).toEqual(['vault', 'claude', 'codex', 'tvmcp', 'knowledge', 'official', 'tradingview', 'session', 'schedule', 'files']);
     expect(nextStep('files')).toBeNull();
-    expect(prevStep('claude')).toBeNull();
+    expect(prevStep('vault')).toBeNull();
     expect(prevStep('tradingview')).toBe('official');
+  });
+
+  // The macro-review MVP: six pages, the legacy desk's pages hidden — their
+  // checks still run (Settings → «Диагностика» shows them), only the wizard
+  // pages go.
+  it('shows six pages for the MVP and every page for the legacy desk', () => {
+    expect(stepIdsFor({ legacyUi: false })).toEqual(['vault', 'claude', 'tvmcp', 'tradingview', 'session', 'schedule']);
+    expect(stepIdsFor({ legacyUi: true })).toEqual(STEP_IDS);
+    const mvpRun = [check('vault', 'ok'), check('claude', 'ok'), check('tvmcpRuntime', 'ok'), check('toolsPython', 'ok'), check('knowledgeBase', 'warn'), check('tvDesktop', 'ok'), check('tvSession', 'warn'), check('scheduler', 'warn'), check('timezone', 'ok'), check('workflows', 'ok')];
+    expect(visibleStepIds(mvpRun, stepIdsFor({ legacyUi: false }))).toEqual(['vault', 'claude', 'tvmcp', 'tradingview', 'session', 'schedule']);
+    expect(nextStep('tradingview', visibleStepIds(mvpRun, stepIdsFor({ legacyUi: false })))).toBe('session');
+    expect(checksOfStep('tvmcp', mvpRun).map((c) => c.id)).toEqual(['tvmcpRuntime', 'toolsPython']);
   });
 
   // Only the engine that answers the chat is diagnosed, so exactly one of the
@@ -62,7 +75,7 @@ describe('the wizard steps', () => {
   // The tvmcp step lists the checks of BOTH runtime modes; a run produces only
   // one mode's worth, and the step shows exactly what it got.
   it('shows a step its own checks, in list order, skipping ones the run did not produce', () => {
-    expect(checksOfStep('tvmcp', allOk()).map((c) => c.id)).toEqual(['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium']);
+    expect(checksOfStep('tvmcp', allOk()).map((c) => c.id)).toEqual(['uv', 'tvmcpClone', 'tvmcpRuntime', 'tvmcpBoot', 'chromium', 'toolsPython']);
     expect(checksOfStep('tvmcp', [check('tvmcpBoot', 'ok')]).map((c) => c.id)).toEqual(['tvmcpBoot']);
     const packaged = [check('tvmcpRuntime', 'ok'), check('tvmcpBoot', 'ok'), check('chromium', 'warn')];
     expect(checksOfStep('tvmcp', packaged).map((c) => c.id)).toEqual(['tvmcpRuntime', 'tvmcpBoot', 'chromium']);
@@ -127,7 +140,8 @@ describe('a skipped step is remembered', () => {
 
 describe('the pick-file fixes', () => {
   it('maps every settings path field to a dialog kind', () => {
-    expect(Object.keys(PICK_FOR_FIELD).sort()).toEqual(['fieldNotesPath', 'gtRagPath', 'journalPath', 'riskRulesPath', 'tvmcpPath']);
+    expect(Object.keys(PICK_FOR_FIELD).sort()).toEqual(['fieldNotesPath', 'gtRagPath', 'journalPath', 'riskRulesPath', 'tvmcpPath', 'vaultPath']);
+    expect(PICK_FOR_FIELD.vaultPath).toBe('vault-dir');
     expect(PICK_FOR_FIELD.tvmcpPath).toBe('tvmcp-dir');
   });
 });

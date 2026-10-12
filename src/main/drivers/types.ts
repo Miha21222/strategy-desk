@@ -38,6 +38,14 @@ export interface TurnSpec {
    * Claude-only: a macro chat never runs on another engine.
    */
   profile?: 'macro';
+  /**
+   * Extra environment for the engine process, on top of the auth env the
+   * driver builds. A macro turn puts the vault contract here (MACRO_VAULT,
+   * MACRO_PYTHON, TV_SESSIONID, …) so the skill's tools find their Python and
+   * their cookie. Not part of the fingerprint — a session is identified by
+   * what it may do, not by the cookie it carries.
+   */
+  env?: Record<string, string>;
 }
 
 /**

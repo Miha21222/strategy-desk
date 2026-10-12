@@ -21,10 +21,13 @@ import path from 'node:path';
 import type { Settings } from '@shared/api';
 import { OFFICIAL_MCP_NAME, OFFICIAL_MCP_URL } from '@shared/official-mcp';
 import { applyTaskEvent, emptyTask, splitLines, TASK_IDS, type TaskEvent, type TaskId, type TaskState } from '@shared/tasks';
-import { chromiumSpec, claudeBin, initRuntimePaths, kbSeedPlan, provisionSpec, runtimeRoot, writeMarker, type RuntimePaths } from './runtime';
-import { kbModelSpec, modeOf, type SpawnSpec } from './runtime-spec';
+import { chromiumSpec, claudeBin, initRuntimePaths, kbSeedPlan, provisionSpec, runtimeRoot, vaultTemplateDir, writeMarker, type RuntimePaths } from './runtime';
+import { kbModelSpec, modeOf, runtimeEnv, type SpawnSpec } from './runtime-spec';
 import { authFile, ensureCodexHome, userCodexHome } from './drivers/codex/home';
+import { macroEnv, macroPython, SESSION_CHECK_CODE } from './macro-env';
 import { invalidateTvmcpCache } from './status';
+import * as store from './store';
+import { copyVaultTemplate } from './vault-template';
 
 /** Generous: a cold `uv sync` downloads a Python and ~290 packages. */
 const TIMEOUTS: Record<TaskId, number> = {
@@ -40,6 +43,13 @@ const TIMEOUTS: Record<TaskId, number> = {
   'codex-auth-import': 30_000,
   'codex-mcp-add': 60_000,
   'codex-mcp-login': 10 * 60_000,
+  // A few hundred small files from the installation directory.
+  'vault-create': 2 * 60_000,
+  // One HTTPS round trip plus a Python import.
+  'session-check': 60_000,
+  // Three Register-ScheduledTask calls.
+  'scheduler-register': 2 * 60_000,
+  'scheduler-unregister': 60_000,
 };
 
 interface Plan {
@@ -55,6 +65,15 @@ interface Plan {
    * displayed before it runs and reported through the same events.
    */
   copies?: { from: string; to: string }[];
+  /**
+   * A task that neither spawns nor copies whole directories: laying the vault
+   * template down file by file, skipping what the user already has. Same
+   * rule as `copies` — planned here, shown before it runs, reported through
+   * the same events; `work` gets the line sink and throws to fail.
+   */
+  work?: (push: (line: string) => void) => Promise<void>;
+  /** The one line the UI shows for a `work` task before the press. */
+  describe?: string;
 }
 
 type Emit = (ev: TaskEvent) => void;
@@ -89,12 +108,103 @@ export async function taskCommand(cfg: Settings, id: TaskId): Promise<string> {
   const plan = await planFor(cfg, id);
   if (!plan) return '';
   if (plan.copies) return plan.copies.map((c) => `copy "${c.from}" -> "${c.to}"`).join('; ');
+  if (plan.work) return plan.describe ?? '';
   return [plan.spec.command, ...plan.spec.args].join(' ');
+}
+
+/**
+ * The macro-review cycle on this PC. The vault's own PowerShell scripts do the
+ * registering (`macro_schedule.ps1`, idempotent: same names are replaced); the
+ * app only hands them the paths — vault, the provisioned Python, the bundled
+ * Claude binary — and the environment the contract names (`macro-env.ts`).
+ *
+ * The sessionid also goes into the USER's environment variables (HKCU, as
+ * `[Environment]::SetEnvironmentVariable(…, 'User')`): a scheduled run starts
+ * from the Task Scheduler with the user's environment block, not from the
+ * desk, and the Python tools read `TV_SESSIONID` from nowhere else. That is
+ * the one place a secret of ours is stored outside safeStorage; the wizard
+ * says so before the press, and `scheduler-unregister` removes it again.
+ */
+async function macroPlanFor(cfg: Settings, id: 'vault-create' | 'session-check' | 'scheduler-register' | 'scheduler-unregister', paths: RuntimePaths, cwd: string): Promise<Plan | null> {
+  const vault = (cfg.vaultPath || '').trim();
+  if (id === 'vault-create') {
+    const template = await vaultTemplateDir();
+    if (!template || !vault) return null;
+    return {
+      spec: { command: '', args: [] },
+      env: {},
+      cwd,
+      describe: `copy the vault template "${template}" -> "${vault}" (existing files are kept)`,
+      work: async (push) => {
+        const r = await copyVaultTemplate(template, vault, push);
+        push(`${r.mode === 'fresh' ? 'created' : 'completed'} the vault at ${vault}`);
+      },
+    };
+  }
+
+  const python = macroPython(cfg, paths);
+  const pythonExists = Boolean(python) && (await exists(python));
+  const claude = claudeBin();
+  const claudeExists = claude !== 'claude' && (await exists(claude));
+  const secrets = await store.getSecrets();
+  const env = macroEnv({ vault, python: pythonExists ? python : '', claude: claudeExists ? claude : '', sessionId: secrets.tvSession, cdpPort: cfg.cdpPort }, { ...process.env, ...runtimeEnv(paths) });
+
+  if (id === 'session-check') {
+    if (!pythonExists) return null;
+    if (!secrets.tvSession) return null;
+    return {
+      spec: { command: python, args: ['-c', SESSION_CHECK_CODE] },
+      env,
+      cwd,
+      after: async () => {
+        await store.setSettings({ tvSessionVerifiedAt: Date.now() });
+      },
+    };
+  }
+
+  const script = vault ? path.join(vault, 'indices-kb', 'tools', 'macro_schedule.ps1') : '';
+  if (!script || !(await exists(script))) return null;
+  const q = (v: string) => `'${v.replace(/'/g, "''")}'`;
+  // The user-level variables the scheduled runs need. The cookie is NOT
+  // spelled in the command: the renderer shows this line before the press,
+  // so PowerShell copies it from its own environment (`$env:TV_SESSIONID`,
+  // set by `macroEnv` above) instead.
+  const userVars: Record<string, string | null> = {
+    MACRO_VAULT: vault,
+    MACRO_PYTHON: pythonExists ? python : null,
+    MACRO_CLAUDE: claudeExists ? claude : null,
+    TV_CDP_URL: env.TV_CDP_URL,
+    PYTHONIOENCODING: 'utf-8',
+    TV_SESSIONID: secrets.tvSession ? '$env:TV_SESSIONID' : null,
+  };
+  if (id === 'scheduler-register') {
+    const sets = Object.entries(userVars)
+      .filter((kv): kv is [string, string] => Boolean(kv[1]))
+      .map(([k, v]) => `[Environment]::SetEnvironmentVariable(${q(k)}, ${v.startsWith('$env:') ? v : q(v)}, 'User')`);
+    const args = [`-Vault ${q(vault)}`, pythonExists ? `-Python ${q(python)}` : '', claudeExists ? `-Claude ${q(claude)}` : ''].filter(Boolean).join(' ');
+    const ps = [...sets, `& ${q(script)} ${args}`].join('; ');
+    return { spec: { command: 'powershell', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps] }, env, cwd: path.dirname(script) };
+  }
+  const clears = Object.keys(userVars).map((k) => `[Environment]::SetEnvironmentVariable(${q(k)}, $null, 'User')`);
+  const ps = [`& ${q(script)} -Unregister -Vault ${q(vault)}`, ...clears].join('; ');
+  return { spec: { command: 'powershell', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps] }, env, cwd: path.dirname(script) };
+}
+
+async function exists(p: string): Promise<boolean> {
+  if (!p) return false;
+  try {
+    await fs.access(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function planFor(cfg: Settings, id: TaskId): Promise<Plan | null> {
   const paths = await initRuntimePaths();
   const cwd = app.getPath('userData');
+
+  if (id === 'vault-create' || id === 'session-check' || id === 'scheduler-register' || id === 'scheduler-unregister') return macroPlanFor(cfg, id, paths, cwd);
 
   if (id === 'provision-runtime' || id === 'install-chromium') {
     if (modeOf(paths) !== 'bundled') return null;
@@ -180,8 +290,9 @@ export async function runTask(cfg: Settings, id: TaskId, emit: Emit): Promise<Ta
   if (already) return already.done;
 
   const plan = await planFor(cfg, id);
-  if (!plan) return finish(id, emit, false, 'this task needs the bundled runtime, and this is a development run');
+  if (!plan) return finish(id, emit, false, REFUSALS[id] ?? 'this task needs the bundled runtime, and this is a development run');
   if (plan.copies) return runCopyTask(id, plan, emit);
+  if (plan.work) return runWorkTask(id, plan, emit);
   if (!plan.spec.command) return finish(id, emit, false, 'nothing to run: the runtime paths are not resolved');
 
   const command = [plan.spec.command, ...plan.spec.args].join(' ');
@@ -261,6 +372,34 @@ export async function runTask(cfg: Settings, id: TaskId, emit: Emit): Promise<Ta
 
   running.set(id, { child, done });
   return done;
+}
+
+/** Why a task had no plan, per id — the renderer shows this as the failure. */
+const REFUSALS: Partial<Record<TaskId, string>> = {
+  'vault-create': 'no vault template shipped with this build, or no vault path is set',
+  'session-check': 'needs the provisioned Python and a stored sessionid',
+  'scheduler-register': 'the vault has no indices-kb/tools/macro_schedule.ps1 — create the vault first',
+  'scheduler-unregister': 'the vault has no indices-kb/tools/macro_schedule.ps1',
+};
+
+/** The task that does its own work in-process (laying the vault template down). */
+async function runWorkTask(id: TaskId, plan: Plan, emit: Emit): Promise<TaskState> {
+  const command = plan.describe ?? '';
+  let state = applyTaskEvent(taskState(id), { id, kind: 'start', at: Date.now(), command });
+  states.set(id, state);
+  emit({ id, kind: 'start', at: state.startedAt, command });
+  const push = (text: string) => {
+    state = applyTaskEvent(state, { id, kind: 'line', text });
+    states.set(id, state);
+    emit({ id, kind: 'line', text });
+  };
+  try {
+    await plan.work?.(push);
+    if (plan.after) await plan.after();
+  } catch (e) {
+    return finish(id, emit, false, String((e as Error)?.message ?? e).slice(0, 400), state);
+  }
+  return finish(id, emit, true, '', state);
 }
 
 /**

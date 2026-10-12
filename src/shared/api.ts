@@ -144,9 +144,31 @@ export interface Settings {
    * Off by default since the macro-review MVP; the code stays, only hidden.
    */
   legacyUi: boolean;
+  /**
+   * Where a macro chat gets its `tradingview` MCP server from. `bundled` = the
+   * desk passes its own tvmcp (the one it provisioned) into the session, so a
+   * fresh install has calendar and news tools without any `~/.claude` setup;
+   * `user` = nothing is passed and the owner's own `~/.claude` config provides
+   * it (how the owner's machine has always worked). A config file written
+   * before this field existed is read as `user`; a fresh install is `bundled`.
+   */
+  macroMcp: MacroMcp;
+  /** The TradingView `sessionid` cookie is stored (safeStorage); the value never crosses the bridge. */
+  hasTvSession: boolean;
+  /**
+   * When the stored sessionid last passed the `session-check` task (0 = never,
+   * or the cookie changed since). Cleared whenever the secret is set or removed.
+   */
+  tvSessionVerifiedAt: number;
 }
 
-export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'>>;
+export type MacroMcp = 'bundled' | 'user';
+
+export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession'>>;
+
+/** The secrets the renderer may set or clear, never read. */
+export type SecretName = 'apiKey' | 'oauthToken' | 'tvSession';
+export const SECRET_NAMES: SecretName[] = ['apiKey', 'oauthToken', 'tvSession'];
 
 export interface TraderProfile {
   callName: string;
@@ -270,8 +292,8 @@ export interface DeskApi {
   settings: {
     get(): Promise<Settings>;
     set(patch: SettingsPatch): Promise<Settings>;
-    setSecret(name: 'apiKey' | 'oauthToken', value: string): Promise<Settings>;
-    clearSecret(name: 'apiKey' | 'oauthToken'): Promise<Settings>;
+    setSecret(name: SecretName, value: string): Promise<Settings>;
+    clearSecret(name: SecretName): Promise<Settings>;
   };
   /**
    * The four operations the app may perform for the user, each on one press:

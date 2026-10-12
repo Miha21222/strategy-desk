@@ -44,7 +44,9 @@ src/preload/index.ts        contextBridge → window.desk
 src/renderer/app.tsx        shell: sidebar + tabs, owns state and the single chat:event subscription
 src/renderer/chat/          blocks.ts (fenced-block parser + test), Markdown.tsx, ChatView.tsx
 src/renderer/components/    Sidebar, DayPanel, SettingsTab, WorkflowsTab, HelpTab, SetupWizard, PreflightList
-src/renderer/setup.ts       the wizard's own logic: steps, skipped steps, the limitation notes (pure, tested)
+src/renderer/setup.ts       the wizard's own logic: steps (MVP vs legacy), skipped steps, the limitation notes (pure, tested)
+src/main/macro-env.ts       the vault contract (MACRO_VAULT/MACRO_PYTHON/MACRO_CLAUDE/TV_SESSIONID/…) a macro session gets (pure, tested)
+src/main/vault-template.ts  vault-create: the template → the user's folder, missing files only (pure plan, tested)
 src/renderer/panel/cards.tsx   presentational cards for the «День» tab (levels, calendar, risk, journal, event feed)
 workflows/<id>/             workflow.yaml + prompt.md (+ risk-rules.example.json): every strategy number lives here
 src/renderer/i18n/          ru.ts (source of truth), en.ts (stub), t()
@@ -92,6 +94,33 @@ prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro
   shows only the question — the tile's needle, the agent's text and the plan are withheld (`unread()` in
   MacroDesk) — because a blurred gauge next to a tile that says «сильный лонг» is theatre. «Показать обзор без
   ответа» is the way around, and a read given after it is stored with `before_scale: false`.
+- **Installable on another trader's PC (2026-10-12).** Nothing in `src/shared/defaults.ts` names the owner's
+  machine any more: `DEFAULT_TVMCP_PATH` is '' («bundled»), `DEFAULT_VAULT_PATH` is '' and the store substitutes
+  `defaultVaultPath()` = `Documents\Strategy Desk`. The pieces, each with its pure half tested:
+  - `src/main/macro-env.ts` — the ONE spelling of the vault contract a macro session (chat or scheduled run)
+    gets: `MACRO_VAULT`, `MACRO_PYTHON` (the provisioned venv's python.exe; the clone's `.venv` in a dev run),
+    `MACRO_CLAUDE` (the SDK's bundled claude.exe when it resolves, else unset), `TV_SESSIONID`, `TV_CDP_URL`,
+    `PYTHONIOENCODING=utf-8`, and the venv `Scripts` dir in front of PATH. `macroSpec` puts it in `TurnSpec.env`;
+    the Claude driver spreads it over the auth env.
+  - `settings.macroMcp: 'bundled' | 'user'` — a macro chat's `mcpServers`: the desk's own `tradingview` server
+    (fresh installs) or `{}` with the owner's `~/.claude` providing it. `legacyConfigPatch` (defaults.ts) reads a
+    config file written before the field as `'user'` (and an absent `knowledgeBase` as on; fresh installs start
+    with the course OFF).
+  - The sessionid is a third secret (`tvSession`, safeStorage, `settings:setSecret`), with `hasTvSession` /
+    `tvSessionVerifiedAt` as the renderer-visible flags; the `session-check` task exchanges it for a token
+    (`fetch_auth_token`) through the venv python, the cookie travelling in the environment, never on argv.
+  - Checks `vault`, `toolsPython`, `tvSession`, `scheduler`, `timezone` (shared/preflight.ts, facts in
+    main/preflight.ts) and tasks `vault-create` (copies `resources/vault-template` → the chosen folder, missing
+    files only, never overwrites; `src/main/vault-template.ts`), `session-check`, `scheduler-register` /
+    `scheduler-unregister` (PowerShell → the vault's own `indices-kb/tools/macro_schedule.ps1` with
+    -Vault/-Python/-Claude; register also writes the contract into the USER's environment variables, cookie
+    included, because a scheduled run does not start from the desk; unregister clears them).
+  - The wizard for the MVP is six pages — `stepIdsFor()` in `renderer/setup.ts`: vault → claude → tvmcp →
+    tradingview → session → schedule; `legacyUi` shows every page. The vault, session and schedule pages have
+    their own extras in `SetupWizard.tsx` (picker, cookie field with the how-to, the three times + the PC zone).
+  - Packaging: `scripts/stage-vault.mjs` (owned with the template) → `resources/vault-template/` (gitignored)
+    → extraResources `vault-template`; `build-installer.cmd` = `SD_BUNDLE_KB=0` + `npm run dist`; the pack
+    smoke and `dist:check` assert `prompt/macro-review.md`, `prompt/ask.md` and the template's five files.
 - **The MVP's «+ Новый чат» is `kind: 'ask'`** (note 23): the same vault session as a macro chat
   (`macroSpec(mode, 'ask')`, appendix `prompt/ask.md`) told to answer from memory — reviews, lessons, journal —
   and never to run a review or write state. The Strategy Lab copilot (`kind: 'chat'`, tvmcp chips) stays
@@ -130,6 +159,8 @@ npm run build       electron-vite build → out/
 npm run icons       redraw build/icon.png|ico|icns
 npm run stage:tvmcp copy the tvmcp sources + a uv binary into build/ for packaging (runs inside dist)
 npm run stage:gtrag copy gt-rag + the course content, index and model into build/ (runs inside dist)
+npm run stage:vault stage the vault template out of the owner's vault into resources/vault-template (runs inside dist)
+build-installer.cmd SD_BUNDLE_KB=0 + npm run dist: the installer for the other traders (no course)
 npm run dist        build + electron-builder --win nsis → release/Strategy-Desk-<version>-<arch>.exe
 npm run dist:dir    build + electron-builder --dir → release/win-unpacked (fast, no installer)
 npm run dist:check  launch the packaged binary with DESK_SMOKE=pack and fail if it did not start
@@ -316,6 +347,8 @@ app's own directory is not where the user works.
 - Secrets never cross IPC; the renderer sees `hasApiKey` / `hasOauthToken` only.
 - CSP is `default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:` (meta tag in `index.html`; `data:` for the macro chart screenshots, see `macro:image`). No external scripts/styles.
 - Keep `tv-launch.ts` small: it will move into the tvmcp tool `tv_desktop_launch`.
+- A new secret is three edits too: `SecretName` in `src/shared/api.ts`, `SECRET_FIELD` in `store.ts`, and the
+  place it is consumed (the auth env, or the macro env).
 - **Anything read at runtime from a file that ships with the app** goes through `src/main/resources.ts`
   (`readResource()` / `resourceCandidates()`), never through `process.cwd()` or a bare `app.getAppPath()`.
   The order is dev cwd → `app.getAppPath()` (= `app.asar` when packaged) → `process.resourcesPath`, and the

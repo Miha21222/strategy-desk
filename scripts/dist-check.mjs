@@ -58,7 +58,10 @@ function restoreProject() {
   }
 }
 
-const REQUIRED = ['[pack] ok', '[main] renderer loaded'];
+// The lines a packaged build must print. The macro-review MVP's own resources
+// are asserted by name, so a build that lost the appendices or the vault
+// template fails here even if `[pack] ok` were ever printed by mistake.
+const REQUIRED = ['[pack] ok', '[main] renderer loaded', '[pack] prompt/macro-review.md', '[pack] prompt/ask.md', '[pack] vault-template files'];
 const TIMEOUT_MS = 90_000;
 
 function run() {
@@ -91,7 +94,7 @@ function run() {
     child.on('close', (code) => {
       clearTimeout(kill);
       const missing = REQUIRED.filter((line) => !out.includes(line));
-      if (out.includes('[pack] FAILED')) {
+      if (out.includes('[pack] FAILED') || out.includes('[pack] vault-template NOT FOUND') || out.includes('[pack] vault-template files MISSING')) {
         console.error('dist:check: FAILED — the packaged app could not find what it ships with (see the [pack] lines above)');
         done(1);
       } else if (missing.length) {

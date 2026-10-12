@@ -1,9 +1,9 @@
 // IPC surface. Every handler is registered once; the renderer reaches them
 // through the typed `window.desk` bridge in src/preload/index.ts.
 import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron';
-import type { ChatEvent, ChatKind, NewReport, PickKind, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, NewReport, PickKind, SecretName, SendArgs, SettingsPatch, TraderProfile } from '@shared/api';
 import { StressReportSchema } from '@shared/blocks';
-import { CHAT_KINDS } from '@shared/api';
+import { CHAT_KINDS, SECRET_NAMES } from '@shared/api';
 import { isAllowedTvTool, type PanelDayState, type TvCallResult } from '@shared/panel';
 import { isTaskId, type TaskEvent, type TaskId } from '@shared/tasks';
 import { clampZoom } from '@shared/zoom';
@@ -20,8 +20,7 @@ import { launchTradingView } from './tv-launch';
 import { listWorkflows } from './workflows';
 import { listDays, loadDay, readShot, resolveNote, watchVault, writeDayAnswers, writeHumanRead } from './macro-state';
 
-const SECRET_NAMES = new Set(['apiKey', 'oauthToken']);
-
+const isSecretName = (name: unknown): name is SecretName => typeof name === 'string' && (SECRET_NAMES as string[]).includes(name);
 
 /** What each `dialog:pick` kind opens. The renderer names a kind, not a filter. */
 const PICKERS: Record<PickKind, { properties: ('openFile' | 'openDirectory')[]; filters?: Electron.FileFilter[] }> = {
@@ -117,13 +116,18 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
     return z;
   });
 
-  ipcMain.handle('settings:setSecret', (_e, name: 'apiKey' | 'oauthToken', value: string) => {
-    if (!SECRET_NAMES.has(name)) throw new Error('unknown secret');
-    return store.setSecret(name, String(value ?? ''));
+  ipcMain.handle('settings:setSecret', async (_e, name: SecretName, value: string) => {
+    if (!isSecretName(name)) throw new Error('unknown secret');
+    const next = await store.setSecret(name, String(value ?? ''));
+    // The macro session carries the cookie in its environment: a prepared one is stale.
+    dropWarm();
+    return next;
   });
-  ipcMain.handle('settings:clearSecret', (_e, name: 'apiKey' | 'oauthToken') => {
-    if (!SECRET_NAMES.has(name)) throw new Error('unknown secret');
-    return store.clearSecret(name);
+  ipcMain.handle('settings:clearSecret', async (_e, name: SecretName) => {
+    if (!isSecretName(name)) throw new Error('unknown secret');
+    const next = await store.clearSecret(name);
+    dropWarm();
+    return next;
   });
 
   // One channel for every deterministic tvmcp call the day panel makes. The
