@@ -15,7 +15,7 @@ import {
   buildSentinelSpec,
   emptyPanelDay,
   eventPromptVars,
-  eventsNeedingModel,
+  eventsOwedTurn,
   levelsArgs,
   levelsFromScan,
   mergeEvents,
@@ -82,6 +82,8 @@ export function DayPanel(p: DayPanelProps) {
   panelRef.current = panel;
   const askRef = useRef(p.onAsk);
   askRef.current = p.onAsk;
+  const busyRef = useRef(p.busy);
+  busyRef.current = p.busy;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   const failures = useRef(0);
@@ -119,28 +121,33 @@ export function DayPanel(p: DayPanelProps) {
 
   // ----- the pre-session block -----
 
-  const loadPreopen = useCallback(async () => {
+  const loadPreopen = useCallback(async (): Promise<Preopen> => {
+    const out: Preopen = { levels: null, calendar: null, risk: null };
     const pn = panelRef.current;
-    if (!pn) return;
+    if (!pn) return out;
     const cfg = p.settings;
     const jobs: Promise<unknown>[] = [];
     // Three parallel spawns: each pays the same ~2.5 s interpreter floor, so
     // doing them in sequence would cost three times as much for nothing.
     const scanArgs = levelsArgs(pn, date);
-    if (scanArgs) jobs.push(fill(setLevels, 'tv_scan_levels', scanArgs));
-    if (pn.calendar) jobs.push(fill(setCalendar, 'tv_calendar_check', { ...pn.calendar, date }));
+    if (scanArgs) jobs.push(fill(setLevels, 'tv_scan_levels', scanArgs).then((r) => (out.levels = r)));
+    if (pn.calendar) jobs.push(fill(setCalendar, 'tv_calendar_check', { ...pn.calendar, date }).then((r) => (out.calendar = r)));
     if (pn.risk) {
+      // A workflow that names its own rules or journal (a second prop account,
+      // say) keeps them; the settings only fill what the yaml left open.
       const riskArgs: Record<string, unknown> = { ...pn.risk, today: date };
-      if (cfg.journalPath) riskArgs.journal = cfg.journalPath;
-      if (cfg.riskRulesPath) riskArgs.rules_path = cfg.riskRulesPath;
-      jobs.push(fill(setRisk, 'tv_risk_guard', riskArgs));
+      if (cfg.journalPath && riskArgs.journal === undefined) riskArgs.journal = cfg.journalPath;
+      if (cfg.riskRulesPath && riskArgs.rules_path === undefined) riskArgs.rules_path = cfg.riskRulesPath;
+      jobs.push(fill(setRisk, 'tv_risk_guard', riskArgs).then((r) => (out.risk = r)));
     }
-    if (pn.journal && cfg.journalPath) {
-      jobs.push(fill(setJournal, 'tv_journal_load', { ...pn.journal, path_or_name: cfg.journalPath }));
+    const journalPath = (pn.journal as { path_or_name?: unknown } | undefined)?.path_or_name ?? cfg.journalPath;
+    if (pn.journal && journalPath) {
+      jobs.push(fill(setJournal, 'tv_journal_load', { ...pn.journal, path_or_name: journalPath }));
     } else if (pn.journal) {
       setJournal({ status: 'error', data: null, error: t('day.noJournalPath'), warnings: [], at: Date.now() });
     }
     await Promise.all(jobs);
+    return out;
   }, [date, fill, p.settings]);
 
   // ----- persistence -----
@@ -182,22 +189,26 @@ export function DayPanel(p: DayPanelProps) {
       const fresh = Array.isArray(data.events) ? data.events : [];
       setRunState(data.state ?? null);
 
-      const asked = new Set(state.asked);
+      const events = mergeEvents(state.events, fresh);
       // A replay never spends a model turn: it is how the owner checks a day
       // after the fact, and they ask for a verdict explicitly if they want one.
-      const worth = state.replay ? [] : eventsNeedingModel(pn, fresh).filter((e) => !asked.has(e.seq));
+      const worth = state.replay ? [] : eventsOwedTurn(pn, events, state.asked);
+      // An event is marked asked only when its turn actually goes out. While the
+      // chat is busy (the plan turn, a long answer) it stays owed and rides the
+      // next poll's turn, instead of being dropped at 10:30 when it mattered.
+      const send = worth.length > 0 && !busyRef.current && Boolean(pn.prompts.event);
       const next: PanelDayState = {
         ...state,
         lastSeq: typeof data.last_seq === 'number' ? data.last_seq : state.lastSeq,
-        events: mergeEvents(state.events, fresh),
-        asked: [...state.asked, ...worth.map((e) => e.seq)],
+        events,
+        asked: send ? [...state.asked, ...worth.map((e) => e.seq)] : state.asked,
         updatedAt: Date.now(),
       };
       await persist(next);
 
-      // One turn per poll, for the newest qualifying event; the prompt also
-      // carries every qualifying event of this poll, so nothing is lost.
-      if (worth.length && !p.busy && pn.prompts.event) {
+      // One turn per poll, for the newest owed event; the prompt also carries
+      // every owed event, so nothing is lost.
+      if (send && pn.prompts.event) {
         const newest = worth[worth.length - 1];
         askRef.current(
           renderPrompt(pn.prompts.event, {
@@ -217,7 +228,7 @@ export function DayPanel(p: DayPanelProps) {
     } finally {
       inFlight.current = false;
     }
-  }, [call, date, p.busy, persist, schedule, workflowId]);
+  }, [call, date, persist, schedule, workflowId]);
 
   const tickRef = useRef(tick);
   tickRef.current = tick;
@@ -240,7 +251,7 @@ export function DayPanel(p: DayPanelProps) {
   );
 
   const start = useCallback(
-    async (replay: { from: string; to: string } | null) => {
+    async (replay: { from: string; to: string } | null, freshScan: unknown = null) => {
       const pn = panelRef.current;
       if (!pn || pn.kind !== 'session-watch') return;
       setRunBusy(true);
@@ -248,7 +259,7 @@ export function DayPanel(p: DayPanelProps) {
       try {
         // The watch wants the levels it is going to watch, so fetch them first
         // when the pre-session block has not run yet.
-        let scan = levels.status === 'ok' ? levels.data : null;
+        let scan = freshScan ?? (levels.status === 'ok' ? levels.data : null);
         const scanArgs = levelsArgs(pn, date);
         if (!scan && scanArgs) {
           const r = await fill(setLevels, 'tv_scan_levels', scanArgs);
@@ -286,6 +297,49 @@ export function DayPanel(p: DayPanelProps) {
     [attach, call, date, fill, levels, persist, schedule, workflowId],
   );
 
+  // ----- the whole day in one press -----
+
+  const [fullStep, setFullStep] = useState<'' | 'preopen' | 'plan' | 'watch' | 'done'>('');
+
+  /**
+   * «Запустить день целиком»: the pre-open block, the plan turn fed with its
+   * numbers, then the sentinel. Every part stays available on its own button;
+   * this only chains them. A second press on a day that already has a run just
+   * reattaches — `start` treats "already exists" as the reattach signal.
+   */
+  const runFullDay = useCallback(async () => {
+    const pn = panelRef.current;
+    if (!pn || pn.kind !== 'session-watch') return;
+    setFullStep('preopen');
+    try {
+      const pre = await loadPreopen();
+      const data = (r: TvCallResult | null) => JSON.stringify(r && r.ok ? r.data : r ? { error: r.error } : null);
+      if (pn.prompts.plan && busyRef.current) {
+        // Say it: otherwise «день запущен» reads as if the plan went out.
+        setPollNote(t('day.planSkippedBusy'));
+      } else if (pn.prompts.plan) {
+        setFullStep('plan');
+        askRef.current(
+          renderPrompt(pn.prompts.plan, {
+            date,
+            workflow: workflowId,
+            levels_json: data(pre.levels),
+            calendar_json: data(pre.calendar),
+            risk_json: data(pre.risk),
+          }),
+          true,
+        );
+      }
+      setFullStep('watch');
+      if (!dayRef.current.runId) await start(null, pre.levels?.ok ? pre.levels.data : null);
+      else await attach(dayRef.current.runId);
+      setFullStep('done');
+    } catch (e) {
+      setPollNote(String((e as Error)?.message ?? e));
+      setFullStep('');
+    }
+  }, [attach, date, loadPreopen, start, workflowId]);
+
   const stop = useCallback(async () => {
     const runId = dayRef.current.runId;
     if (!runId) return;
@@ -316,6 +370,7 @@ export function DayPanel(p: DayPanelProps) {
     failures.current = 0;
     setRunState(null);
     setPollNote('');
+    setFullStep('');
     if (!panel || !workflowId) {
       setDay(emptyPanelDay(workflowId, date));
       return;
@@ -414,8 +469,20 @@ export function DayPanel(p: DayPanelProps) {
           {t('day.recheck')}
         </button>
         <span class="spacer" />
+        {panel.kind === 'session-watch' ? (
+          <button
+            type="button"
+            class="primary"
+            disabled={runBusy || (fullStep !== '' && fullStep !== 'done')}
+            title={t('day.fullRunHint')}
+            onClick={() => void runFullDay()}
+          >
+            {t('day.fullRun')}
+          </button>
+        ) : null}
+        {fullStep ? <span class="muted small">{t(`day.fullStep.${fullStep}`)}</span> : null}
         {canAskVerdict ? (
-          <button type="button" class="primary" onClick={askVerdict}>
+          <button type="button" onClick={askVerdict}>
             {t('day.askVerdict')}
           </button>
         ) : null}
@@ -497,4 +564,11 @@ export function DayPanel(p: DayPanelProps) {
 function toolWarnings(data: unknown): string[] {
   const w = (data as { warnings?: unknown })?.warnings;
   return Array.isArray(w) ? w.filter((x): x is string => typeof x === 'string').slice(0, 6) : [];
+}
+
+/** What the pre-open block fetched, for a caller that needs it right away. */
+interface Preopen {
+  levels: TvCallResult | null;
+  calendar: TvCallResult | null;
+  risk: TvCallResult | null;
 }

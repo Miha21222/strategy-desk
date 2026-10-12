@@ -1,7 +1,7 @@
 // Settings tab: the diagnosis, Claude auth, tvmcp, the day/risk files,
 // model/effort, permissions, theme, trader profile.
 import { useEffect, useState } from 'preact/hooks';
-import type { ChatKind, EffortLevel, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
+import type { ChatKind, EffortLevel, SecretName, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
 import type { TaskId, TaskState } from '@shared/tasks';
 import { ZOOM_STEPS } from '@shared/zoom';
@@ -30,8 +30,10 @@ export interface SettingsTabProps {
   onSettings: (patch: SettingsPatch) => void;
   /** System notice in the corner of the window (saved, failed, launched). */
   onToast: (text: string, level?: 'info' | 'warn' | 'error') => void;
-  onSecret: (name: 'apiKey' | 'oauthToken', value: string | null) => void;
+  onSecret: (name: SecretName, value: string | null) => void;
   onProfile: (p: TraderProfile) => void;
+  /** Native folder picker for the vault; the result lands in settings.vaultPath. */
+  onPickVault: () => void;
 }
 
 const EFFORTS: EffortLevel[] = ['', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -80,6 +82,7 @@ export function SettingsTab(p: SettingsTabProps) {
     riskRulesPath: s.riskRulesPath,
     journalPath: s.journalPath,
     fieldNotesPath: s.fieldNotesPath,
+    vaultPath: s.vaultPath ?? '',
   });
 
   useEffect(() => {
@@ -99,8 +102,9 @@ export function SettingsTab(p: SettingsTabProps) {
       riskRulesPath: s.riskRulesPath,
       journalPath: s.journalPath,
       fieldNotesPath: s.fieldNotesPath,
+      vaultPath: s.vaultPath ?? '',
     });
-  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.codexPath, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath]);
+  }, [s.tvmcpPath, s.gtRagPath, s.cdpPort, s.toolsets, s.model, s.codexPath, s.tvDesktopExe, s.riskRulesPath, s.journalPath, s.fieldNotesPath, s.vaultPath]);
 
   const commitText = (key: keyof typeof text) => {
     const v = text[key].trim();
@@ -121,6 +125,22 @@ export function SettingsTab(p: SettingsTabProps) {
     </label>
   );
 
+  /** A path with a native picker next to it, and the check that says whether it is right. */
+  const vaultStatus = p.preflight?.checks.find((c) => c.id === 'vault');
+  const pathField = (key: 'vaultPath', label: string, hint: string, onPick: () => void) => (
+    <label class="field">
+      <span>{label}</span>
+      <div class="inline">
+        <input value={text[key]} onInput={(e) => setText({ ...text, [key]: (e.target as HTMLInputElement).value })} onBlur={() => commitText(key)} onKeyDown={(e) => e.key === 'Enter' && commitText(key)} />
+        <button type="button" onClick={onPick}>
+          {t('preflight.fix.pickDir')}
+        </button>
+      </div>
+      <small>{hint}</small>
+      {vaultStatus ? <small class={`pf-inline ${vaultStatus.status}`}>{t(vaultStatus.detailKey, vaultStatus.vars)}</small> : null}
+    </label>
+  );
+
   const saveProfile = () => {
     const next = { ...profile, morningChecklist: checklist.split('\n').map((l) => l.trim()).filter(Boolean) };
     p.onProfile(next);
@@ -137,6 +157,61 @@ export function SettingsTab(p: SettingsTabProps) {
   return (
     <section class="page">
       <h2>{t('settings.title')}</h2>
+
+      <fieldset>
+        <legend>{t('settings.macro')}</legend>
+        {pathField('vaultPath', t('settings.vaultPath'), t('settings.vaultHint'), p.onPickVault)}
+        <SecretField label={t('settings.tvSession')} isSet={s.hasTvSession} onSave={(v) => p.onSecret('tvSession', v)} onClear={() => p.onSecret('tvSession', null)} />
+        <p class="muted">{t('settings.tvSessionHint')}</p>
+        <label class="check">
+          <input type="checkbox" checked={(s.macroMcp ?? 'bundled') === 'bundled'} onChange={(e) => p.onSettings({ macroMcp: (e.target as HTMLInputElement).checked ? 'bundled' : 'user' })} />
+          <span>{t('settings.macroMcp')}</span>
+        </label>
+        <p class="muted">{t('settings.macroMcpHint')}</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>{t('settings.appearance')}</legend>
+        <label class="field">
+          <span>{t('settings.theme')}</span>
+          <select value={s.theme} onChange={(e) => p.onSettings({ theme: (e.target as HTMLSelectElement).value as Settings['theme'] })}>
+            <option value="system">{t('settings.themeSystem')}</option>
+            <option value="dark">{t('settings.themeDark')}</option>
+            <option value="light">{t('settings.themeLight')}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>{t('settings.uiScale')}</span>
+          <select value={String(s.uiScale ?? 1)} onChange={(e) => p.onSettings({ uiScale: Number((e.target as HTMLSelectElement).value) })}>
+            {ZOOM_STEPS.map((z) => (
+              <option key={z} value={String(z)}>
+                {Math.round(z * 100)}%
+              </option>
+            ))}
+          </select>
+        </label>
+        <div class="muted">{t('settings.uiScaleHint')}</div>
+        <label class="field">
+          <span>{t('settings.answerLang')}</span>
+          <select value={s.answerLang ?? 'ru'} onChange={(e) => p.onSettings({ answerLang: (e.target as HTMLSelectElement).value as Settings['answerLang'] })}>
+            <option value="ru">{t('settings.answerLangRu')}</option>
+            <option value="en">{t('settings.answerLangEn')}</option>
+            <option value="auto">{t('settings.answerLangAuto')}</option>
+          </select>
+        </label>
+        <div class="muted">{t('settings.answerLangHint')}</div>
+      </fieldset>
+
+      <details class="advanced" open={s.legacyUi}>
+        <summary>{t('settings.advanced')}</summary>
+        <p class="muted">{t('settings.advancedHint')}</p>
+        <fieldset>
+          <legend>{t('settings.legacyTitle')}</legend>
+        <label class="check">
+          <input type="checkbox" checked={Boolean(s.legacyUi)} onChange={(e) => p.onSettings({ legacyUi: (e.target as HTMLInputElement).checked })} />
+          <span>{t('settings.legacyUi')}</span>
+        </label>
+        </fieldset>
 
       <fieldset>
         <legend>{t('preflight.title')}</legend>
@@ -224,6 +299,8 @@ export function SettingsTab(p: SettingsTabProps) {
         {textField('gtRagPath', t('settings.gtRagPath'), t('settings.gtRagHint'))}
       </fieldset>
 
+
+      {s.legacyUi ? (
       <fieldset>
         <legend>{t('settings.dayDesk')}</legend>
         {textField('riskRulesPath', t('settings.riskRulesPath'), t('settings.riskRulesHint'))}
@@ -232,7 +309,7 @@ export function SettingsTab(p: SettingsTabProps) {
         <label class="field">
           <span>{t('settings.shelfWorkflows')}</span>
           <div class="shelf-map">
-            {SHELF_KINDS.map((k: ChatKind) => (
+            {SHELF_KINDS.filter((k) => k !== 'macro').map((k: ChatKind) => (
               <label class="inline" key={k}>
                 <span class="shelf-name">{t(`shelf.${k}`)}</span>
                 <select
@@ -258,6 +335,7 @@ export function SettingsTab(p: SettingsTabProps) {
           <small>{t('settings.shelfWorkflowsHint')}</small>
         </label>
       </fieldset>
+      ) : null}
 
       <fieldset>
         <legend>{t('settings.modelSection')}</legend>
@@ -279,37 +357,6 @@ export function SettingsTab(p: SettingsTabProps) {
         </label>
       </fieldset>
 
-      <fieldset>
-        <legend>{t('settings.appearance')}</legend>
-        <label class="field">
-          <span>{t('settings.theme')}</span>
-          <select value={s.theme} onChange={(e) => p.onSettings({ theme: (e.target as HTMLSelectElement).value as Settings['theme'] })}>
-            <option value="system">{t('settings.themeSystem')}</option>
-            <option value="dark">{t('settings.themeDark')}</option>
-            <option value="light">{t('settings.themeLight')}</option>
-          </select>
-        </label>
-        <label class="field">
-          <span>{t('settings.uiScale')}</span>
-          <select value={String(s.uiScale ?? 1)} onChange={(e) => p.onSettings({ uiScale: Number((e.target as HTMLSelectElement).value) })}>
-            {ZOOM_STEPS.map((z) => (
-              <option key={z} value={String(z)}>
-                {Math.round(z * 100)}%
-              </option>
-            ))}
-          </select>
-        </label>
-        <div class="muted">{t('settings.uiScaleHint')}</div>
-        <label class="field">
-          <span>{t('settings.answerLang')}</span>
-          <select value={s.answerLang ?? 'ru'} onChange={(e) => p.onSettings({ answerLang: (e.target as HTMLSelectElement).value as Settings['answerLang'] })}>
-            <option value="ru">{t('settings.answerLangRu')}</option>
-            <option value="en">{t('settings.answerLangEn')}</option>
-            <option value="auto">{t('settings.answerLangAuto')}</option>
-          </select>
-        </label>
-        <div class="muted">{t('settings.answerLangHint')}</div>
-      </fieldset>
 
       <fieldset>
         <legend>{t('settings.profile')}</legend>
@@ -330,6 +377,7 @@ export function SettingsTab(p: SettingsTabProps) {
           </button>
         </div>
       </fieldset>
+      </details>
     </section>
   );
 }

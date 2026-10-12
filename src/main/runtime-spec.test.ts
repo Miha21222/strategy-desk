@@ -134,9 +134,12 @@ describe('the knowledge base server', () => {
   });
 
   it('is off when the switch is off, whatever shipped', () => {
+    // A fresh install starts with the switch OFF (macro-review build, no
+    // course); an old config file without the field still reads as on, which
+    // the store's `legacyConfigPatch` handles before the settings get here.
     expect(kbMode({ ...cfg, knowledgeBase: false }, bundled)).toBe('off');
-    expect(kbMode(cfg, bundled)).toBe('bundled');
-    expect(kbMode({ ...cfg, gtRagPath: 'C:\\Projects\\gt-rag' }, EXTERNAL_PATHS)).toBe('external');
-    expect(kbMode(cfg, EXTERNAL_PATHS)).toBe('off');
+    expect(kbMode({ ...cfg, knowledgeBase: true }, bundled)).toBe('bundled');
+    expect(kbMode({ ...cfg, knowledgeBase: true, gtRagPath: 'C:\\Projects\\gt-rag' }, EXTERNAL_PATHS)).toBe('external');
+    expect(kbMode({ ...cfg, knowledgeBase: true }, EXTERNAL_PATHS)).toBe('off');
   });
 });

@@ -4,9 +4,32 @@ import { t } from '../i18n';
 
 export interface HelpTabProps {
   onOpenWizard: () => void;
+  /** The macro-review MVP: explain the day review in plain words, nothing about plumbing. */
+  simple?: boolean;
 }
 
+const SIMPLE_SECTIONS = ['what', 'when', 'first', 'remember', 'drift', 'read', 'argue', 'evening', 'week', 'ask', 'trouble'] as const;
+
 export function HelpTab(p: HelpTabProps) {
+  if (p.simple) {
+    return (
+      <section class="page help-simple">
+        <h2>{t('helpSimple.title')}</h2>
+        {SIMPLE_SECTIONS.map((k) => (
+          <div key={k}>
+            <h3>{t(`helpSimple.${k}Title`)}</h3>
+            <p>{t(`helpSimple.${k}`)}</p>
+          </div>
+        ))}
+        <div class="help-wizard">
+          <p>{t('help.wizard')}</p>
+          <button type="button" onClick={p.onOpenWizard}>
+            {t('setup.open')}
+          </button>
+        </div>
+      </section>
+    );
+  }
   return (
     <section class="page">
       <h2>{t('help.title')}</h2>

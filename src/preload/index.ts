@@ -60,6 +60,19 @@ const api: DeskApi = {
       return () => ipcRenderer.removeListener('chat:event', handler);
     },
   },
+  macro: {
+    index: () => ipcRenderer.invoke('macro:index'),
+    day: (date: string) => ipcRenderer.invoke('macro:day', date),
+    openNote: (rel: string) => ipcRenderer.invoke('macro:openNote', rel),
+    image: (rel: string) => ipcRenderer.invoke('macro:image', rel),
+    humanRead: (args) => ipcRenderer.invoke('macro:humanRead', args),
+    dayAnswers: (args) => ipcRenderer.invoke('macro:dayAnswers', args),
+    onChanged: (cb) => {
+      const handler = (_e: Electron.IpcRendererEvent, dates: string[]) => cb(dates);
+      ipcRenderer.on('macro:changed', handler);
+      return () => ipcRenderer.removeListener('macro:changed', handler);
+    },
+  },
   ui: { zoom: (factor: number) => ipcRenderer.invoke('ui:zoom', factor) },
   open: { external: (url) => ipcRenderer.invoke('open:external', url) },
   app: { version: () => ipcRenderer.invoke('app:version') },

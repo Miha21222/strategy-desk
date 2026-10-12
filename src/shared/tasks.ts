@@ -28,6 +28,13 @@ export const TASK_IDS = [
   'codex-auth-import',
   'codex-mcp-add',
   'codex-mcp-login',
+  // The macro-review MVP on another trader's PC: lay the vault template down
+  // in the chosen folder, prove the TradingView sessionid works, and register
+  // or remove the three Task Scheduler jobs (EU 09:30 / US 16:00 / review 20:00).
+  'vault-create',
+  'session-check',
+  'scheduler-register',
+  'scheduler-unregister',
 ] as const;
 export type TaskId = (typeof TASK_IDS)[number];
 

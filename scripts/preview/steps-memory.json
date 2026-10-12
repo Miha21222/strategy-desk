@@ -1,0 +1,9 @@
+[
+ {"name": "m10-eu-ask", "wait": 900},
+ {"name": "m12-eu-said", "click": "button:has-text('вниз')", "full": true},
+ {"name": "m14-us-peek", "click": [".wtile:nth-child(2)", "button.link"], "full": true},
+ {"name": "m15-review-today", "click": ".wtile:nth-child(3)", "full": true},
+ {"name": "m21-friday-review", "click": ["button[title='Предыдущий день']", "button[title='Предыдущий день']", "button[title='Предыдущий день']", "button[title='Предыдущий день']", "button[title='Предыдущий день']", ".wtile:nth-child(3)"], "full": true},
+ {"name": "m22-friday-eu", "click": ".wtile:nth-child(1)", "full": true},
+ {"name": "m32-help", "click": ".tabs button:has-text('Помощь')", "full": true}
+]

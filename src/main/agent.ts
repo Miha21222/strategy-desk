@@ -6,13 +6,17 @@
 // transcript and the token/cost tally. Everything that knows what an SDK or a
 // CLI looks like lives in the driver.
 import { promises as fs } from 'node:fs';
-import type { AnswerLang, ChatEvent, ChatMeta, ChatMode, EffortLevel, TokenUsage, ToolCallItem } from '@shared/api';
+import path from 'node:path';
+import { ATTACH_MAX_BYTES, ATTACH_MAX_FILES, type AnswerLang, type Attachment, type ChatEvent, type ChatMeta, type ChatMode, type EffortLevel, type Settings, type TokenUsage, type ToolCallItem } from '@shared/api';
 import { engineOf, type EngineId } from '@shared/engine';
-import { buildMcpServers } from './mcp';
+import { macroEnvVars, macroPython } from './macro-env';
+import { buildMcpServers, type ServerMap } from './mcp';
+import { claudeBin, initRuntimePaths } from './runtime';
 import { allDrivers, getDriver } from './drivers';
 import type { DriverEvent, EngineDriver, TurnSpec } from './drivers/types';
 import { taskInFlight } from './tasks';
 import { assemblePrompt, promptForChat } from './prompt';
+import { readResource } from './resources';
 import { getWorkflow } from './workflows';
 import * as store from './store';
 
@@ -77,6 +81,7 @@ export async function buildSystemPrompt(chat: ChatMeta, mode: ChatMode, lang: An
  * real turn come out identical and the session can be adopted.
  */
 export async function buildTurnSpec(chat: ChatMeta, mode: ChatMode): Promise<TurnSpec> {
+  if (chat.kind === 'macro' || chat.kind === 'ask') return macroSpec(mode, chat.kind);
   const cfg = await store.getSettings();
   const systemPrompt = await buildSystemPrompt(chat, mode, cfg.answerLang ?? 'auto');
   // A chat stays on the engine that answered it first: the id it resumes from
@@ -105,16 +110,116 @@ export async function specForPrompt(systemPrompt: string, mode: ChatMode, engine
   };
 }
 
+/**
+ * The spec of a macro-review chat: Claude Code in the owner's vault, with the
+ * vault's own CLAUDE.md, skills and the owner's MCP servers — the same session
+ * the Task Scheduler opens at 09:30 / 16:00 / 20:00, so a run from the desk
+ * and a scheduled run produce the same files. The desk's prompt is only a
+ * short appendix (`prompt/macro-review.md`); the rules live in the skill.
+ */
+export async function macroSpec(mode: ChatMode, kind: 'macro' | 'ask' = 'macro'): Promise<TurnSpec> {
+  const cfg = await store.getSettings();
+  const vault = cfg.vaultPath.trim();
+  if (!vault) throw new Error('vault-not-set');
+  try {
+    await fs.access(vault);
+  } catch {
+    throw new Error(`vault-not-found: ${vault}`);
+  }
+  // `ask` (note 23): the same agent in the same vault, told to answer from
+  // memory — reviews, lessons, notes — rather than to run a review.
+  const appendix = (await readResource('prompt', kind === 'ask' ? 'ask.md' : 'macro-review.md'))?.trim() ?? '';
+  // The vault contract (MACRO_VAULT, MACRO_PYTHON, MACRO_CLAUDE, TV_SESSIONID,
+  // TV_CDP_URL, PYTHONIOENCODING) — the same six things the Task Scheduler's
+  // run gets, assembled in one place (`macro-env.ts`). Wait for a provisioning
+  // in flight for the same reason `specForPrompt` does: the venv is MACRO_PYTHON.
+  await taskInFlight('provision-runtime');
+  const paths = await initRuntimePaths();
+  const secrets = await store.getSecrets();
+  const env = macroEnvVars({ vault, python: await existingPath(macroPython(cfg, paths)), claude: await existingPath(claudeBin()), sessionId: secrets.tvSession, cdpPort: cfg.cdpPort });
+  return {
+    engine: 'claude',
+    systemPrompt: `${appendix}${modeSuffix(mode)}`,
+    model: cfg.model.trim(),
+    effort: saverEffort(mode, cfg.effort) ?? '',
+    cwd: vault,
+    mcpServers: macroMcpServers(cfg),
+    permissionPreset: cfg.permissionPreset,
+    profile: 'macro',
+    env,
+  };
+}
+
+/**
+ * The MCP map of a macro chat. `user`: none — the owner's `~/.claude` has the
+ * `tradingview` server and `settingSources: user` brings it in. `bundled`: the
+ * desk's own tvmcp, so a fresh install's skill finds `mcp__tradingview__*`
+ * (calendar, news) without any `~/.claude` of its own. Only that server: the
+ * knowledge base and the official MCP are the Strategy Lab's business.
+ */
+export function macroMcpServers(cfg: Settings): ServerMap {
+  if ((cfg.macroMcp ?? 'bundled') !== 'bundled') return {};
+  const all = buildMcpServers(cfg);
+  return all.tradingview ? { tradingview: all.tradingview } : {};
+}
+
+/** A path only when it exists on disk; the env contract says «unset» otherwise. */
+async function existingPath(p: string): Promise<string> {
+  if (!p) return '';
+  try {
+    await fs.access(p);
+    return p;
+  } catch {
+    return '';
+  }
+}
+
 export interface StartArgs {
   chatKey: string;
   text: string;
   mode: ChatMode;
+  attachments?: Attachment[];
+}
+
+const SAFE_NAME = /[^\p{L}\p{N}._ -]+/gu;
+
+/**
+ * Save the message's attachments where the session can Read them and return
+ * the lines that tell the model where they are. A vault session (macro / ask)
+ * gets `indices-kb/inbox/<date>/`, the copilot its workspace's `attachments/`.
+ * Names are sanitised and prefixed with the time so two screenshots in one
+ * day never collide. Nothing here is ever deleted by the app.
+ */
+async function saveAttachments(spec: TurnSpec, kind: ChatMeta['kind'], files: Attachment[]): Promise<{ lines: string[]; names: string[] }> {
+  if (!files.length) return { lines: [], names: [] };
+  if (files.length > ATTACH_MAX_FILES) throw new Error(`too-many-attachments: ${files.length} > ${ATTACH_MAX_FILES}`);
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10);
+  const hhmm = `${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+  const dir = kind === 'macro' || kind === 'ask' ? path.join(spec.cwd, 'indices-kb', 'inbox', day) : path.join(spec.cwd, 'attachments', day);
+  await fs.mkdir(dir, { recursive: true });
+  const lines: string[] = [];
+  const names: string[] = [];
+  let total = 0;
+  for (const f of files) {
+    const buf = Buffer.from(f.data, 'base64');
+    total += buf.length;
+    if (!buf.length || total > ATTACH_MAX_BYTES) throw new Error(`attachment-too-big: ${ATTACH_MAX_BYTES} bytes in all`);
+    const base = path.basename(f.name).replace(SAFE_NAME, '_').slice(0, 80) || 'file';
+    const full = path.join(dir, `${hhmm}_${base}`);
+    await fs.writeFile(full, buf);
+    const kb = Math.max(1, Math.round(buf.length / 1024));
+    lines.push(`- ${full} (${f.type || 'file'}, ${kb} KB)`);
+    names.push(base);
+  }
+  return { lines, names };
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function startChat(args: StartArgs, send: Send): Promise<void> {
-  const { chatKey, text, mode } = args;
+  const { chatKey, mode } = args;
+  let text = args.text;
   if (active.has(chatKey)) {
     send({ chatKey, kind: 'error', message: 'busy' });
     return;
@@ -143,10 +248,22 @@ export async function startChat(args: StartArgs, send: Send): Promise<void> {
     if (stderrTail.length > 30) stderrTail.shift();
   };
 
+  // Attachments land on disk first; the model is told the paths, the
+  // transcript keeps only the names (the user sees chips, not paths).
+  let files: string[] = [];
+  try {
+    const saved = await saveAttachments(spec, chat.kind, args.attachments ?? []);
+    files = saved.names;
+    if (saved.lines.length) text = `${text.trim() || 'Посмотри вложения.'}\n\n[Вложения — открой их через Read, не перемещай]\n${saved.lines.join('\n')}`;
+  } catch (e) {
+    send({ chatKey, kind: 'error', message: String((e as Error)?.message ?? e) });
+    return;
+  }
+
   const now = Date.now();
-  await store.appendTranscript(chatKey, { role: 'user', text, at: now });
+  await store.appendTranscript(chatKey, { role: 'user', text: args.text, at: now, ...(files.length ? { files } : {}) });
   const patch: Parameters<typeof store.updateChat>[1] = {};
-  if (!chat.title) Object.assign(patch, { title: text.trim().slice(0, 60), updatedAt: now });
+  if (!chat.title) Object.assign(patch, { title: (args.text.trim() || files.join(', ')).slice(0, 60), updatedAt: now });
   if (!chat.engine) patch.engine = spec.engine;
   if (Object.keys(patch).length) await store.updateChat(chatKey, patch);
 

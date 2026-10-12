@@ -19,7 +19,7 @@ files:
   # in dev and ships an app with no workflows (empty «День» panel) and no prop
   # firm rules (empty report cards). src/main/resource-paths.ts holds the
   # matching lookup order.
-  - prompt/**       # system-prompt.md — the base system prompt
+  - prompt/**       # system-prompt.md — the base system prompt; macro-review.md / ask.md — the macro chat's appendices
   - data/**         # prop-firms.json (rule book) + copilot-notes.md (field notes)
   - workflows/**    # workflow.yaml + prompt.md per strategy; the «День» panel
   - package.json
@@ -65,6 +65,14 @@ extraResources:
   # base" and says so in the setup wizard.
   - from: build/gtrag-payload
     to: gt-rag
+  # The vault template for the macro-review MVP: the skill, the tools, the
+  # configs and the empty state/journal/shots/inbox/cache directories a fresh
+  # vault needs. `npm run stage:vault` (scripts/stage-vault.mjs) fills it from
+  # the owner's vault before packaging; the `vault-create` task copies it into
+  # the user's Documents with plain fs, which is why it is a real directory
+  # next to app.asar and not inside it.
+  - from: resources/vault-template
+    to: vault-template
 win:
   target:
     - nsis

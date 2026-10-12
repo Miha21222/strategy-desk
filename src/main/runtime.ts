@@ -102,6 +102,19 @@ export async function initRuntimePaths(): Promise<RuntimePaths> {
 }
 
 /**
+ * The shipped vault template (`scripts/stage-vault.mjs` → `resources/vault-template`,
+ * shipped as `extraResources` → `<resources>/vault-template`). A real directory
+ * on disk, because the task copies out of it with plain fs and the user's
+ * Obsidian then opens the result; so it is looked up like the payloads, with
+ * the dev checkout's `resources/` as the first candidate. Null when nothing
+ * shipped — the wizard then says so instead of offering a button.
+ */
+export async function vaultTemplateDir(): Promise<string | null> {
+  const marker = (await firstExisting(['resources', 'vault-template', 'template.json'])) ?? (await firstExisting(['vault-template', 'template.json']));
+  return marker ? path.dirname(marker) : null;
+}
+
+/**
  * The Claude Code binary. The Agent SDK ships one per platform and spawns it
  * itself; the MCP tasks need the same one, because a packaged install on a
  * machine with no `claude` on PATH would otherwise report every check as

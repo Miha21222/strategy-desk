@@ -1376,3 +1376,60 @@ button.ghost {
 .tool:focus-within {
   box-shadow: var(--surface-highlight), var(--shadow-2);
 }
+
+/* ---- attachments in the composer and in a user message ---- */
+.pending-files, .bubble .files { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: var(--radius-pill); background: var(--bg-elev); font-size: var(--text-sm); max-width: 100%; }
+.bubble .file-chip { background: rgba(255, 255, 255, 0.15); }
+.file-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+.file-chip .x { background: none; border: 0; padding: 0 2px; cursor: pointer; font-size: 14px; line-height: 1; color: inherit; opacity: 0.7; }
+.file-chip .x:hover { opacity: 1; }
+.file-error { color: var(--err); font-size: var(--text-sm); align-self: center; }
+.composer-bar .attach { padding-left: 8px; padding-right: 10px; }
+
+
+/* ---------- the MVP wizard pages (vault / session / schedule) ---------- */
+.wizard-extra {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+.wizard-extra p {
+  margin: 4px 0 8px;
+}
+.wizard-extra .inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.wizard-extra .inline input {
+  flex: 1;
+}
+.wizard-extra code.path {
+  flex: 1;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+}
+.wizard-extra ol.howto,
+.wizard-extra ul.schedule-times {
+  margin: 4px 0 10px;
+  padding-left: 22px;
+}
+.wizard-extra ol.howto li,
+.wizard-extra ul.schedule-times li {
+  margin: 2px 0;
+}
+.wizard-extra .warn-text {
+  color: var(--warn);
+}
+.pf-inline.ok {
+  color: var(--ok);
+}
+.pf-inline.fail {
+  color: var(--err);
+}
+.pf-inline.warn {
+  color: var(--warn);
+}

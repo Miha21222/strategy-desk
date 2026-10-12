@@ -1,0 +1,12 @@
+[
+ {"name": "10-eu-ask", "wait": 900},
+ {"name": "12-eu-said", "click": "button:has-text('вниз')", "full": true},
+ {"name": "14-us-ask", "click": ".wtile:nth-child(2)"},
+ {"name": "14b-us-peek", "click": "button.link"},
+ {"name": "15-review-today", "click": ".wtile:nth-child(3)", "full": true},
+ {"name": "17-review-saved", "click": [".answers-row:nth-of-type(1) .seg button:has-text('шорт')", ".answers-row:nth-of-type(1) .seg:nth-of-type(2) button:has-text('по правилу')", ".answers-row:nth-of-type(2) .seg button:has-text('не брал')"], "fill": ["form.human input", "Ждал вторую манипуляцию — сработало"], "full": true},
+ {"name": "18-review-saved2", "click": "button:has-text('Сохранить')", "full": true},
+ {"name": "21-prev-review", "click": ["button[title='Предыдущий день']", ".wtile:nth-child(3)"], "full": true},
+ {"name": "30-chat", "click": ".tabs button:has-text('Чат')"},
+ {"name": "32-help", "click": ".tabs button:has-text('Помощь')", "full": true}
+]

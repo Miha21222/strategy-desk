@@ -5,6 +5,7 @@ import {
   emptyPanelDay,
   eventPromptVars,
   eventsNeedingModel,
+  eventsOwedTurn,
   isAllowedTvTool,
   levelsArgs,
   levelsFromScan,
@@ -288,6 +289,16 @@ describe('the event -> model-turn rule', () => {
   it('never fires without a panel', () => {
     expect(shouldAskModel(null, 'RANGE_CLOSED')).toBe(false);
     expect(eventsNeedingModel(undefined, [ev(1, 'RANGE_CLOSED')])).toEqual([]);
+  });
+
+  it('keeps an event owed until a turn was actually spent on it', () => {
+    const p = panel();
+    const stored = [ev(1, 'SESSION_OPEN'), ev(2, 'RANGE_CLOSED'), ev(3, 'BREAK'), ev(4, 'BREAK_CONFIRMED')];
+    // The chat was busy when seq 2 arrived, so nothing was marked: both are still owed.
+    expect(eventsOwedTurn(p, stored, []).map((e) => e.seq)).toEqual([2, 4]);
+    // Once seq 2 had its turn, only seq 4 is owed.
+    expect(eventsOwedTurn(p, stored, [2]).map((e) => e.seq)).toEqual([4]);
+    expect(eventsOwedTurn(null, stored, [])).toEqual([]);
   });
 
   it('filters a whole poll down to the events worth a turn, oldest first', () => {
