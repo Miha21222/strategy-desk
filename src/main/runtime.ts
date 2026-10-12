@@ -8,7 +8,7 @@
 // app may act, but never on its own initiative.
 import { app } from 'electron';
 import { createHash } from 'node:crypto';
-import { promises as fs } from 'node:fs';
+import { existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { Settings } from '@shared/api';
 import type { KbFact, RuntimeFact } from '@shared/preflight';
@@ -22,6 +22,7 @@ import {
   kbProjectDir,
   kbSeedDir,
   modeOf,
+  preferExternal,
   projectDir,
   pythonBin,
   runtimeEnv,
@@ -51,6 +52,16 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
+/** Is `uv` reachable the way a shell would reach it: somewhere on PATH. */
+export function uvOnPath(env: NodeJS.ProcessEnv = process.env): boolean {
+  const names = process.platform === 'win32' ? ['uv.exe', 'uv.cmd', 'uv'] : ['uv'];
+  for (const dir of (env.PATH || env.Path || '').split(path.delimiter)) {
+    if (!dir) continue;
+    for (const n of names) if (existsSync(path.join(dir, n))) return true;
+  }
+  return false;
+}
+
 /** First candidate that exists, or null. Binaries and payload directories only. */
 async function firstExisting(rel: string[]): Promise<string | null> {
   for (const p of binaryCandidates(...rel)) if (await exists(p)) return p;
@@ -62,8 +73,15 @@ async function firstExisting(rel: string[]): Promise<string | null> {
  * `resources`, so the result is EXTERNAL_PATHS and the app behaves exactly as
  * it did before bundling: `uv` from PATH, the clone from the settings.
  */
-export async function initRuntimePaths(): Promise<RuntimePaths> {
-  const payloadDir = await firstExisting(['tvmcp', 'pyproject.toml']);
+export async function initRuntimePaths(cfg?: Pick<Settings, 'tvmcpPath'>): Promise<RuntimePaths> {
+  let payloadDir = await firstExisting(['tvmcp', 'pyproject.toml']);
+  // What is already on this PC is not installed again: a complete checkout
+  // named in the settings, with uv on PATH, wins over the payload — and the
+  // 600 MB environment is never built (`preferExternal`, runtime-spec.ts).
+  if (payloadDir && cfg && preferExternal(cfg.tvmcpPath, existsSync, uvOnPath())) {
+    console.log(`[main] tvmcp: using the checkout already on this PC (${cfg.tvmcpPath.trim()}), the shipped payload stays unused`);
+    payloadDir = null;
+  }
   const uvBin = await firstExisting([UV_NAME]);
   // The knowledge base is looked up on its own: an installer may carry tvmcp
   // without it (a build with SD_BUNDLE_KB=0), and a dev run may fake one.

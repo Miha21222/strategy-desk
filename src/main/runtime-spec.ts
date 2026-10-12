@@ -71,6 +71,31 @@ export function modeOf(paths: RuntimePaths): RuntimeMode {
   return paths.payloadDir ? 'bundled' : 'external';
 }
 
+/**
+ * What an already-present tradingview-mcp checkout must have for the app to
+ * use it INSTEAD of the shipped payload: the project file and a venv with an
+ * interpreter (so `uv run` has nothing to build). Empty when no path is set.
+ */
+export function externalCloneFiles(clone: string, platform: string = process.platform): string[] {
+  const P = platform === 'win32' ? path.win32 : path.posix;
+  const c = (clone || '').trim();
+  if (!c) return [];
+  return [P.join(c, 'pyproject.toml'), platform === 'win32' ? P.join(c, '.venv', 'Scripts', 'python.exe') : P.join(c, '.venv', 'bin', 'python')];
+}
+
+/**
+ * «What is already on this PC is not installed again» (owner, 2026-10-12):
+ * a packaged install still prefers the checkout named in the settings over
+ * its own payload when that checkout is complete and `uv` is on PATH — then
+ * nothing is provisioned and the app runs exactly as a dev run does. A fresh
+ * install has no path set, so it stays bundled; a half-made checkout (no venv,
+ * no uv) is ignored rather than trusted.
+ */
+export function preferExternal(clone: string, has: (p: string) => boolean, uvOnPath: boolean, platform: string = process.platform): boolean {
+  const files = externalCloneFiles(clone, platform);
+  return files.length > 0 && uvOnPath && files.every(has);
+}
+
 // The one set of paths this process runs with. `runtime.ts` fills it once at
 // boot, from Electron's anchors; everything else reads it. Kept here, in the
 // Electron-free half, so `mcp.ts`, `status.ts` and `tv-cli.ts` never import

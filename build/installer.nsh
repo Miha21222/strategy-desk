@@ -29,6 +29,7 @@ Var SdTvFound        ; "1" when the TradingView.Desktop MSIX package is installe
 Var SdWingetFound    ; "1" when winget answers
 Var SdTvAction       ; "winget" | "open" | "" — what the user chose on the page
 Var SdTvCheckbox
+Var SdRuntimeFound   ; "1" when %APPDATA%\strategy-desk\py\provisioned.json is there from an earlier install
 
 !macro customPageAfterChangeDir
 
@@ -36,6 +37,9 @@ Var SdTvCheckbox
   Function sdDetect
     StrCpy $SdTvFound "0"
     StrCpy $SdWingetFound "0"
+    StrCpy $SdRuntimeFound "0"
+    IfFileExists "$APPDATA\strategy-desk\py\provisioned.json" 0 +2
+      StrCpy $SdRuntimeFound "1"
     ; The installer is a 32-bit process: without this, powershell.exe resolves
     ; to the SysWOW64 one, which may lack the Appx module.
     ${If} ${RunningX64}
@@ -91,8 +95,12 @@ Var SdTvCheckbox
       StrCpy $SdTvAction "open"
     ${EndIf}
 
-    ${NSD_CreateLabel} 0 70u 100% 24u "Claude Code отдельно ставить не нужно: он внутри приложения. Нужна только подписка Claude — вход сделаете в мастере при первом запуске."
+    ${NSD_CreateLabel} 0 64u 100% 20u "Claude Code отдельно ставить не нужно: он внутри приложения. Нужна только подписка Claude — вход сделаете в мастере при первом запуске."
     Pop $1
+    ${If} $SdRuntimeFound == "1"
+      ${NSD_CreateLabel} 0 88u 100% 20u "Окружение Python от прошлой установки сохранено в AppData — приложение не будет собирать его заново."
+      Pop $1
+    ${EndIf}
     nsDialogs::Show
   FunctionEnd
 

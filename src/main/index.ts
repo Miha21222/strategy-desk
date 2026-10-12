@@ -380,7 +380,7 @@ app.whenReady().then(async () => {
   // payload plus the provisioned environment in a packaged install, `uv` and
   // the configured checkout in a dev run. Read-only — it resolves paths, it
   // never creates the environment; that is a task, and a task needs a press.
-  const runtime = await initRuntimePaths();
+  const runtime = await initRuntimePaths(await getSettings());
   console.log(`[main] tvmcp runtime: ${modeOf(runtime)}${runtime.payloadDir ? ` (${runtime.payloadDir})` : ''}`);
   registerIpc(() => mainWindow);
   mainWindow = createWindow();

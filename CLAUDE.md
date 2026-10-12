@@ -197,9 +197,13 @@ tvmcp spawn in the app goes through it: the MCP server (`mcp.ts`), the `--check`
 deterministic CLI (`tv-cli.ts`). `src/main/runtime.ts` is the Electron half — it resolves the paths at boot and
 reports; it installs nothing.
 
-**Two modes, decided by whether the payload exists, never by a setting.** No payload (a dev run) = EXTERNAL:
-`uv` from PATH plus the checkout in `settings.tvmcpPath`, exactly as before bundling. Payload present =
-BUNDLED. The preflight shows `uv` + `tvmcpClone` in one mode and `tvmcpRuntime` in the other.
+**Two modes, decided by whether the payload exists — with one exception for what is already there.** No
+payload (a dev run) = EXTERNAL: `uv` from PATH plus the checkout in `settings.tvmcpPath`, exactly as before
+bundling. Payload present = BUNDLED, unless `settings.tvmcpPath` names a COMPLETE checkout (`pyproject.toml`
++ `.venv` interpreter) and `uv` is on PATH: then `initRuntimePaths(settings)` drops the payload and the
+app runs EXTERNAL (`preferExternal`, runtime-spec.ts, tested) — the owner's rule of 2026-10-12 that what
+is on the PC is not installed again. A fresh install has no path set, so it provisions. The preflight shows
+`uv` + `tvmcpClone` in one mode and `tvmcpRuntime` in the other.
 
 To exercise the bundled path in a dev run, put a payload where `binaryRoots` looks — the repo root:
 
@@ -332,8 +336,9 @@ tools. Nothing starts at launch: a task runs from the wizard or the preflight, w
 running it and stream the output while it runs. Since the installer work of 2026-10-12 a wizard PAGE presses
 for the user on `AUTO_TASKS` (`src/renderer/setup.ts`: `provision-runtime`, `install-chromium`,
 `session-check`) the moment it opens — once per task per wizard session, never a retry loop. The vault is
-asked for (path, picker, «Создать здесь»), because the folder is the owner's choice. The Claude login (`claude-login` = the SDK's bundled `claude.exe auth login --claudeai`, a browser page
-and a localhost redirect, like the MCP logins), the schedule (writes the sessionid into HKCU) and anything that
+asked for (path, picker, «Создать здесь»), because the folder is the owner's choice. The Claude login (`claude-login` = the SDK's bundled `claude.exe auth login --claudeai`: it opens the browser and then waits
+on «Paste code here» — verified 2026-10-12 — so it is the one task planned with `stdin: true`; the code field in
+`TaskFix` delivers the line through `tasks.input`), the schedule (writes the sessionid into HKCU) and anything that
 removes something still wait for the button.
 
 The official MCP's registration lives in Claude Code's own store rather than ours, because that is where its
