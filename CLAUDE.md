@@ -328,14 +328,40 @@ The things the app may do FOR the user — provision the runtime, fetch the head
 knowledge base, download its embedding model, register and authenticate the official TradingView MCP —
 share one runner (`src/main/tasks.ts`, contract in
 `src/shared/tasks.ts`). **The renderer names a task id, never a command**, the same rule `tv:call` keeps for
-tools. Nothing starts at launch: a task runs from a button in the preflight, which shows the command before
-running it and streams the output while it runs.
+tools. Nothing starts at launch: a task runs from the wizard or the preflight, which show the command before
+running it and stream the output while it runs. Since the installer work of 2026-10-12 a wizard PAGE presses
+for the user on `AUTO_TASKS` (`src/renderer/setup.ts`: `provision-runtime`, `install-chromium`,
+`session-check`) the moment it opens — once per task per wizard session, never a retry loop. The vault is
+asked for (path, picker, «Создать здесь»), because the folder is the owner's choice. The Claude login (`claude-login` = the SDK's bundled `claude.exe auth login --claudeai`, a browser page
+and a localhost redirect, like the MCP logins), the schedule (writes the sessionid into HKCU) and anything that
+removes something still wait for the button.
 
 The official MCP's registration lives in Claude Code's own store rather than ours, because that is where its
 OAuth token lives — and that store is consulted even though the app passes `mcpServers` programmatically with
 `strictMcpConfig: true` and `settingSources: []` (verified 2026-09-22: `status: connected, source: dynamic`).
 `claude mcp add` runs with `-s user`: the default `local` scope is private to one working directory, and the
 app's own directory is not where the user works.
+
+## The installer (`build/installer.nsh`, 2026-10-12)
+
+The distribution model: the trader downloads ONE installer; nothing else is required from outside. Claude
+Code (the SDK's `claude.exe`), Python + tvmcp (`uv` builds the venv on first run) and the vault template ship
+inside; the login is a button in the wizard; Obsidian is optional (the vault is a folder) and is not mentioned.
+`build/installer.nsh` is picked up by electron-builder by itself (default `nsis.include`), compiled twice
+(installer and, with `BUILD_UNINSTALLER`, the uninstaller; `-WX`, so unreferenced functions fail the build —
+hence the `!ifdef` fences, and the functions live INSIDE the macros because the file is read before MUI2 and
+nsDialogs are included). What it adds:
+
+- `customPageAfterChangeDir`: one page after the directory page — is TradingView Desktop on this PC
+  (`Get-AppxPackage TradingView.Desktop`, it is an MSIX package, no Uninstall registry key)? If not and winget
+  answers, a checkbox installs `TradingView.TradingViewDesktop` during the install (`customInstall`, failure =
+  a message, never a failed install); without winget the checkbox opens tradingview.com/desktop afterwards.
+  Skipped on `--updated` runs.
+- `customUnInstall`: asks whether to remove `%APPDATA%\strategy-desk\py` (the ~600 MB runtime the app built).
+  `deleteAppDataOnUninstall` stays false; the vault is never touched. `/SD IDNO` for silent uninstalls.
+
+Cannot be unit-tested: `npm run dist` (or `build-installer.cmd`) is the compile check, and a clean-account
+install is the real one (`state/install_smoke_<date>.md` in the owner's vault).
 
 ## Conventions
 

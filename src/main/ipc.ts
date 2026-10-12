@@ -12,7 +12,7 @@ import { runPreflight } from './preflight';
 import { freezeForChat } from './prompt';
 import { getPropFirms } from './rules';
 import { clearRuntime } from './runtime';
-import { allTaskStates, anyTaskRunning, runTask, stopTask, taskCommand, taskState } from './tasks';
+import { allTaskStates, anyTaskRunning, runTask, stopTask, writeTaskInput, taskCommand, taskState } from './tasks';
 import { getStatus, invalidateTvmcpCache } from './status';
 import * as store from './store';
 import { callTool } from './tv-cli';
@@ -159,6 +159,9 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   });
   ipcMain.on('tasks:stop', (_e, id: TaskId) => {
     if (isTaskId(id)) stopTask(id);
+  });
+  ipcMain.on('tasks:input', (_e, id: TaskId, text: string) => {
+    if (isTaskId(id) && typeof text === 'string') writeTaskInput(id, text);
   });
   ipcMain.handle('tasks:state', (_e, id: TaskId) => {
     if (!isTaskId(id)) throw new Error('unknown task');

@@ -307,6 +307,8 @@ export interface DeskApi {
   tasks: {
     run(id: TaskId): Promise<TaskState>;
     stop(id: TaskId): void;
+    /** One line into a running task's stdin (the login code `claude auth login` asks for). */
+    input(id: TaskId, text: string): void;
     state(id: TaskId): Promise<TaskState>;
     list(): Promise<TaskState[]>;
     command(id: TaskId): Promise<string>;

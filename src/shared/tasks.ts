@@ -12,9 +12,12 @@
 // exactly like `tv:call` and its tool allowlist — a compromised renderer can
 // ask for "provision-runtime" and nothing else.
 //
-// The second rule: nothing here ever starts by itself. The app may install,
-// download and log in — but only after a press, and the UI shows what it will
-// run before it runs.
+// The second rule: nothing here starts at launch. The app may install,
+// download and log in — but only from the wizard or the diagnosis, which show
+// what will run and stream the output. The wizard page presses for the user
+// on the tasks in `AUTO_TASKS` (renderer/setup.ts): laying down what the
+// installer carried; a login or a write into the user's environment waits
+// for the button.
 export const TASK_IDS = [
   'provision-runtime',
   'install-chromium',
@@ -35,6 +38,10 @@ export const TASK_IDS = [
   'session-check',
   'scheduler-register',
   'scheduler-unregister',
+  // The bundled Claude Code binary's own OAuth login (`claude auth login`):
+  // opens the browser, waits for the redirect, writes ~/.claude/.credentials.json
+  // — the same file the Agent SDK reads. The one press a fresh install needs.
+  'claude-login',
 ] as const;
 export type TaskId = (typeof TASK_IDS)[number];
 

@@ -23,6 +23,7 @@ const api: DeskApi = {
   tasks: {
     run: (id) => ipcRenderer.invoke('tasks:run', id),
     stop: (id) => ipcRenderer.send('tasks:stop', id),
+    input: (id, text) => ipcRenderer.send('tasks:input', id, text),
     state: (id) => ipcRenderer.invoke('tasks:state', id),
     list: () => ipcRenderer.invoke('tasks:list'),
     command: (id) => ipcRenderer.invoke('tasks:command', id),

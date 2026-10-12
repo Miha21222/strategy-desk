@@ -9,12 +9,12 @@
 // the command for and streams), a copyable command where it may not. A step can
 // be skipped, and the skip is remembered in the settings — the features it
 // weakens say so instead of failing mysteriously later.
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { SecretName, Settings } from '@shared/api';
 import type { PreflightCheck, PreflightFix, PreflightResult } from '@shared/preflight';
 import type { TaskId, TaskState } from '@shared/tasks';
 import { t } from '../i18n';
-import { isSkipped, SCHEDULE_TIMES, stepDone, stepIdsFor, visibleStepIds, WIZARD_STEPS, type StepId } from '../setup';
+import { autoFixes, isSkipped, SCHEDULE_TIMES, stepDone, stepIdsFor, stepTaskIds, visibleStepIds, WIZARD_STEPS, type StepId } from '../setup';
 import { PreflightList } from './PreflightList';
 
 export interface SetupWizardProps {
@@ -39,6 +39,8 @@ export interface SetupWizardProps {
   tasks?: Partial<Record<TaskId, TaskState>>;
   taskCommands?: Partial<Record<TaskId, string>>;
   onTaskStop?: (id: TaskId) => void;
+  /** One line into a running task: the login code from the browser. */
+  onTaskInput?: (id: TaskId, text: string) => void;
   onFinish: () => void;
   onClose: () => void;
 }
@@ -156,6 +158,23 @@ export function SetupWizard(p: SetupWizardProps) {
   const last = index === ids.length - 1;
   const stillSkipped = ids.filter((id) => p.skipped.includes(id));
 
+  // What the installer could not do, the page does when it opens: lay the
+  // vault template down, build the Python environment, fetch the browser,
+  // re-check a stored cookie (`AUTO_TASKS`). Once per task per wizard session;
+  // a failure is retried by the user, with the button and the log right there.
+  const started = useRef(new Set<TaskId>());
+  const [autoRan, setAutoRan] = useState<TaskId[]>([]);
+  useEffect(() => {
+    if (!p.result || p.busy) return;
+    const fixes = autoFixes(step.id, checks, p.tasks, started.current, p.taskCommands);
+    if (!fixes.length) return;
+    for (const fix of fixes) started.current.add(fix.task);
+    setAutoRan((prev) => [...prev, ...fixes.map((f) => f.task)]);
+    for (const fix of fixes) p.onFix(fix);
+  }, [step.id, p.result, p.busy, p.tasks, p.taskCommands]);
+  const stepTasks = stepTaskIds(step.id, checks);
+  const autoHere = autoRan.filter((id) => stepTasks.includes(id));
+
   return (
     <div class="modal-backdrop">
       <div class="modal wizard" role="dialog" aria-label={t('setup.title')}>
@@ -183,6 +202,7 @@ export function SetupWizard(p: SetupWizardProps) {
         <div class="wizard-body">
           <div class="muted">{t('setup.step', { n: index + 1, total: ids.length })}</div>
           <p>{t(`setup.stepIntro.${step.id}`)}</p>
+          {autoHere.length ? <p class="muted">{t('setup.auto', { list: autoHere.map((id) => p.taskCommands?.[id] || id).join('; ') })}</p> : null}
           {step.id === 'vault' ? <VaultExtra settings={p.settings} onPickVault={p.onPickVault} /> : null}
           {step.id === 'session' ? <SessionExtra settings={p.settings} check={checks.find((c) => c.id === 'tvSession')} onSecret={p.onSecret} onTask={p.onTask} tasks={p.tasks} /> : null}
           {step.id === 'schedule' ? <ScheduleExtra checks={checks} onTask={p.onTask} tasks={p.tasks} /> : null}
@@ -195,6 +215,7 @@ export function SetupWizard(p: SetupWizardProps) {
             onRecheck={p.onRecheck}
             onFix={p.onFix}
             onTaskStop={p.onTaskStop}
+            onTaskInput={p.onTaskInput}
           />
           {skipped ? <p class="notice warn">{t(`setup.limited.${step.id}`)}</p> : p.result ? <p class="muted">{done ? t('setup.stepOk') : t('setup.stepProblems')}</p> : null}
         </div>

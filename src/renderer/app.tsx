@@ -628,6 +628,7 @@ export function App() {
               tasks={tasks}
               taskCommands={taskCommands}
               onTaskStop={(id) => desk.tasks.stop(id)}
+              onTaskInput={(id, text) => desk.tasks.input(id, text)}
               onPreflight={() => void runPreflight()}
               onFix={(fix) => void applyFix(fix)}
               onOpenWizard={openWizard}
@@ -656,6 +657,7 @@ export function App() {
           tasks={tasks}
           taskCommands={taskCommands}
           onTaskStop={(id) => desk.tasks.stop(id)}
+          onTaskInput={(id, text) => desk.tasks.input(id, text)}
           settings={settings}
           onSecret={(n, v) => void setSecret(n, v)}
           onPickVault={() => void pickVault().then(() => runPreflight())}
