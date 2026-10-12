@@ -24,6 +24,7 @@ export interface SettingsTabProps {
   tasks?: Partial<Record<TaskId, TaskState>>;
   taskCommands?: Partial<Record<TaskId, string>>;
   onTaskStop?: (id: TaskId) => void;
+  onTaskInput?: (id: TaskId, text: string) => void;
   onOpenWizard: () => void;
   /** Delete the provisioned Python environment; absent in a dev run, where there is none. */
   onClearRuntime?: () => void;
@@ -224,6 +225,7 @@ export function SettingsTab(p: SettingsTabProps) {
           onRecheck={p.onPreflight}
           onFix={p.onFix}
           onTaskStop={p.onTaskStop}
+          onTaskInput={p.onTaskInput}
         />
         {limitationKeys(s).map((key) => (
           <p class="notice warn" key={key}>

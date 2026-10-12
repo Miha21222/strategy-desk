@@ -345,8 +345,9 @@ export function buildChecks(cfg: Settings, f: PreflightFacts): PreflightCheck[] 
       id: 'claude',
       status: 'fail',
       detailKey: 'preflight.claude.none',
-      // Logging in is an interactive terminal flow; a button here would lie.
-      fix: { kind: 'copy', labelKey: 'preflight.fix.copyLogin', command: 'claude', noteKey: 'preflight.claude.note' },
+      // The bundled binary's `auth login`: a browser page, then the redirect
+      // writes the credentials file the SDK reads. Started only by a press.
+      fix: { kind: 'run-task', labelKey: 'preflight.fix.claudeLogin', task: 'claude-login', noteKey: 'preflight.claude.note' },
     });
   } else {
     checks.push({ id: 'claude', status: 'ok', detailKey: `preflight.claude.${f.claude}` });

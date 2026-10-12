@@ -50,6 +50,8 @@ const TIMEOUTS: Record<TaskId, number> = {
   // Three Register-ScheduledTask calls.
   'scheduler-register': 2 * 60_000,
   'scheduler-unregister': 60_000,
+  // Opens a browser and waits for the redirect, like the MCP logins.
+  'claude-login': 10 * 60_000,
 };
 
 interface Plan {
@@ -74,6 +76,12 @@ interface Plan {
   work?: (push: (line: string) => void) => Promise<void>;
   /** The one line the UI shows for a `work` task before the press. */
   describe?: string;
+  /**
+   * Keep stdin open: the task asks the user for one line (the OAuth code the
+   * login page shows), and `writeTaskInput` delivers it. Everything else runs
+   * with stdin closed so nothing can wait on a prompt nobody sees.
+   */
+  stdin?: boolean;
 }
 
 type Emit = (ev: TaskEvent) => void;
@@ -101,6 +109,13 @@ export function taskInFlight(id: TaskId): Promise<TaskState> | null {
 
 export function stopTask(id: TaskId): void {
   running.get(id)?.child.kill();
+}
+
+/** One line into a running task that was planned with `stdin: true`; anything else is ignored. */
+export function writeTaskInput(id: TaskId, text: string): void {
+  const child = running.get(id)?.child;
+  if (!child?.stdin || child.stdin.destroyed) return;
+  child.stdin.write(text.trim() + '\n');
 }
 
 /** What a task will run, as one line — shown in the UI before the press. */
@@ -265,6 +280,13 @@ async function planFor(cfg: Settings, id: TaskId): Promise<Plan | null> {
   // purpose: the default scope is `local`, which is private to one working
   // directory, and the app's own directory is not where the user works.
   const claude = claudeBin();
+  if (id === 'claude-login') {
+    // The SDK's own binary, so a machine with no `claude` on PATH logs in all
+    // the same. Verified 2026-10-12 with stdin closed: it opens the browser and
+    // then waits on «Paste code here if prompted >» — so stdin stays open and
+    // the wizard's field delivers the code (`writeTaskInput`).
+    return { spec: { command: claude, args: ['auth', 'login', '--claudeai'] }, env: {}, cwd, stdin: true };
+  }
   if (id === 'official-mcp-add') {
     return {
       spec: { command: claude, args: ['mcp', 'add', '-s', 'user', '-t', 'http', OFFICIAL_MCP_NAME, OFFICIAL_MCP_URL] },
@@ -304,8 +326,9 @@ export async function runTask(cfg: Settings, id: TaskId, emit: Emit): Promise<Ta
     cwd: plan.cwd,
     env: { ...process.env, ...plan.env },
     windowsHide: true,
-    // stdin closed: none of these four may wait on a prompt we cannot answer.
-    stdio: ['ignore', 'pipe', 'pipe'],
+    // stdin closed unless the plan asks for it: nothing may wait on a prompt
+    // nobody sees. The login is the one task with a line to deliver.
+    stdio: [plan.stdin ? 'pipe' : 'ignore', 'pipe', 'pipe'],
   });
 
   const done = new Promise<TaskState>((resolve) => {

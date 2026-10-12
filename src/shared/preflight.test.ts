@@ -256,7 +256,7 @@ describe('status mapping, one faked probe at a time', () => {
     expect(c.vars?.error).toBe("ModuleNotFoundError: No module named 'httpx'");
   });
 
-  it('Claude: each login route is ok, "none" fails with a copyable command, not a button', () => {
+  it('Claude: each login route is ok, "none" fails with the bundled binary login as a task', () => {
     for (const mode of ['subscription', 'api-key', 'setup-token'] as const) {
       const f = healthyFacts();
       f.claude = mode;
@@ -268,8 +268,9 @@ describe('status mapping, one faked probe at a time', () => {
     f.claude = 'none';
     const c = buildChecks(cfg, f).find((x) => x.id === 'claude')!;
     expect(c.status).toBe('fail');
-    expect(c.fix?.kind).toBe('copy');
-    expect(c.fix?.kind === 'copy' && c.fix.noteKey).toBe('preflight.claude.note');
+    expect(c.fix?.kind).toBe('run-task');
+    expect(c.fix?.kind === 'run-task' && c.fix.task).toBe('claude-login');
+    expect(c.fix?.kind === 'run-task' && c.fix.noteKey).toBe('preflight.claude.note');
   });
 
   it('TradingView: not running -> the launch button; running flagless -> an explanation, never a kill', () => {
