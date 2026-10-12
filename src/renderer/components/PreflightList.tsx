@@ -28,6 +28,8 @@ export interface PreflightListProps {
   onRecheck: () => void;
   onFix: (fix: PreflightFix) => void;
   onTaskStop?: (id: TaskId) => void;
+  /** One line into a running task (the login asks for the code the browser shows). */
+  onTaskInput?: (id: TaskId, text: string) => void;
 }
 
 const MARK: Record<string, string> = { ok: '✓', warn: '!', fail: '×', unknown: '?' };
@@ -64,14 +66,20 @@ function TaskFix({
   command,
   onFix,
   onStop,
+  onInput,
 }: {
   fix: Extract<PreflightFix, { kind: 'run-task' }>;
   state?: TaskState;
   command?: string;
   onFix: (f: PreflightFix) => void;
   onStop?: (id: TaskId) => void;
+  onInput?: (id: TaskId, text: string) => void;
 }) {
   const [showLog, setShowLog] = useState(false);
+  const [code, setCode] = useState('');
+  // The login is the one task that waits on a line: the browser shows a code
+  // after the sign-in, and this field hands it to the process.
+  const wantsCode = fix.task === 'claude-login' && Boolean(state?.running) && Boolean(onInput);
   const running = Boolean(state?.running);
   const lines = state?.lines ?? [];
   const note = fix.noteKey ? t(fix.noteKey) : '';
@@ -96,6 +104,22 @@ function TaskFix({
           </button>
         ) : null}
       </div>
+      {wantsCode ? (
+        <div class="inline">
+          <input type="text" value={code} autocomplete="off" placeholder={t('preflight.task.codeField')} onInput={(e) => setCode((e.target as HTMLInputElement).value)} />
+          <button
+            type="button"
+            class="primary"
+            disabled={!code.trim()}
+            onClick={() => {
+              onInput?.(fix.task, code.trim());
+              setCode('');
+            }}
+          >
+            {t('preflight.task.sendCode')}
+          </button>
+        </div>
+      ) : null}
       {state?.ok === false && state.error ? <p class="fix-note error">{t('preflight.task.failed', { error: state.error })}</p> : null}
       {state?.ok === true ? <p class="fix-note">{t('preflight.task.done')}</p> : null}
       {lines.length ? <pre class="task-log">{(showLog ? lines : tail).join('\n')}</pre> : null}
@@ -109,18 +133,20 @@ function Fix({
   taskCommands,
   onFix,
   onTaskStop,
+  onTaskInput,
 }: {
   fix: PreflightFix;
   tasks?: Partial<Record<TaskId, TaskState>>;
   taskCommands?: Partial<Record<TaskId, string>>;
   onFix: (f: PreflightFix) => void;
   onTaskStop?: (id: TaskId) => void;
+  onTaskInput?: (id: TaskId, text: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const note = 'noteKey' in fix && fix.noteKey ? t(fix.noteKey) : '';
 
   if (fix.kind === 'run-task') {
-    return <TaskFix fix={fix} state={tasks?.[fix.task]} command={taskCommands?.[fix.task]} onFix={onFix} onStop={onTaskStop} />;
+    return <TaskFix fix={fix} state={tasks?.[fix.task]} command={taskCommands?.[fix.task]} onFix={onFix} onStop={onTaskStop} onInput={onTaskInput} />;
   }
 
   if (fix.kind === 'copy') {
@@ -167,12 +193,14 @@ function Row({
   taskCommands,
   onFix,
   onTaskStop,
+  onTaskInput,
 }: {
   check: PreflightCheck;
   tasks?: Partial<Record<TaskId, TaskState>>;
   taskCommands?: Partial<Record<TaskId, string>>;
   onFix: (f: PreflightFix) => void;
   onTaskStop?: (id: TaskId) => void;
+  onTaskInput?: (id: TaskId, text: string) => void;
 }) {
   return (
     <li class={`pf-row ${check.status}`}>
@@ -182,7 +210,7 @@ function Row({
       <div class="pf-body">
         <div class="pf-title">{t(`preflight.check.${check.id}`)}</div>
         <div class="pf-detail">{t(check.detailKey, check.vars)}</div>
-        {check.fix ? <Fix fix={check.fix} tasks={tasks} taskCommands={taskCommands} onFix={onFix} onTaskStop={onTaskStop} /> : null}
+        {check.fix ? <Fix fix={check.fix} tasks={tasks} taskCommands={taskCommands} onFix={onFix} onTaskStop={onTaskStop} onTaskInput={onTaskInput} /> : null}
         {check.docs ? (
           <a href={check.docs} target="_blank" rel="noreferrer">
             {t('preflight.docs')}
@@ -214,7 +242,7 @@ export function PreflightList(p: PreflightListProps) {
       </div>
       <ul class="pf-list">
         {checks.map((c) => (
-          <Row key={c.id} check={c} tasks={p.tasks} taskCommands={p.taskCommands} onFix={p.onFix} onTaskStop={p.onTaskStop} />
+          <Row key={c.id} check={c} tasks={p.tasks} taskCommands={p.taskCommands} onFix={p.onFix} onTaskStop={p.onTaskStop} onTaskInput={p.onTaskInput} />
         ))}
       </ul>
     </div>
