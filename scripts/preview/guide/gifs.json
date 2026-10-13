@@ -1,0 +1,205 @@
+[
+ {
+  "name": "your-read",
+  "now": "2026-09-14T06:40:00Z",
+  "query": "?fresh=1",
+  "actions": [
+   {
+    "wait": 400
+   },
+   {
+    "click": "button:has-text('вниз')",
+    "pause": 1500
+   },
+   {
+    "wheel": 520
+   },
+   {
+    "wait": 700
+   }
+  ]
+ },
+ {
+  "name": "factor",
+  "now": "2026-09-14T06:40:00Z",
+  "query": "?fresh=1",
+  "pre": [
+   {
+    "click": "button:has-text('вниз')"
+   },
+   {
+    "scroll": ".card.why"
+   }
+  ],
+  "actions": [
+   {
+    "wait": 400
+   },
+   {
+    "click": ".card.why .whycol.short .frow",
+    "pause": 2000
+   },
+   {
+    "click": ".lb-close",
+    "pause": 500
+   }
+  ]
+ },
+ {
+  "name": "argue",
+  "now": "2026-09-14T06:40:00Z",
+  "query": "?fresh=1",
+  "pre": [
+   {
+    "click": "button:has-text('вниз')"
+   },
+   {
+    "scroll": ".card.why"
+   }
+  ],
+  "actions": [
+   {
+    "wait": 300
+   },
+   {
+    "click": ".card.discussion button:has-text('за шорт')",
+    "pause": 450
+   },
+   {
+    "click": ".card.discussion button:has-text('ключевой')",
+    "pause": 450
+   },
+   {
+    "type": [
+     ".card.discussion textarea",
+     "DAX у недельного минимума, шортить поздно"
+    ]
+   },
+   {
+    "hover": ".card.discussion button:has-text('Отправить')",
+    "pause": 1000
+   }
+  ]
+ },
+ {
+  "name": "evening",
+  "now": "2026-09-14T17:10:00Z",
+  "query": "?fresh=1",
+  "pre": [
+   {
+    "click": [
+     ".wtile:nth-child(1)",
+     "button:has-text('вниз')",
+     ".wtile:nth-child(2)",
+     "button:has-text('не торгую')",
+     ".wtile:nth-child(1)"
+    ]
+   },
+   {
+    "eval": "document.querySelector('.macro').scrollTo(0,0)"
+   }
+  ],
+  "actions": [
+   {
+    "wait": 200
+   },
+   {
+    "click": ".wtile:nth-child(3)",
+    "pause": 700
+   },
+   {
+    "click": ".answers-row:nth-of-type(1) .seg button:has-text('шорт')",
+    "pause": 300
+   },
+   {
+    "click": ".answers-row:nth-of-type(1) .seg:nth-of-type(2) button:has-text('по правилу')",
+    "pause": 300
+   },
+   {
+    "click": ".answers-row:nth-of-type(2) .seg button:has-text('не брал')",
+    "pause": 300
+   },
+   {
+    "type": [
+     "form.human input",
+     "Ждал вторую манипуляцию — сработало"
+    ]
+   },
+   {
+    "click": "button:has-text('Сохранить')",
+    "pause": 1300
+   }
+  ],
+  "tail": 200
+ },
+ {
+  "name": "wizard",
+  "now": "2026-09-15T06:40:00Z",
+  "query": "?wizard=1&pf=ok",
+  "pre": [
+   {
+    "wait": 800
+   }
+  ],
+  "actions": [
+   {
+    "wait": 400
+   },
+   {
+    "click": ".wizard footer button:has-text('Дальше')",
+    "pause": 760
+   },
+   {
+    "click": ".wizard footer button:has-text('Дальше')",
+    "pause": 760
+   },
+   {
+    "click": ".wizard footer button:has-text('Дальше')",
+    "pause": 760
+   },
+   {
+    "click": ".wizard footer button:has-text('Дальше')",
+    "pause": 760
+   },
+   {
+    "click": ".wizard footer button:has-text('Дальше')",
+    "pause": 760
+   },
+   {
+    "click": ".wizard footer button:has-text('Готово')",
+    "pause": 900
+   }
+  ],
+  "tail": 200
+ },
+ {
+  "name": "days",
+  "now": "2026-09-15T06:40:00Z",
+  "actions": [
+   {
+    "wait": 400
+   },
+   {
+    "click": "button[title='Предыдущий день']",
+    "pause": 1000
+   },
+   {
+    "click": ".wtile:nth-child(2)",
+    "pause": 900
+   },
+   {
+    "click": ".wtile:nth-child(3)",
+    "pause": 1000
+   },
+   {
+    "click": ".wtile:nth-child(1)",
+    "pause": 700
+   },
+   {
+    "click": "button[title='Следующий день']",
+    "pause": 900
+   }
+  ],
+  "tail": 300
+ }
+]

@@ -14,5 +14,5 @@ cp -r "$OUT/data" "$OUT/site/data"
 mkdir -p "$OUT/site/vault" && cp -r "${VAULT:-demo-vault}/indices-kb" "$OUT/site/vault/"
 cp scripts/preview/desk-mock.js "$OUT/site/"
 sed -i 's#<script type="module"#<script src="./desk-mock.js"></script>\n    <script type="module"#' "$OUT/site/index.html"
-node scripts/preview/shoot.mjs
+[ "${SHOOT:-1}" = 0 ] || node scripts/preview/shoot.mjs
 echo "shots: $OUT/shots"

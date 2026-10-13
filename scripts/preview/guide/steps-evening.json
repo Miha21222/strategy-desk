@@ -1,0 +1,5 @@
+[
+ {"name": "06-desk-review", "click": [".wtile:nth-child(1)", "button:has-text('вниз')", ".wtile:nth-child(2)", "button:has-text('не торгую')", ".wtile:nth-child(3)"], "fit": true},
+ {"name": "06b-desk-review-answered", "click": [".answers-row:nth-of-type(1) .seg button:has-text('шорт')", ".answers-row:nth-of-type(1) .seg:nth-of-type(2) button:has-text('по правилу')", ".answers-row:nth-of-type(2) .seg button:has-text('не брал')"], "fill": ["form.human input", "Ждал вторую манипуляцию, как в уроке — сработало"], "wait": 300},
+ {"name": "07-desk-review-saved", "click": "button:has-text('Сохранить')", "fit": true}
+]
