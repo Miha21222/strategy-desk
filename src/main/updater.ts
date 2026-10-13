@@ -16,13 +16,16 @@
 //     the renderer would have to inject it. The state carries the release URL.
 // A private repository answers 404 without a token; the `ghToken` secret
 // (safeStorage) goes into the feed options at check time, never into a file.
+import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { app } from 'electron';
 import { autoUpdater, type ProgressInfo, type UpdateInfo } from 'electron-updater';
 import { APP_LINKS, type UpdateInstallResult, type UpdateState } from '@shared/api';
 import { anyChatActive } from './agent';
 import * as store from './store';
 import { anyTaskRunning } from './tasks';
+import { foreignProcessesIn, LIST_PROCESSES_PS, parseProcessList } from './update-guard';
 
 /** First automatic check after start, then the interval between checks. */
 export const AUTO_CHECK_DELAY_MS = 30_000;
@@ -136,14 +139,42 @@ export function downloadUpdate(): Promise<UpdateState> {
 }
 
 /**
- * Quit and run the downloaded installer silently, then relaunch. Refused, not
- * failed, while a chat streams or a task runs — the renderer says so and the
- * user presses again later.
+ * Processes running from the install folder that are not the app itself —
+ * the scheduler's `claude.exe` above all, which the desk did not start and
+ * cannot see otherwise. A probe that fails (no PowerShell, a timeout) is
+ * logged and read as «nothing», because the alternative is an app that can
+ * never update on that machine.
  */
-export function installUpdate(): UpdateInstallResult {
+export async function foreignProcesses(): Promise<string[]> {
+  if (process.platform !== 'win32') return [];
+  const root = path.dirname(app.getPath('exe'));
+  const own = path.basename(app.getPath('exe'));
+  const text = await new Promise<string>((resolve) => {
+    execFile('powershell', ['-NoProfile', '-NonInteractive', '-Command', LIST_PROCESSES_PS], { windowsHide: true, timeout: 8000, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+      if (err) {
+        console.warn('[update] process probe failed:', shortError(err));
+        resolve('');
+      } else resolve(String(stdout));
+    });
+  });
+  return foreignProcessesIn(root, own, parseProcessList(text));
+}
+
+/**
+ * Quit and run the downloaded installer silently, then relaunch. Refused, not
+ * failed, while a chat streams, a task runs, or anything else runs from the
+ * install folder (the scheduled review's `claude.exe`) — the renderer says so
+ * and the user presses again later.
+ */
+export async function installUpdate(): Promise<UpdateInstallResult> {
   if (state.status === 'dev') return { ok: false, reason: 'dev' };
   if (state.status !== 'downloaded') return { ok: false, reason: 'not-downloaded' };
   if (anyChatActive() || anyTaskRunning()) return { ok: false, reason: 'busy' };
+  const others = await foreignProcesses();
+  if (others.length) {
+    console.log('[update] install refused, running from the install folder:', others.join(', '));
+    return { ok: false, reason: 'busy' };
+  }
   setImmediate(() => autoUpdater.quitAndInstall(true, true));
   return { ok: true };
 }
