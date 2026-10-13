@@ -1,7 +1,7 @@
 // Application shell: sidebar + tabbed main area + report drawer. Owns all
 // renderer state, the single chat:event subscription and the card actions.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Attachment, AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, SecretName, Settings, SettingsPatch, Status, StoredReport, TraderProfile, WorkflowDef } from '@shared/api';
+import type { Attachment, AgentInit, ChatEvent, ChatKind, ChatMeta, ChatMode, SecretName, Settings, SettingsPatch, Status, StoredReport, TraderProfile, UpdateInstallResult, UpdateState, WorkflowDef } from '@shared/api';
 import type { StressReport } from '@shared/blocks';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS } from '@shared/defaults';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
@@ -20,6 +20,7 @@ import { SettingsTab } from './components/SettingsTab';
 import { SetupWizard } from './components/SetupWizard';
 import { Sidebar } from './components/Sidebar';
 import { Toasts } from './components/Toasts';
+import { UpdateBanner } from './components/UpdateBanner';
 import { WorkflowsTab } from './components/WorkflowsTab';
 import { t } from './i18n';
 import { healthCheckPrompt, REPORT_CATALOG } from './prompts';
@@ -80,6 +81,9 @@ export function App() {
   // between the wizard and the settings while a 15-minute sync is in flight.
   const [tasks, setTasks] = useState<Partial<Record<TaskId, TaskState>>>({});
   const [taskCommands, setTaskCommands] = useState<Partial<Record<TaskId, string>>>({});
+  // The updater's state: one for the whole shell, so the banner under the tabs
+  // and Настройки → Справка never disagree about what is downloaded.
+  const [update, setUpdate] = useState<UpdateState | null>(null);
 
   // Refs so the event handler sees fresh values without resubscribing.
   const currentKeyRef = useRef<string | null>(null);
@@ -153,6 +157,49 @@ export function App() {
     })();
     return off;
   }, [desk]);
+
+  // The update flow, wired like the tasks: read once, then follow the events.
+  // `desk.update` is guarded because the preload bridge may lag the contract
+  // in a dev run; the section then simply reads «не проверялись».
+  useEffect(() => {
+    if (!desk.update) return;
+    const off = desk.update.onEvent(setUpdate);
+    desk.update
+      .state()
+      .then(setUpdate)
+      .catch(() => undefined);
+    return off;
+  }, [desk]);
+
+  const checkUpdate = useCallback(() => {
+    if (!desk.update) return;
+    setUpdate((prev) => (prev ? { ...prev, status: 'checking' } : prev));
+    desk.update
+      .check()
+      .then(setUpdate)
+      .catch((e: unknown) => setUpdate((prev) => ({ status: 'error', current: prev?.current ?? '', error: String(e) })));
+  }, [desk]);
+
+  const downloadUpdate = useCallback(() => {
+    if (!desk.update) return;
+    desk.update
+      .download()
+      .then(setUpdate)
+      .catch((e: unknown) => setUpdate((prev) => ({ status: 'error', current: prev?.current ?? '', error: String(e) })));
+  }, [desk]);
+
+  /** The same refusal reads the same from the banner and from the settings: one handler. */
+  const installUpdate = useCallback(async (): Promise<UpdateInstallResult> => {
+    if (!desk.update) return { ok: false, reason: 'dev' };
+    const r = await desk.update.install().catch((e: unknown): UpdateInstallResult => {
+      pushToast(t('about.statusError', { error: String(e) }), 'error');
+      return { ok: false };
+    });
+    if (!r.ok && r.reason === 'busy') pushToast(t('about.busy'), 'warn');
+    else if (!r.ok && r.reason === 'not-downloaded') pushToast(t('about.notDownloaded'), 'warn');
+    else if (!r.ok && r.reason === 'dev') pushToast(t('about.devInstall'), 'info');
+    return r;
+  }, [desk, pushToast]);
 
   /** Start one of the four operations, then re-probe: the fix only counts if it took. */
   const runTask = useCallback(
@@ -597,6 +644,7 @@ export function App() {
             </button>
           ))}
         </nav>
+        <UpdateBanner update={update} onDownload={downloadUpdate} onInstall={installUpdate} onMore={() => setTab('settings')} />
         <CardActionsContext.Provider value={cardActions}>
           {tab === 'macro' ? (
             <MacroBoundary>
@@ -638,6 +686,10 @@ export function App() {
               onPickVault={() => void pickVault().then(() => runPreflight())}
               onProfile={(p) => void desk.profile.set(p).then(setProfile)}
               onToast={pushToast}
+              update={update}
+              onUpdateCheck={checkUpdate}
+              onUpdateDownload={downloadUpdate}
+              onUpdateInstall={installUpdate}
             />
           ) : (
             <HelpTab onOpenWizard={openWizard} simple={!settings.legacyUi} />

@@ -10,18 +10,21 @@ import { MAX_REPORTS } from '@shared/api';
 import { DEFAULT_PROFILE, DEFAULT_SETTINGS, DEFAULT_VAULT_DIRNAME, legacyConfigPatch } from '@shared/defaults';
 import { MAX_PANEL_DAYS, MAX_PANEL_EVENTS, type PanelDayState, type SentinelEvent } from '@shared/panel';
 
-interface ConfigFile extends Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession'> {
+interface ConfigFile extends Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession' | 'hasGhToken'> {
   /** base64 of safeStorage.encryptString(); absent when not set. */
   apiKeyEnc?: string;
   oauthTokenEnc?: string;
   /** The TradingView sessionid cookie, same encryption; the macro tools read it as TV_SESSIONID. */
   tvSessionEnc?: string;
+  /** A GitHub token for the updater (private repository), same encryption. */
+  ghTokenEnc?: string;
 }
 
-const SECRET_FIELD: Record<SecretName, 'apiKeyEnc' | 'oauthTokenEnc' | 'tvSessionEnc'> = {
+const SECRET_FIELD: Record<SecretName, 'apiKeyEnc' | 'oauthTokenEnc' | 'tvSessionEnc' | 'ghTokenEnc'> = {
   apiKey: 'apiKeyEnc',
   oauthToken: 'oauthTokenEnc',
   tvSession: 'tvSessionEnc',
+  ghToken: 'ghTokenEnc',
 };
 
 const userData = () => app.getPath('userData');
@@ -64,7 +67,7 @@ function decrypt(enc: string | undefined): string | null {
 // ---------- config ----------
 
 const CONFIG_DEFAULTS: ConfigFile = (() => {
-  const { hasApiKey: _a, hasOauthToken: _b, hasTvSession: _c, ...rest } = DEFAULT_SETTINGS;
+  const { hasApiKey: _a, hasOauthToken: _b, hasTvSession: _c, hasGhToken: _d, ...rest } = DEFAULT_SETTINGS;
   return rest;
 })();
 
@@ -95,13 +98,14 @@ export function defaultVaultPath(): string {
 }
 
 function toSettings(cfg: ConfigFile): Settings {
-  const { apiKeyEnc, oauthTokenEnc, tvSessionEnc, ...rest } = cfg;
+  const { apiKeyEnc, oauthTokenEnc, tvSessionEnc, ghTokenEnc, ...rest } = cfg;
   return {
     ...rest,
     vaultPath: (rest.vaultPath || '').trim() || defaultVaultPath(),
     hasApiKey: Boolean(apiKeyEnc),
     hasOauthToken: Boolean(oauthTokenEnc),
     hasTvSession: Boolean(tvSessionEnc),
+    hasGhToken: Boolean(ghTokenEnc),
   };
 }
 
@@ -136,9 +140,9 @@ export async function clearSecret(name: SecretName): Promise<Settings> {
 }
 
 /** Main-process only: plaintext secrets for the agent environment. */
-export async function getSecrets(): Promise<{ apiKey: string | null; oauthToken: string | null; tvSession: string | null }> {
+export async function getSecrets(): Promise<{ apiKey: string | null; oauthToken: string | null; tvSession: string | null; ghToken: string | null }> {
   const cfg = await readConfig();
-  return { apiKey: decrypt(cfg.apiKeyEnc), oauthToken: decrypt(cfg.oauthTokenEnc), tvSession: decrypt(cfg.tvSessionEnc) };
+  return { apiKey: decrypt(cfg.apiKeyEnc), oauthToken: decrypt(cfg.oauthTokenEnc), tvSession: decrypt(cfg.tvSessionEnc), ghToken: decrypt(cfg.ghTokenEnc) };
 }
 
 // ---------- profile ----------

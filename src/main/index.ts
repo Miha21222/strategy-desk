@@ -24,6 +24,7 @@ import { getStatus, tvmcpStatus } from './status';
 import { chatWorkspaceDir, getSettings } from './store';
 import { callTool } from './tv-cli';
 import { listWorkflows } from './workflows';
+import { runUpdateSmoke, startAutoCheck } from './updater';
 
 const isDev = !app.isPackaged;
 let mainWindow: BrowserWindow | null = null;
@@ -110,6 +111,14 @@ async function runPackSmoke(): Promise<void> {
     const missing = must.filter((rel) => !existsSync(path.join(template, ...rel.split('/'))));
     console.log('[pack] vault-template files', missing.length ? `MISSING ${missing.join(', ')}` : `${must.length} checked`);
     if (missing.length) problems.push(`the vault template is incomplete: ${missing.join(', ')}`);
+  }
+
+  // electron-updater reads the feed (owner/repo) from resources/app-update.yml,
+  // which electron-builder writes only with a `publish` block in the config.
+  if (app.isPackaged) {
+    const feed = path.join(process.resourcesPath, 'app-update.yml');
+    console.log('[pack] app-update.yml', existsSync(feed) ? 'ok' : 'NOT FOUND');
+    if (!existsSync(feed)) problems.push('no resources/app-update.yml: the installed app cannot check for updates (publish block in electron-builder.yml)');
   }
 
   const workflows = await listWorkflows();
@@ -201,6 +210,7 @@ async function runPackSmoke(): Promise<void> {
 // runs against the packaged binary. The app quits by itself afterwards.
 async function runSmoke(kind: string): Promise<void> {
   if (kind === 'pack') return runPackSmoke();
+  if (kind === 'update') return runUpdateSmoke();
   const cfg = await getSettings();
   console.log('[smoke] status', JSON.stringify(await getStatus(cfg)));
   if (kind === 'preflight') {
@@ -384,6 +394,10 @@ app.whenReady().then(async () => {
   console.log(`[main] tvmcp runtime: ${modeOf(runtime)}${runtime.payloadDir ? ` (${runtime.payloadDir})` : ''}`);
   registerIpc(() => mainWindow);
   mainWindow = createWindow();
+  // The automatic update check (30 s after start, then every few hours) —
+  // a check only; downloading and installing wait for a press. Not during a
+  // smoke run, which has its own `update` kind.
+  if (!process.env.DESK_SMOKE) startAutoCheck();
   console.log(`[main] Strategy Desk ${app.getVersion()} ready; userData=${app.getPath('userData')}`);
   // `dist:check` asserts on this line, so a smoke run must not quit before it:
   // in a packaged build the renderer finishes loading well after a short smoke

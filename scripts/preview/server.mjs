@@ -41,7 +41,7 @@ export const FIT_HEIGHT = `(() => {
 })()`;
 
 /** Raw i18n keys on screen are a failure, not a cosmetic: this finds them. */
-export const RAW_KEYS = `(() => (document.body.innerText.match(/\\b(preflight|setup|macro|settings|help|tabs|sidebar|chat)\\.[a-zA-Z][\\w.]+/g) || []).slice(0, 10))()`;
+export const RAW_KEYS = `(() => (document.body.innerText.match(/\\b(preflight|setup|macro|settings|help|tabs|sidebar|chat|about)\\.[a-zA-Z][\\w.]+/g) || []).slice(0, 10))()`;
 
 /** A visible cursor for the recordings: Playwright's video shows none of its own. */
 export const CURSOR_SCRIPT = `(() => {

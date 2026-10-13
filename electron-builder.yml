@@ -103,14 +103,15 @@ linux:
   icon: build/icon.png
 # Auto-update is OFF. There is no release channel and no signing certificate,
 # so the app never phones home and never offers an update; a new version is a
-# new installer. To turn releases on later, drop `publish: null`, uncomment the
-# block below, `npm i electron-updater`, and call autoUpdater.checkForUpdates()
-# from src/main/index.ts (it needs GH_TOKEN only when publishing, not when
-# checking). differentialPackage above must go back to true for delta updates.
-#
-# publish:
-#   provider: github
-#   owner: Miha21222
-#   repo: strategy-desk
-#   releaseType: release        # draft while testing
-publish: null
+# new installer. Since 0.2.1 the app checks this repository's GitHub Releases
+# itself (src/main/updater.ts, electron-updater): the block below makes
+# electron-builder write resources/app-update.yml (the feed the installed app
+# reads) and release/latest.yml (the manifest the release must carry next to
+# the .exe — `gh release create … latest.yml`). Nothing is uploaded from a
+# build: the dist scripts pass `--publish never`. differentialPackage stays
+# false: delta updates need every previous blockmap on the release, not worth
+# it for a 190 MB installer that changes rarely.
+publish:
+  provider: github
+  owner: Miha21222
+  repo: strategy-desk

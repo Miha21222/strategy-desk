@@ -1,14 +1,31 @@
 // Settings tab: the diagnosis, Claude auth, tvmcp, the day/risk files,
-// model/effort, permissions, theme, trader profile.
+// model/effort, permissions, theme, the «Справка» section (version, updates,
+// links, changelog), trader profile.
+import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import type { ChatKind, EffortLevel, SecretName, Settings, SettingsPatch, Status, TraderProfile, WorkflowDef } from '@shared/api';
+import type { ChatKind, EffortLevel, SecretName, Settings, SettingsPatch, Status, TraderProfile, UpdateInstallResult, UpdateState, WorkflowDef } from '@shared/api';
+import { APP_LINKS } from '@shared/api';
 import type { PreflightFix, PreflightResult } from '@shared/preflight';
 import type { TaskId, TaskState } from '@shared/tasks';
 import { ZOOM_STEPS } from '@shared/zoom';
 import { t } from '../i18n';
 import { limitationKeys } from '../setup';
 import { SHELF_KINDS } from '../state';
+import { GuideView } from './GuideView';
 import { PreflightList } from './PreflightList';
+// The changelog ships inside the bundle (Vite inlines `?raw` at build time), the
+// same way guide.ts carries README.md — so no electron-builder `files:` entry.
+import changelogMd from '../../../CHANGELOG.md?raw';
+
+/** The title and the intro paragraph are for GitHub; inside the <details> the summary already says it. */
+const CHANGELOG_BODY = changelogMd.slice(Math.max(0, changelogMd.indexOf('\n## ')));
+
+const ruDate = (iso: string): string => {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+const ruTime = (ms: number): string => new Date(ms).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+const mb = (bytes: number | undefined): string => ((bytes ?? 0) / 1048576).toFixed(1);
 
 export interface SettingsTabProps {
   settings: Settings;
@@ -35,6 +52,12 @@ export interface SettingsTabProps {
   onProfile: (p: TraderProfile) => void;
   /** Native folder picker for the vault; the result lands in settings.vaultPath. */
   onPickVault: () => void;
+  /** The updater's state, owned by app.tsx so the banner under the tabs and this section agree. */
+  update: UpdateState | null;
+  onUpdateCheck: () => void;
+  onUpdateDownload: () => void;
+  /** Resolves with the refusal, if any; the toast for it is app.tsx's, shared with the banner. */
+  onUpdateInstall: () => Promise<UpdateInstallResult>;
 }
 
 const EFFORTS: EffortLevel[] = ['', 'low', 'medium', 'high', 'xhigh', 'max'];
@@ -65,6 +88,111 @@ function SecretField({ label, isSet, onSave, onClear }: { label: string; isSet: 
       </div>
       <small>{t('settings.secretHint')}</small>
     </label>
+  );
+}
+
+const openExternal = (url: string) => void window.desk.open.external(url);
+
+/** Настройки → «Справка»: the version, the update flow, the secret the private repo needs, the links, the changelog. */
+function AboutSection(p: Pick<SettingsTabProps, 'settings' | 'update' | 'onSettings' | 'onSecret' | 'onUpdateCheck' | 'onUpdateDownload' | 'onUpdateInstall'>) {
+  const [version, setVersion] = useState<string>('');
+  useEffect(() => {
+    void window.desk.app
+      .version()
+      .then(setVersion)
+      .catch(() => undefined);
+  }, []);
+  const u = p.update;
+  const status = u?.status ?? 'idle';
+  const busy = status === 'checking' || status === 'downloading';
+  const shown = version || u?.current || '';
+  const notesUrl = u?.url || APP_LINKS.releases;
+
+  let line: ComponentChildren;
+  switch (status) {
+    case 'dev':
+      line = t('about.statusDev');
+      break;
+    case 'checking':
+      line = t('about.statusChecking');
+      break;
+    case 'none':
+      line = t('about.statusNone', { time: ruTime(u?.checkedAt ?? Date.now()) });
+      break;
+    case 'available':
+      line = (
+        <>
+          <span>{u?.date ? t('about.statusAvailable', { v: u.version ?? '', date: ruDate(u.date) }) : t('about.statusAvailableNoDate', { v: u?.version ?? '' })}</span>
+          <button type="button" class="primary" onClick={p.onUpdateDownload}>
+            {t('about.download')}
+          </button>
+          <a href={notesUrl} onClick={(e) => (e.preventDefault(), openExternal(notesUrl))}>
+            {t('about.notes')}
+          </a>
+        </>
+      );
+      break;
+    case 'downloading': {
+      const percent = Math.max(0, Math.min(100, Math.round(u?.percent ?? 0)));
+      line = (
+        <>
+          <span>{t('about.statusDownloading', { percent, mb: mb(u?.bytes), mbTotal: mb(u?.total) })}</span>
+          <div class="update-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent}>
+            <div class="update-progress-bar" style={{ width: `${percent}%` }} />
+          </div>
+        </>
+      );
+      break;
+    }
+    case 'downloaded':
+      line = (
+        <>
+          <span>{t('about.statusDownloaded', { v: u?.version ?? '' })}</span>
+          <button type="button" class="primary" onClick={() => void p.onUpdateInstall()}>
+            {t('about.install')}
+          </button>
+        </>
+      );
+      break;
+    case 'error':
+      line = <span class="update-error">{t('about.statusError', { error: u?.error ?? '—' })}</span>;
+      break;
+    default:
+      line = t('about.statusIdle');
+  }
+
+  return (
+    <fieldset class="about">
+      <legend>{t('about.legend')}</legend>
+      <div class="about-heading">{t('about.heading')}</div>
+      <div class="about-row">
+        <span class="about-label">{t('about.version')}</span>
+        <span class="about-version">{shown ? t('about.versionValue', { v: shown }) : '…'}</span>
+        <button type="button" disabled={busy || status === 'dev'} onClick={p.onUpdateCheck}>
+          {status === 'checking' ? t('about.checking') : t('about.check')}
+        </button>
+      </div>
+      <div class={`about-status ${status}`}>{line}</div>
+      <label class="check">
+        <input type="checkbox" checked={p.settings.autoCheckUpdates !== false} onChange={(e) => p.onSettings({ autoCheckUpdates: (e.target as HTMLInputElement).checked })} />
+        <span>{t('about.autoCheck')}</span>
+      </label>
+      <SecretField label={t('about.ghToken')} isSet={Boolean(p.settings.hasGhToken)} onSave={(v) => p.onSecret('ghToken', v)} onClear={() => p.onSecret('ghToken', null)} />
+      <p class="muted">{t('about.ghTokenHint')}</p>
+      <div class="btn-row">
+        <button type="button" onClick={() => openExternal(APP_LINKS.issues)}>
+          {t('about.reportBug')}
+        </button>
+        <button type="button" onClick={() => openExternal(APP_LINKS.repo)}>
+          {t('about.website')}
+        </button>
+      </div>
+      <p class="muted">{t('about.linksHint')}</p>
+      <details class="changelog">
+        <summary>{t('about.changelog')}</summary>
+        <GuideView md={CHANGELOG_BODY} images={{}} />
+      </details>
+    </fieldset>
   );
 }
 
@@ -202,6 +330,8 @@ export function SettingsTab(p: SettingsTabProps) {
         </label>
         <div class="muted">{t('settings.answerLangHint')}</div>
       </fieldset>
+
+      <AboutSection settings={s} update={p.update} onSettings={p.onSettings} onSecret={p.onSecret} onUpdateCheck={p.onUpdateCheck} onUpdateDownload={p.onUpdateDownload} onUpdateInstall={p.onUpdateInstall} />
 
       <details class="advanced" open={s.legacyUi}>
         <summary>{t('settings.advanced')}</summary>
