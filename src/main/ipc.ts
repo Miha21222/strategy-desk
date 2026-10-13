@@ -19,6 +19,7 @@ import { callTool } from './tv-cli';
 import { launchTradingView } from './tv-launch';
 import { listWorkflows } from './workflows';
 import { listDays, loadDay, readShot, resolveNote, watchVault, writeDayAnswers, writeHumanRead } from './macro-state';
+import { checkForUpdates, downloadUpdate, installUpdate, onUpdate, updateState } from './updater';
 
 const isSecretName = (name: unknown): name is SecretName => typeof name === 'string' && (SECRET_NAMES as string[]).includes(name);
 
@@ -256,4 +257,14 @@ export function registerIpc(getWindow: () => BrowserWindow | null): void {
   });
 
   ipcMain.handle('app:version', () => app.getVersion());
+
+  // ----- in-app updates: the state lives in updater.ts, the renderer follows it -----
+  onUpdate((state) => {
+    const win = getWindow();
+    if (win && !win.isDestroyed()) win.webContents.send('update:event', state);
+  });
+  ipcMain.handle('update:state', () => updateState());
+  ipcMain.handle('update:check', () => checkForUpdates());
+  ipcMain.handle('update:download', () => downloadUpdate());
+  ipcMain.handle('update:install', () => installUpdate());
 }

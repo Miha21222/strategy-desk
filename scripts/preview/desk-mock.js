@@ -6,6 +6,8 @@
 //                        which fake preflight result `preflight.run` answers with (default: ok)
 //   ?fresh=1             the owner has not answered yet: human reads and day answers are stripped
 //                        from every day, so a day the demo already answered starts with the question
+//   ?update=available    `update.state` answers «version 0.3.0 is out», so the banner under the tabs
+//                        and the «Справка» section in the settings show the offer (default: idle)
 (function () {
   const noop = () => {};
   const ok = (v) => Promise.resolve(v);
@@ -14,6 +16,9 @@
   const wizard = q.get('wizard') === '1';
   const freshDays = q.get('fresh') === '1';
   const pfVariant = q.get('pf') || 'ok';
+  const updateScene = q.get('update') || 'idle';
+  const updateSubs = [];
+  window.__mockUpdate = (state) => updateSubs.forEach((cb) => cb(state));
   let defaults = { settings: {}, profile: {} };
   const settingsPatch = JSON.parse(sessionStorage.getItem('mock.settings') || '{}');
   const chats = [];
@@ -105,7 +110,19 @@
     status: { get: async () => ({ tvRunning: true, cdpUp: true, chartTab: true, cdpOwner: '', tvmcpOk: true, tvmcpTools: 59, tvmcpError: '', claude: { ok: true, method: 'subscription', detail: '' }, checkedAt: Date.now() }) },
     preflight: { run: async () => { const list = checks(); return { checks: list, at: Date.now(), ok: !list.some((c) => c.status === 'fail' && !c.optional) }; } },
     tasks: { list: async () => [], command: async (id) => COMMANDS[id] || '', run: async (id) => ({ id, running: false, ok: true, error: '', lines: [], startedAt: Date.now(), finishedAt: Date.now() }), stop: noop, input: noop, onEvent: () => noop },
-    ui: { zoom: async (f) => f }, open: { external: async () => true }, app: { version: async () => '0.2.0-mock' },
+    ui: { zoom: async (f) => f }, open: { external: async () => true }, app: { version: async () => '0.2.1' },
+    // Shapes copied from UpdateState in src/shared/api.ts; the scene decides what `state` answers.
+    update: {
+      state: async () =>
+        updateScene === 'available'
+          ? { status: 'available', current: '0.2.1', version: '0.3.0', date: '2026-10-20T08:00:00Z', url: 'https://github.com/Miha21222/strategy-desk/releases/tag/v0.3.0' }
+          : { status: 'idle', current: '0.2.1' },
+      check: async () => ({ status: 'none', current: '0.2.1', checkedAt: Date.now() }),
+      download: async () => ({ status: 'downloaded', current: '0.2.1', version: '0.3.0' }),
+      install: async () => ({ ok: true }),
+      // The subscribers are kept so a shot script can push any state in: window.__mockUpdate({ status: 'downloading', ... }).
+      onEvent: (cb) => { updateSubs.push(cb); return () => { const i = updateSubs.indexOf(cb); if (i >= 0) updateSubs.splice(i, 1); }; },
+    },
     dialog: { pick: async () => null }, tv: { launch: async () => ({ ok: true }), call: async () => ({}) }, rules: { get: async () => null }, runtime: { clear: async () => true },
     macro: {
       index: () => json('data/index.json'),

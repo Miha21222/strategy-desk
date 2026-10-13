@@ -367,6 +367,11 @@ export function isChatActive(chatKey: string): boolean {
   return active.has(chatKey);
 }
 
+/** Any chat with a turn in flight — the updater refuses to install over one. */
+export function anyChatActive(): boolean {
+  return active.size > 0;
+}
+
 /**
  * Prepare the session the next turn will most likely need: this chat's, or -
  * with no chat open - the one a brand-new chat on the active workflow gets.

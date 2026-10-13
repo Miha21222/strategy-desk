@@ -160,6 +160,11 @@ export interface Settings {
    * or the cookie changed since). Cleared whenever the secret is set or removed.
    */
   tvSessionVerifiedAt: number;
+  /**
+   * Ask GitHub for a newer release by itself: ~30 s after start and every few
+   * hours after that. Off = only the button in Настройки → Справка asks.
+   */
+  autoCheckUpdates: boolean;
 }
 
 export type MacroMcp = 'bundled' | 'user';
@@ -169,6 +174,49 @@ export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken'
 /** The secrets the renderer may set or clear, never read. */
 export type SecretName = 'apiKey' | 'oauthToken' | 'tvSession';
 export const SECRET_NAMES: SecretName[] = ['apiKey', 'oauthToken', 'tvSession'];
+
+// ---------------------------------------------------------------- updates (GitHub Releases through electron-updater)
+
+/** Where the app lives; the «Справка» section links here and the updater reads this repository's releases. */
+export const APP_LINKS = {
+  repo: 'https://github.com/Miha21222/strategy-desk',
+  releases: 'https://github.com/Miha21222/strategy-desk/releases',
+  issues: 'https://github.com/Miha21222/strategy-desk/issues/new',
+} as const;
+
+/**
+ * One state machine, owned by the main process; the renderer reads it on
+ * mount (`update.state`) and then follows `update.onEvent`. `dev` = not a
+ * packaged build, nothing to update; `none` = checked, this is the latest.
+ */
+export type UpdateStatus = 'dev' | 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'downloaded' | 'error';
+
+export interface UpdateState {
+  status: UpdateStatus;
+  /** The running version (package.json). */
+  current: string;
+  /** The newer version GitHub offers (available / downloading / downloaded). */
+  version?: string;
+  /** Its release date, ISO, when GitHub says. */
+  date?: string;
+  /** The release page, for the notes; the notes themselves are not shown (untrusted HTML). */
+  url?: string;
+  /** Download progress, 0-100, with the byte counts behind it. */
+  percent?: number;
+  bytes?: number;
+  total?: number;
+  /** When the last check finished (ms epoch), whatever it found. */
+  checkedAt?: number;
+  /** One line, already safe to show, when status is `error`. */
+  error?: string;
+}
+
+/** Why `update.install()` refused: the app is busy (a chat streams or a task runs), nothing downloaded, or a dev run. */
+export type UpdateInstallRefusal = 'busy' | 'not-downloaded' | 'dev';
+export interface UpdateInstallResult {
+  ok: boolean;
+  reason?: UpdateInstallRefusal;
+}
 
 export interface TraderProfile {
   callName: string;
@@ -378,6 +426,19 @@ export interface DeskApi {
   ui: { zoom(factor: number): Promise<number> };
   open: { external(url: string): Promise<boolean> };
   app: { version(): Promise<string> };
+  /**
+   * In-app updates from this repository's GitHub Releases. `check` and
+   * `download` resolve with the state they left behind and keep emitting while
+   * they run; `install` quits and runs the downloaded installer silently, then
+   * relaunches — refused (not failed) while a chat streams or a task runs.
+   */
+  update: {
+    state(): Promise<UpdateState>;
+    check(): Promise<UpdateState>;
+    download(): Promise<UpdateState>;
+    install(): Promise<UpdateInstallResult>;
+    onEvent(cb: (state: UpdateState) => void): () => void;
+  };
 }
 
 declare global {

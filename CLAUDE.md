@@ -39,6 +39,7 @@ src/main/resource-paths.ts  the ONE rule for finding a shipped file: dev cwd →
 src/main/resources.ts       its Electron wrapper: resourceRoots(), resourceCandidates(), readResource()
 src/main/status.ts          lights: TradingView process, CDP /json/version + chart tab, tvmcp --check (cached 60 s), Claude auth
 src/main/tv-launch.ts       launch TradingView with --remote-debugging-port, never kills a running instance
+src/main/updater.ts         in-app updates over electron-updater (GitHub Releases): check by itself, download/install on a press, never over a running chat or task
 src/main/preflight.ts       the probes behind the check list (uv, the clone, boot, the knowledge base, login, TradingView, the port, workflows, files)
 src/preload/index.ts        contextBridge → window.desk
 src/renderer/app.tsx        shell: sidebar + tabs, owns state and the single chat:event subscription
@@ -484,8 +485,9 @@ never fail silently later.
 5. Document import (pdf-parse), attachments in chat, exports, packaging. Done: the setup wizard, the
    preflight diagnosis, the "Live field notes" prompt section (`data/copilot-notes.md`, overridable
    with `settings.fieldNotesPath`), and the Windows installer (NSIS per-user, own icon,
-   `npm run dist:check`). Still open: code signing, electron-updater (auto-update is off on
-   purpose — no release channel, no certificate), official MCP auth flow.
+   `npm run dist:check`), and since 0.2.1 in-app updates (`src/main/updater.ts`: the `publish` block
+   makes electron-builder write `app-update.yml` + `latest.yml`, the release carries `latest.yml`; the
+   repository is public, so no token). Still open: code signing, official MCP auth flow.
 6. Second engine (Codex) so the app runs on a ChatGPT subscription too. Done: the driver seam
    (`src/main/drivers/`), the Codex driver on `codex app-server`, the private CODEX_HOME, the engine
    selector in the settings, three preflight checks (`codex`, `codexAuth`, `codexOfficialMcp`) with their

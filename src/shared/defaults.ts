@@ -100,6 +100,7 @@ export const DEFAULT_SETTINGS: Settings = {
   macroMcp: DEFAULT_MACRO_MCP,
   hasTvSession: false,
   tvSessionVerifiedAt: 0,
+  autoCheckUpdates: true,
 };
 
 export const DEFAULT_PROFILE: TraderProfile = {

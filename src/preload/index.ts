@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, PickKind, SendArgs, SettingsPatch, TaskEvent, TraderProfile } from '@shared/api';
+import type { ChatEvent, ChatKind, DeskApi, NewReport, PanelDayState, PickKind, SendArgs, SettingsPatch, TaskEvent, TraderProfile, UpdateState } from '@shared/api';
 
 const api: DeskApi = {
   status: { get: () => ipcRenderer.invoke('status:get') },
@@ -77,6 +77,17 @@ const api: DeskApi = {
   ui: { zoom: (factor: number) => ipcRenderer.invoke('ui:zoom', factor) },
   open: { external: (url) => ipcRenderer.invoke('open:external', url) },
   app: { version: () => ipcRenderer.invoke('app:version') },
+  update: {
+    state: () => ipcRenderer.invoke('update:state'),
+    check: () => ipcRenderer.invoke('update:check'),
+    download: () => ipcRenderer.invoke('update:download'),
+    install: () => ipcRenderer.invoke('update:install'),
+    onEvent: (cb) => {
+      const handler = (_e: Electron.IpcRendererEvent, state: UpdateState) => cb(state);
+      ipcRenderer.on('update:event', handler);
+      return () => ipcRenderer.removeListener('update:event', handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('desk', api);
