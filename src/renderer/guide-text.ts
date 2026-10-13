@@ -1,8 +1,8 @@
-// The pure half of the in-app user guide: which part of docs/GUIDE.md the Help
+// The pure half of the in-app user guide: which part of README.md (the user guide) the Help
 // tab shows and how Vite's glob keys map onto the image paths the markdown
 // uses. No DOM, no Vite — guide.ts owns the `?raw` import and the glob.
 
-/** The first line of the usage part of docs/GUIDE.md; sections 1–4 are installation. */
+/** The first line of the usage part of README.md (the user guide); sections 1–4 are installation. */
 export const USAGE_MARKER = '## 5. Главный экран';
 
 /**
@@ -19,13 +19,13 @@ export function sliceUsage(md: string): string {
 /**
  * `import.meta.glob('../../docs/guide/img/*.png', ...)` keys are the paths as
  * written in the glob ('../../docs/guide/img/01-x.png'); the markdown refers to
- * 'guide/img/01-x.png'. Non-string values (a lazy loader) are dropped.
+ * 'docs/guide/img/01-x.png'. Non-string values (a lazy loader) are dropped.
  */
 export function imageMap(glob: Record<string, unknown>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, url] of Object.entries(glob)) {
     if (typeof url !== 'string') continue;
-    const i = key.indexOf('guide/');
+    const i = key.indexOf('docs/guide/');
     if (i < 0) continue;
     out[key.slice(i)] = url;
   }

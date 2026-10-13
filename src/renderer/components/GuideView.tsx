@@ -1,5 +1,5 @@
 // The user guide inside the Help tab: a purpose-built renderer for exactly the
-// markdown docs/GUIDE.md uses — headings, paragraphs, **bold**, `code`, flat
+// markdown README.md (the user guide) uses — headings, paragraphs, **bold**, `code`, flat
 // lists, pipe tables, standalone images, links and `---` rules. Nothing else,
 // on purpose: chat markdown lives in ../chat/Markdown.tsx and has chat rules.
 import type { ComponentChildren } from 'preact';
@@ -7,7 +7,7 @@ import { t } from '../i18n';
 
 export interface GuideViewProps {
   md: string;
-  /** Image path as written in the markdown ('guide/img/01-x.png') → bundled URL. */
+  /** Image path as written in the markdown ('docs/guide/img/01-x.png') → bundled URL. */
   images: Record<string, string>;
 }
 

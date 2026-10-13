@@ -51,6 +51,8 @@ src/renderer/panel/cards.tsx   presentational cards for the «День» tab (le
 workflows/<id>/             workflow.yaml + prompt.md (+ risk-rules.example.json): every strategy number lives here
 src/renderer/i18n/          ru.ts (source of truth), en.ts (stub), t()
 src/renderer/styles.css     hand-written CSS, theme via CSS variables
+README.md                   the USER guide (install + the day, screenshots in docs/guide/); the Help tab renders its usage part
+docs/DEVELOPMENT.md         the technical description that used to be the README
 docs/PLAN.md                stage roadmap and checklists
 ```
 
