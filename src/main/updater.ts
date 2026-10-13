@@ -14,8 +14,9 @@
 //     the owner closes the window while the scheduler's run is still writing;
 //   * release notes are not shown: the GitHub feed hands them over as HTML and
 //     the renderer would have to inject it. The state carries the release URL.
-// A private repository answers 404 without a token; the `ghToken` secret
-// (safeStorage) goes into the feed options at check time, never into a file.
+// The repository is public, so the check needs no token: electron-updater
+// reads the releases anonymously (60 requests an hour per address, far above
+// one check every four hours).
 import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -93,10 +94,9 @@ function wire(): void {
   autoUpdater.on('error', (e: Error) => set({ status: 'error', error: shortError(e) }));
 }
 
-/** Point electron-updater at this repository, with the owner's token when there is one (private repository). */
-async function feed(): Promise<void> {
-  const { ghToken } = await store.getSecrets();
-  autoUpdater.setFeedURL(ghToken ? { provider: 'github', owner: OWNER, repo: REPO, private: true, token: ghToken } : { provider: 'github', owner: OWNER, repo: REPO });
+/** Point electron-updater at this repository's public releases. */
+function feed(): void {
+  autoUpdater.setFeedURL({ provider: 'github', owner: OWNER, repo: REPO });
 }
 
 /** Ask GitHub once. Resolves with the state it left behind; a check already running is joined, not doubled. */
@@ -107,7 +107,7 @@ export function checkForUpdates(): Promise<UpdateState> {
   checking = (async () => {
     wire();
     try {
-      await feed();
+      feed();
       await autoUpdater.checkForUpdates();
     } catch (e) {
       set({ status: 'error', error: shortError(e) });
@@ -206,8 +206,7 @@ export function startAutoCheck(): void {
  * DESK_SMOKE=update (packaged build only): ask GitHub for real, log what came
  * back, and — with DESK_UPDATE_PRETEND=<version> making the running app look
  * older — download the installer so electron-updater checks its sha512 against
- * latest.yml. Never installs. The token comes from the stored secret or, for
- * the smoke only, from GH_TOKEN in the environment.
+ * latest.yml. Never installs.
  */
 export async function runUpdateSmoke(): Promise<void> {
   console.log('[update] app', app.getVersion(), `packaged=${app.isPackaged}`, `repo=${OWNER}/${REPO}`);
@@ -227,11 +226,7 @@ export async function runUpdateSmoke(): Promise<void> {
     (autoUpdater as unknown as { currentVersion: unknown }).currentVersion = v;
     console.log('[update] pretending to be', pretend);
   }
-  const envToken = (process.env.GH_TOKEN ?? '').trim();
-  const { ghToken } = await store.getSecrets();
-  const token = ghToken || envToken;
-  console.log('[update] token', ghToken ? 'from settings' : envToken ? 'from GH_TOKEN' : 'none');
-  autoUpdater.setFeedURL(token ? { provider: 'github', owner: OWNER, repo: REPO, private: true, token } : { provider: 'github', owner: OWNER, repo: REPO });
+  feed();
   try {
     const r = await autoUpdater.checkForUpdates();
     console.log('[update] check', JSON.stringify({ status: state.status, found: r?.updateInfo?.version ?? null, files: r?.updateInfo?.files?.map((f) => f.url) ?? [] }));

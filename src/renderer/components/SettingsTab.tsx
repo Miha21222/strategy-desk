@@ -177,8 +177,6 @@ function AboutSection(p: Pick<SettingsTabProps, 'settings' | 'update' | 'onSetti
         <input type="checkbox" checked={p.settings.autoCheckUpdates !== false} onChange={(e) => p.onSettings({ autoCheckUpdates: (e.target as HTMLInputElement).checked })} />
         <span>{t('about.autoCheck')}</span>
       </label>
-      <SecretField label={t('about.ghToken')} isSet={Boolean(p.settings.hasGhToken)} onSave={(v) => p.onSecret('ghToken', v)} onClear={() => p.onSecret('ghToken', null)} />
-      <p class="muted">{t('about.ghTokenHint')}</p>
       <div class="btn-row">
         <button type="button" onClick={() => openExternal(APP_LINKS.issues)}>
           {t('about.reportBug')}

@@ -101,7 +101,6 @@ export const DEFAULT_SETTINGS: Settings = {
   hasTvSession: false,
   tvSessionVerifiedAt: 0,
   autoCheckUpdates: true,
-  hasGhToken: false,
 };
 
 export const DEFAULT_PROFILE: TraderProfile = {

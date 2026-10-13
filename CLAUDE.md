@@ -486,8 +486,8 @@ never fail silently later.
    preflight diagnosis, the "Live field notes" prompt section (`data/copilot-notes.md`, overridable
    with `settings.fieldNotesPath`), and the Windows installer (NSIS per-user, own icon,
    `npm run dist:check`), and since 0.2.1 in-app updates (`src/main/updater.ts`: the `publish` block
-   makes electron-builder write `app-update.yml` + `latest.yml`, the release carries `latest.yml`, a
-   private repository needs the `ghToken` secret). Still open: code signing, official MCP auth flow.
+   makes electron-builder write `app-update.yml` + `latest.yml`, the release carries `latest.yml`; the
+   repository is public, so no token). Still open: code signing, official MCP auth flow.
 6. Second engine (Codex) so the app runs on a ChatGPT subscription too. Done: the driver seam
    (`src/main/drivers/`), the Codex driver on `codex app-server`, the private CODEX_HOME, the engine
    selector in the settings, three preflight checks (`codex`, `codexAuth`, `codexOfficialMcp`) with their

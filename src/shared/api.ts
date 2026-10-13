@@ -165,20 +165,15 @@ export interface Settings {
    * hours after that. Off = only the button in Настройки → Справка asks.
    */
   autoCheckUpdates: boolean;
-  /**
-   * A GitHub token (safeStorage) the updater sends when the repository is
-   * private; without one a private repository answers 404 to every check.
-   */
-  hasGhToken: boolean;
 }
 
 export type MacroMcp = 'bundled' | 'user';
 
-export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession' | 'hasGhToken'>>;
+export type SettingsPatch = Partial<Omit<Settings, 'hasApiKey' | 'hasOauthToken' | 'hasTvSession'>>;
 
 /** The secrets the renderer may set or clear, never read. */
-export type SecretName = 'apiKey' | 'oauthToken' | 'tvSession' | 'ghToken';
-export const SECRET_NAMES: SecretName[] = ['apiKey', 'oauthToken', 'tvSession', 'ghToken'];
+export type SecretName = 'apiKey' | 'oauthToken' | 'tvSession';
+export const SECRET_NAMES: SecretName[] = ['apiKey', 'oauthToken', 'tvSession'];
 
 // ---------------------------------------------------------------- updates (GitHub Releases through electron-updater)
 
