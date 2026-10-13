@@ -210,7 +210,7 @@ export function MacroDesk(p: Props) {
         messages={unread(active) ? null : messages}
         state={state}
         window={active}
-        onRun={() => p.onSend(date, runCommand(active))}
+        onRun={() => p.onSend(date, runCommand(active, date))}
         onOpenChat={() => p.onOpenChat(date)}
       />
 
@@ -225,7 +225,7 @@ export function MacroDesk(p: Props) {
           peek={peek === active}
           onPeek={() => setPeek(active)}
           busy={p.streaming || Boolean(index?.demo)}
-          onDiscuss={(side, share, text) => p.onSend(date, discussPrompt(active, side, share, text))}
+          onDiscuss={(side, share, text) => p.onSend(date, discussPrompt(active, side, share, text, date))}
           onOpenNote={(rel) => void window.desk.macro.openNote(rel)}
         />
       )}

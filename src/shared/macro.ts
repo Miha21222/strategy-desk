@@ -994,9 +994,13 @@ export function isShotPath(rel: unknown): rel is string {
 
 // ---------------------------------------------------------------- what the desk sends to the agent
 
-/** The slash command the skill answers to, per window. */
-export function runCommand(id: MacroWindowId): string {
-  return `/macro-review ${id}`;
+/**
+ * The slash command the skill answers to, per window, with the day on screen as
+ * its second argument. Without it the skill takes «today», and a review run
+ * post factum for Monday would be written as Tuesday's.
+ */
+export function runCommand(id: MacroWindowId, date: string): string {
+  return `/macro-review ${id} ${date}`;
 }
 
 /**
@@ -1004,13 +1008,13 @@ export function runCommand(id: MacroWindowId): string {
  * path picks it up: side and share are explicit, so the agent does not have to
  * ask, and it still answers with its own position before recording it.
  */
-export function discussPrompt(region: Region, side: Side, share: number, text: string): string {
+export function discussPrompt(region: Region, side: Side, share: number, text: string, date: string): string {
   const where = region === 'eu' ? 'Европа' : 'США';
   const s = Math.max(1, Math.min(50, Math.round(share)));
   return [
-    `Довод по шкале (${where}, регион ${region}): ${text.trim()}`,
+    `Довод по шкале (${where}, регион ${region}, день ${date}): ${text.trim()}`,
     `Сторона: ${side === 'LONG' ? 'лонг' : 'шорт'} (${side}). Доля: ${s} %.`,
-    'Ответь своей позицией (согласен / частично / не согласен) с причиной из данных, запиши довод через scale.py discuss и скажи, как изменились стрелка и план.',
+    `Ответь своей позицией (согласен / частично / не согласен) с причиной из данных, запиши довод через scale.py discuss --date ${date} и скажи, как изменились стрелка и план.`,
   ].join('\n');
 }
 

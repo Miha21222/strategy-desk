@@ -21,6 +21,7 @@ import {
   dateOfStateFile,
   defaultWindow,
   discussPrompt,
+  runCommand,
   factorStats,
   isShotPath,
   legendColor,
@@ -235,12 +236,17 @@ describe('chart screenshots', () => {
 
 describe('what goes to the agent', () => {
   it('states side and share so the skill does not have to ask, and clamps the share', () => {
-    const p = discussPrompt('eu', 'LONG', 80, '  DAX у недельного минимума  ');
+    const p = discussPrompt('eu', 'LONG', 80, '  DAX у недельного минимума  ', '2026-10-12');
     expect(p).toContain('регион eu');
+    expect(p).toContain('день 2026-10-12');
     expect(p).toContain('DAX у недельного минимума');
     expect(p).toContain('(LONG)');
     expect(p).toContain('Доля: 50 %');
-    expect(p).toContain('scale.py discuss');
+    expect(p).toContain('scale.py discuss --date 2026-10-12');
+  });
+  it('runs the skill for the day on screen, never for «today»', () => {
+    expect(runCommand('review', '2026-10-12')).toBe('/macro-review review 2026-10-12');
+    expect(runCommand('eu', '2026-10-13')).toBe('/macro-review eu 2026-10-13');
   });
   it('names the day chat by date', () => {
     expect(macroChatTitle('2026-10-12')).toBe('Обзор дня 12.10');
