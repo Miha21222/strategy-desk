@@ -1,0 +1,9 @@
+[
+ {"name": "12-wizard-vault", "wait": 1500},
+ {"name": "13-wizard-claude", "click": ".wizard footer button:has-text('Дальше')"},
+ {"name": "14-wizard-tvmcp", "click": ".wizard footer button:has-text('Дальше')"},
+ {"name": "15-wizard-tradingview", "click": ".wizard footer button:has-text('Дальше')"},
+ {"name": "16-wizard-session", "click": ".wizard footer button:has-text('Дальше')"},
+ {"name": "17-wizard-schedule", "click": ".wizard footer button:has-text('Дальше')"},
+ {"name": "18-wizard-done", "click": ".wizard footer button:has-text('Готово')", "wait": 800}
+]

@@ -1,0 +1,10 @@
+[
+ {"name": "01-desk-first-look", "wait": 900},
+ {"name": "02-desk-after-read", "click": "button:has-text('вниз')", "fit": true},
+ {"name": "03-factor-dialog", "click": ".card.why .whycol.short .frow", "wait": 600},
+ {"name": "04-argue-block", "click": [".lb-close", ".card.discussion button:has-text('за шорт')", ".card.discussion button:has-text('ключевой')"], "fill": [".card.discussion textarea", "DAX у недельного минимума, шортить поздно"], "scroll": ".card.discussion", "wait": 600},
+ {"name": "05-desk-us", "click": ".wtile:nth-child(2)", "eval": "document.querySelector('.macro').scrollTo(0,0)"},
+ {"name": "09-chat", "click": ".tabs button:has-text('Чат')"},
+ {"name": "10-help", "click": ".tabs button:has-text('Помощь')"},
+ {"name": "11-settings", "click": ".tabs button:has-text('Настройки')"}
+]

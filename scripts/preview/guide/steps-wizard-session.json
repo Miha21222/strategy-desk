@@ -1,0 +1,3 @@
+[
+ {"name": "16b-wizard-session-empty", "click": [".wizard footer button:has-text('Дальше')", ".wizard footer button:has-text('Дальше')", ".wizard footer button:has-text('Дальше')", ".wizard footer button:has-text('Дальше')"], "wait": 800}
+]

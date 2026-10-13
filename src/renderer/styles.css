@@ -1249,6 +1249,55 @@ button.ghost {
   max-width: 100ch;
 }
 
+/* ---------- the user guide inside the Help tab (GuideView) ---------- */
+.guide {
+  max-width: 100ch;
+}
+.guide h3 {
+  margin: var(--space-12) 0 var(--space-6);
+}
+.guide h4 {
+  margin: var(--space-8) 0 var(--space-4);
+}
+.guide p,
+.guide ul,
+.guide ol {
+  margin: 0 0 var(--space-6);
+}
+.guide li {
+  margin: 0 0 var(--space-2);
+}
+.guide img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: var(--space-6) 0 var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.guide table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0 0 var(--space-8);
+  font-size: var(--text-md);
+}
+.guide th,
+.guide td {
+  border: 1px solid var(--border);
+  padding: var(--space-3) var(--space-5);
+  text-align: left;
+  vertical-align: top;
+}
+.guide th {
+  background: var(--bg-elev);
+  font-weight: var(--weight-semibold);
+}
+.guide hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: var(--space-8) 0;
+}
+
 /* ---------- toasts: transient system notices, stacked in the corner ---------- */
 
 .toast-host {
