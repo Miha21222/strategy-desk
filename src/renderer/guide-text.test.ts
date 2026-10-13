@@ -1,9 +1,9 @@
-// The Help tab shows the usage part of docs/GUIDE.md. These pin the slice
+// The Help tab shows the usage part of README.md. These pin the slice
 // point to the real file (the marker is a coupling to a document this code
 // does not own) and the glob-key → markdown-path mapping for the screenshots.
 import { describe, expect, it } from 'vitest';
 import { imageMap, sliceUsage, USAGE_MARKER } from './guide-text';
-import guideMd from '../../docs/GUIDE.md?raw';
+import guideMd from '../../README.md?raw';
 
 describe('sliceUsage', () => {
   it('returns from the usage marker to the end', () => {
@@ -24,7 +24,7 @@ describe('sliceUsage', () => {
     expect(sliceUsage(md)).toBe(md);
   });
 
-  it('finds the marker in the real docs/GUIDE.md', () => {
+  it('finds the marker in the real README.md', () => {
     const out = sliceUsage(guideMd);
     expect(out.startsWith(USAGE_MARKER)).toBe(true);
     expect(out).toContain('## 14. Словарь');
@@ -39,8 +39,8 @@ describe('imageMap', () => {
       '../../docs/guide/img/02-desk-after-read.png': './assets/02-desk-after-read-def456.png',
     });
     expect(map).toEqual({
-      'guide/img/01-desk-first-look.png': './assets/01-desk-first-look-abc123.png',
-      'guide/img/02-desk-after-read.png': './assets/02-desk-after-read-def456.png',
+      'docs/guide/img/01-desk-first-look.png': './assets/01-desk-first-look-abc123.png',
+      'docs/guide/img/02-desk-after-read.png': './assets/02-desk-after-read-def456.png',
     });
   });
 

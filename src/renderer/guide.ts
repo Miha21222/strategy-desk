@@ -1,9 +1,9 @@
-// The Vite glue for the in-app user guide: docs/GUIDE.md comes in as a string,
+// The Vite glue for the in-app user guide: README.md (the user guide) comes in as a string,
 // the screenshots under docs/guide/img become bundled assets (an absent image
 // is simply not in the map). The GIFs are not shipped — too big for the
 // installer — so the markdown's gif lines render as a note, see GuideView.
 import { imageMap, sliceUsage } from './guide-text';
-import guideMd from '../../docs/GUIDE.md?raw';
+import guideMd from '../../README.md?raw';
 
 // Only the screenshots sections 5–14 show; the installer and wizard shots
 // (01, 12–18) stay on GitHub, ~1.5 MB the installer does not need.

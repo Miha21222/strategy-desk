@@ -6,12 +6,12 @@ import { GuideView } from './GuideView';
 
 export interface HelpTabProps {
   onOpenWizard: () => void;
-  /** The macro-review MVP: the usage part of docs/GUIDE.md, nothing about plumbing. */
+  /** The macro-review MVP: the usage part of README.md (the user guide), nothing about plumbing. */
   simple?: boolean;
 }
 
 /** The full guide (installation, animations) lives in the repository; the tab shows sections 5–14. */
-const GUIDE_URL = 'https://github.com/Miha21222/strategy-desk/blob/main/docs/GUIDE.md';
+const GUIDE_URL = 'https://github.com/Miha21222/strategy-desk#readme';
 
 export function HelpTab(p: HelpTabProps) {
   if (p.simple) {
