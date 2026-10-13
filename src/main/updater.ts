@@ -70,6 +70,10 @@ function wire(): void {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
+  // differentialPackage is off in electron-builder.yml, so there is no blockmap
+  // to fetch: say so, or every download starts with a failed request for one.
+  autoUpdater.disableDifferentialDownload = true;
+  autoUpdater.disableWebInstaller = true;
   autoUpdater.logger = {
     info: (m: unknown) => console.log('[update]', m),
     warn: (m: unknown) => console.warn('[update]', m),
