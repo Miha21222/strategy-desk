@@ -1,32 +1,37 @@
 // Static help: connection diagram, three steps, troubleshooting — plus the one
 // button that turns "it does not work" into a list of next steps.
 import { t } from '../i18n';
+import { usageGuide } from '../guide';
+import { GuideView } from './GuideView';
 
 export interface HelpTabProps {
   onOpenWizard: () => void;
-  /** The macro-review MVP: explain the day review in plain words, nothing about plumbing. */
+  /** The macro-review MVP: the usage part of docs/GUIDE.md, nothing about plumbing. */
   simple?: boolean;
 }
 
-const SIMPLE_SECTIONS = ['what', 'when', 'first', 'remember', 'drift', 'read', 'argue', 'evening', 'week', 'ask', 'trouble'] as const;
+/** The full guide (installation, animations) lives in the repository; the tab shows sections 5–14. */
+const GUIDE_URL = 'https://github.com/Miha21222/strategy-desk/blob/main/docs/GUIDE.md';
 
 export function HelpTab(p: HelpTabProps) {
   if (p.simple) {
+    const guide = usageGuide();
     return (
       <section class="page help-simple">
         <h2>{t('helpSimple.title')}</h2>
-        {SIMPLE_SECTIONS.map((k) => (
-          <div key={k}>
-            <h3>{t(`helpSimple.${k}Title`)}</h3>
-            <p>{t(`helpSimple.${k}`)}</p>
-          </div>
-        ))}
         <div class="help-wizard">
           <p>{t('help.wizard')}</p>
           <button type="button" onClick={p.onOpenWizard}>
             {t('setup.open')}
           </button>
         </div>
+        <p>
+          {t('helpSimple.intro')}{' '}
+          <a href={GUIDE_URL} onClick={(e) => (e.preventDefault(), void window.desk.open.external(GUIDE_URL))}>
+            {t('helpSimple.fullGuide')}
+          </a>
+        </p>
+        <GuideView md={guide.md} images={guide.images} />
       </section>
     );
   }
