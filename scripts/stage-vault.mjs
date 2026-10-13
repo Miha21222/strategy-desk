@@ -18,12 +18,14 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TEMPLATE_VERSION = '1';
+const TEMPLATE_VERSION = '2'; // 2: + .claude/skills/humanizer (2026-10-13)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'resources', 'vault-template');
 const DEFAULT_SRC = 'C:\\Users\\Admin\\Documents\\Obsidian Notes\\Trading\\Trading Strategy Assistant';
 
 const SKILL = '.claude/skills/macro-review/SKILL.md';
+/** The humanizer skill (MIT, github.com/blader/humanizer) the macro-review skill sends every paragraph through, with its license and the Russian notes. */
+const HUMANIZER = ['.claude/skills/humanizer/SKILL.md', '.claude/skills/humanizer/LICENSE', '.claude/skills/humanizer/ru.md', '.claude/skills/humanizer/glossary.md'];
 /** Notes the skill cites by number; copied verbatim (resolved by their numeric prefix). */
 const NOTE_PREFIXES = ['20 - ', '22 - ', '23 - '];
 const TOOLS = 'indices-kb/tools';
@@ -305,13 +307,14 @@ function main() {
   console.log(`[stage-vault] source ${src}`);
   checkToolImports(src);
   const notes = NOTE_PREFIXES.map((p) => noteByPrefix(src, p));
-  for (const f of [SKILL, ...notes, ...TOOL_FILES.map((f) => `${TOOLS}/${f}`), ...CONFIG_FILES.map((f) => `${CONFIG}/${f}`),
+  for (const f of [SKILL, ...HUMANIZER, ...notes, ...TOOL_FILES.map((f) => `${TOOLS}/${f}`), ...CONFIG_FILES.map((f) => `${CONFIG}/${f}`),
     `${CONFIG}/settings.json`, ...JOURNAL_HEADERS, 'AGENTS.md']) must(src, f);
 
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
 
   copyFile(src, SKILL);
+  for (const f of HUMANIZER) copyFile(src, f);
   for (const n of notes) copyFile(src, n);
   for (const f of TOOL_FILES) copyFile(src, `${TOOLS}/${f}`);
   for (const f of CONFIG_FILES) copyFile(src, `${CONFIG}/${f}`);

@@ -120,7 +120,14 @@ prompt/macro-review.md       appendix to Claude Code's preset prompt for a macro
     their own extras in `SetupWizard.tsx` (picker, cookie field with the how-to, the three times + the PC zone).
   - Packaging: `scripts/stage-vault.mjs` (owned with the template) → `resources/vault-template/` (gitignored)
     → extraResources `vault-template`; `build-installer.cmd` = `SD_BUNDLE_KB=0` + `npm run dist`; the pack
-    smoke and `dist:check` assert `prompt/macro-review.md`, `prompt/ask.md` and the template's five files.
+    smoke and `dist:check` assert `prompt/macro-review.md`, `prompt/ask.md` and the template's seven files.
+  - **The text the owner reads goes through `humanizer` (2026-10-13).** The vault carries
+    `.claude/skills/humanizer/` — upstream `SKILL.md` verbatim (blader/humanizer v3.1, MIT, `LICENSE` next to
+    it) plus `ru.md`, the Russian notes with before/after from the owner's own reviews (factor ids → words,
+    one dash per sentence, no «не X, а Y», ≤ 2 numbers per sentence). The macro-review skill's «Стиль
+    текста» section names every prose field that passes through it before the file is written; the two
+    appendices and the Strategy Lab prompt repeat the rule. The template stages all three files
+    (`HUMANIZER` in `stage-vault.mjs`). `scale.py`'s own template strings are Python, not model prose.
 - **The MVP's «+ Новый чат» is `kind: 'ask'`** (note 23): the same vault session as a macro chat
   (`macroSpec(mode, 'ask')`, appendix `prompt/ask.md`) told to answer from memory — reviews, lessons, journal —
   and never to run a review or write state. The Strategy Lab copilot (`kind: 'chat'`, tvmcp chips) stays

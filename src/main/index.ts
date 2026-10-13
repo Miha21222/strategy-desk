@@ -106,7 +106,7 @@ async function runPackSmoke(): Promise<void> {
   console.log('[pack] vault-template', template ?? 'NOT FOUND');
   if (!template) problems.push('no vault template shipped (extraResources resources/vault-template → vault-template; run `npm run stage:vault`)');
   else {
-    const must = ['.claude/skills/macro-review/SKILL.md', 'indices-kb/tools/scale.py', 'indices-kb/tools/macro_schedule.ps1', 'indices-kb/tools/macro_review.ps1', 'indices-kb/config/scale.json'];
+    const must = ['.claude/skills/macro-review/SKILL.md', '.claude/skills/humanizer/SKILL.md', '.claude/skills/humanizer/ru.md', 'indices-kb/tools/scale.py', 'indices-kb/tools/macro_schedule.ps1', 'indices-kb/tools/macro_review.ps1', 'indices-kb/config/scale.json'];
     const missing = must.filter((rel) => !existsSync(path.join(template, ...rel.split('/'))));
     console.log('[pack] vault-template files', missing.length ? `MISSING ${missing.join(', ')}` : `${must.length} checked`);
     if (missing.length) problems.push(`the vault template is incomplete: ${missing.join(', ')}`);
