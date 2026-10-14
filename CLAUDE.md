@@ -183,7 +183,7 @@ DESK_SMOKE=panel  npm run dev   + walks the day panel's deterministic path and c
 DESK_SMOKE=preflight npm run dev  + prints the real setup check list of this machine
 DESK_SMOKE=runtime npm run dev  + provisions the bundled Python environment for real and boots tvmcp from it
 DESK_SMOKE=kb     npm run dev   + seeds the course knowledge base and asks the store how many chunks it holds
-DESK_SMOKE=query  npm run dev   same + one trivial SDK query() without MCP (costs a few cents)
+DESK_SMOKE=query  npm run dev   same + one trivial SDK query() through the driver's options (cents); runs PACKAGED too — the packaged chat proof
 DESK_SMOKE=codex  npm run dev   two turns through the Codex engine: app-server, real MCP map, tool call, reuse
 DESK_SMOKE=pack                 resources a packaged build must find + `claude --version`; runs PACKAGED too
 DESK_SMOKE=update               PACKAGED only: ask GitHub, and with DESK_UPDATE_PRETEND=0.0.1 download + verify sha512;
@@ -240,6 +240,9 @@ Landmines:
   and `wt.exe` ask the OS and get 0x80070002 (issue #12, 0.2.1). `claudeBin()` passes its answer through
   `outsideAsar()` (runtime-spec.ts, tested), and the pack smoke launches the binary with `spawn`, never
   `execFile`, so a regression fails `npm run dist:check` instead of the trader's 09:30 review.
+  **The SDK makes the same mistake for itself** (0.2.2): left to resolve its platform package it spawns the
+  archived path and every chat opens with «exists but failed to launch», so `optionsFor()` in the Claude driver
+  passes `pathToClaudeCodeExecutable: claudeBin()` for both profiles, and the pack smoke asserts the two agree.
 - **Caches want to be written next to the code they belong to.** numba and `__pycache__` would land in the
   installation directory — read-only on a per-machine install, wiped by the uninstaller — so `NUMBA_CACHE_DIR`
   and `PYTHONPYCACHEPREFIX` point into `userData`; see `runtimeEnv`.

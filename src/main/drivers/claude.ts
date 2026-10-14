@@ -8,6 +8,8 @@ import type { Options, Query, SDKMessage } from '@anthropic-ai/claude-agent-sdk'
 import type { AgentInit, Settings, ToolCallItem } from '@shared/api';
 import { acquire, closeAll, closeFor, fingerprintOptions, hasLive, prewarm, runTurn } from '../session';
 import * as store from '../store';
+import path from 'node:path';
+import { claudeBin } from '../runtime';
 import type { DriverEvent, EngineDriver, RunArgs, TurnSpec } from './types';
 
 /** Tool results are for reading, not archiving: the model already saw the whole thing. */
@@ -57,6 +59,19 @@ export function buildEnv(cfg: Settings, secrets: { apiKey: string | null; oauthT
 }
 
 /**
+ * The binary the SDK spawns. Left to itself the SDK resolves the platform
+ * package from its own location, which in a packaged app is INSIDE app.asar:
+ * Electron's fs says the file exists, `spawn` asks the OS and gets ENOENT, and
+ * the SDK reports «exists but failed to launch» (the libc wording is a guess
+ * on its side). `claudeBin()` is the same file through `outsideAsar()` — the
+ * twin of issue #12 for the chat itself. The PATH fallback is left to the SDK.
+ */
+function executable(): Pick<Options, 'pathToClaudeCodeExecutable'> {
+  const bin = claudeBin();
+  return path.isAbsolute(bin) ? { pathToClaudeCodeExecutable: bin } : {};
+}
+
+/**
  * The SDK options for a spec, without the environment and the stderr sink.
  * Neither is part of the session's identity (`fingerprintOptions` ignores both),
  * so this stays synchronous and the fingerprint costs no store read.
@@ -79,6 +94,7 @@ export function optionsFor(spec: TurnSpec): Options {
       maxTurns: 200,
       cwd: spec.cwd,
       includePartialMessages: true,
+      ...executable(),
       ...(spec.model.trim() ? { model: spec.model.trim() } : {}),
       ...(spec.effort ? { effort: spec.effort } : {}),
     };
@@ -95,6 +111,7 @@ export function optionsFor(spec: TurnSpec): Options {
     includePartialMessages: true,
     settingSources: [],
     strictMcpConfig: true,
+    ...executable(),
     ...(spec.model.trim() ? { model: spec.model.trim() } : {}),
     ...(spec.effort ? { effort: spec.effort } : {}),
   };
