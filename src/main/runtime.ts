@@ -22,6 +22,7 @@ import {
   kbProjectDir,
   kbSeedDir,
   modeOf,
+  outsideAsar,
   preferExternal,
   projectDir,
   pythonBin,
@@ -142,9 +143,13 @@ export function claudeBin(): string {
   const pkg = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`;
   const exe = process.platform === 'win32' ? 'claude.exe' : 'claude';
   try {
-    // The platform package is asarUnpacked, so this resolves to a real file.
+    // The platform package is asarUnpacked, but require.resolve() still answers
+    // with the path INSIDE app.asar (Electron's fs reads through the archive).
+    // The desk hands this path to other processes — the Task Scheduler, the
+    // login task, the user's MACRO_CLAUDE variable — so it must be the real
+    // file next to the archive (issue #12).
     const entry = require.resolve(`${pkg}/package.json`);
-    return path.join(path.dirname(entry), exe);
+    return outsideAsar(path.join(path.dirname(entry), exe));
   } catch {
     return 'claude';
   }

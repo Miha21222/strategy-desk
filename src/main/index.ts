@@ -1,7 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { existsSync, promises as fs, statSync } from 'node:fs';
-import { execFile } from 'node:child_process';
-import { createRequire } from 'node:module';
+import { execFile, spawn } from 'node:child_process';
 import path from 'node:path';
 import appIconIco from '../../build/icon.ico?asset';
 import appIconPng from '../../build/icon.png?asset';
@@ -17,7 +16,7 @@ import { runPreflight } from './preflight';
 import { assemblePrompt, loadBasePrompt, loadFieldNotes } from './prompt';
 import { readResource, resourceRoots } from './resources';
 import { getPropFirms } from './rules';
-import { initRuntimePaths, kbFact, runtimeFact, vaultTemplateDir } from './runtime';
+import { claudeBin, initRuntimePaths, kbFact, runtimeFact, vaultTemplateDir } from './runtime';
 import { kbCheckSpec, modeOf } from './runtime-spec';
 import { runTask, taskCommand } from './tasks';
 import { getStatus, tvmcpStatus } from './status';
@@ -136,28 +135,30 @@ async function runPackSmoke(): Promise<void> {
   console.log('[pack] prompt', `${base.length} chars`, `notes:${notes ? `${notes.length} chars` : 'none'}`);
   if (base.length < 400) problems.push('the base system prompt fell back to the built-in stub');
 
-  // The Agent SDK resolves the native Claude binary with require.resolve() from
-  // its OWN location, so it must sit next to the SDK in app.asar.unpacked.
-  const exe = process.platform === 'win32' ? 'claude.exe' : 'claude';
-  const spec = `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}/${exe}`;
-  let claudePath: string | null = null;
-  try {
-    claudePath = createRequire(require.resolve('@anthropic-ai/claude-agent-sdk')).resolve(spec);
-    if (!existsSync(claudePath)) claudePath = null;
-  } catch {
-    claudePath = null;
-  }
-  console.log('[pack] claude', claudePath ? `${claudePath} (${Math.round(statSync(claudePath).size / 1048576)} MB)` : `NOT FOUND (${spec})`);
-  if (!claudePath) problems.push('the Claude binary is not reachable from the packaged SDK');
+  // The Claude binary the desk hands to OTHER processes (the Task Scheduler,
+  // the login task, the user's MACRO_CLAUDE variable). `claudeBin()` must
+  // answer with the file next to app.asar, not the path inside it: Electron's
+  // fs and `execFile` read through the archive, which is exactly why 0.2.1
+  // passed this smoke with `execFile` and then failed in the scheduler with
+  // 0x80070002 (issue #12). So: refuse an archived path, require the file on
+  // disk, and launch it the way the scheduler would — `spawn`, no extraction.
+  const claudePath = claudeBin();
+  const archived = claudePath.includes(`${path.sep}app.asar${path.sep}`);
+  const onDisk = claudePath !== 'claude' && existsSync(claudePath);
+  console.log('[pack] claude', claudePath, onDisk ? `(${Math.round(statSync(claudePath).size / 1048576)} MB)` : 'NOT FOUND', archived ? 'INSIDE app.asar' : '');
+  if (archived) problems.push('claudeBin() points INTO app.asar: other processes cannot open it');
+  if (!onDisk) problems.push('the Claude binary is not where claudeBin() says');
   else {
-    // Resolving it is not enough: the path points INTO app.asar and only works
-    // because Electron redirects it to app.asar.unpacked when spawning. Prove
-    // that by actually running it — offline, no tokens.
     const version = await new Promise<string>((done) => {
-      execFile(claudePath as string, ['--version'], { timeout: 30_000, windowsHide: true }, (err, stdout) => done(err ? `FAILED ${err.message.slice(0, 120)}` : stdout.trim()));
+      const child = spawn(claudePath, ['--version'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+      let out = '';
+      const timer = setTimeout(() => child.kill(), 30_000);
+      child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+      child.on('error', (err) => { clearTimeout(timer); done(`FAILED ${err.message.slice(0, 120)}`); });
+      child.on('close', (code) => { clearTimeout(timer); done(code === 0 ? out.trim() : `FAILED exit ${code}`); });
     });
     console.log('[pack] claude --version', version || 'no output');
-    if (!version || version.startsWith('FAILED')) problems.push('the Claude binary resolves but will not launch from the packaged location');
+    if (!version || version.startsWith('FAILED')) problems.push('the Claude binary will not launch with spawn from the packaged location');
   }
 
   // The bundled tvmcp. This is the check that catches a missing

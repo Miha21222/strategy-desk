@@ -243,10 +243,18 @@ export interface TvSessionFact {
 export interface SchedulerFact {
   /** PowerShell answered at all (false on a non-Windows machine or a timeout). */
   queried: boolean;
-  tasks: { name: string; state: string }[];
+  /** `arguments` is the registered action's command line (the `-Claude` path lives there); '' when not read. */
+  tasks: { name: string; state: string; arguments?: string }[];
   /** The script the registration runs; '' when the vault has no tools. */
   script: string;
 }
+
+/**
+ * A registered action whose `-Claude` path points INTO app.asar: 0.2.1 wrote
+ * that path, and the Task Scheduler cannot open it (issue #12). Re-registering
+ * writes the unpacked path, so the fix is the same button.
+ */
+export const STALE_ACTION = /[\\/]app\.asar[\\/]/;
 
 /** The three jobs by name, in the order the wizard lists them. */
 export const SCHEDULER_TASKS = ['Trading Macro EU', 'Trading Macro US', 'Trading Review'] as const;
@@ -453,6 +461,8 @@ export function schedulerCheck(s: SchedulerFact, v: VaultFact): PreflightCheck {
   if (found.length === SCHEDULER_TASKS.length) {
     const disabled = s.tasks.filter((t) => (SCHEDULER_TASKS as readonly string[]).includes(t.name) && /disabled/i.test(t.state)).map((t) => t.name);
     if (disabled.length) return { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.disabled', vars: { list: disabled.join(', ') }, fix: canRegister ? register : undefined };
+    const stale = s.tasks.filter((t) => (SCHEDULER_TASKS as readonly string[]).includes(t.name) && STALE_ACTION.test(t.arguments ?? '')).map((t) => t.name);
+    if (stale.length) return { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.stale', vars: { list: stale.join(', ') }, fix: canRegister ? register : undefined };
     return { id: 'scheduler', status: 'ok', detailKey: 'preflight.scheduler.ok' };
   }
   if (found.length) return { id: 'scheduler', status: 'warn', detailKey: 'preflight.scheduler.partial', vars: { found: found.join(', ') }, fix: canRegister ? register : undefined };

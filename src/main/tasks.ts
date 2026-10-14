@@ -27,7 +27,7 @@ import { authFile, ensureCodexHome, userCodexHome } from './drivers/codex/home';
 import { macroEnv, macroPython, SESSION_CHECK_CODE } from './macro-env';
 import { invalidateTvmcpCache } from './status';
 import * as store from './store';
-import { copyVaultTemplate } from './vault-template';
+import { copyVaultTemplate, ensureScriptBoms } from './vault-template';
 
 /** Generous: a cold `uv sync` downloads a Python and ~290 packages. */
 const TIMEOUTS: Record<TaskId, number> = {
@@ -58,6 +58,8 @@ interface Plan {
   spec: SpawnSpec;
   env: Record<string, string>;
   cwd: string;
+  /** Runs just before the spawn, after the command was shown; synchronous, so no second press can slip in; a throw here fails the task. */
+  before?: () => void;
   /** Runs after a zero exit; a throw here fails the task. */
   after?: () => Promise<void>;
   /**
@@ -198,7 +200,17 @@ async function macroPlanFor(cfg: Settings, id: 'vault-create' | 'session-check' 
       .map(([k, v]) => `[Environment]::SetEnvironmentVariable(${q(k)}, ${v.startsWith('$env:') ? v : q(v)}, 'User')`);
     const args = [`-Vault ${q(vault)}`, pythonExists ? `-Python ${q(python)}` : '', claudeExists ? `-Claude ${q(claude)}` : ''].filter(Boolean).join(' ');
     const ps = [...sets, `& ${q(script)} ${args}`].join('; ');
-    return { spec: { command: 'powershell', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps] }, env, cwd: path.dirname(script) };
+    return {
+      spec: { command: 'powershell', args: ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', ps] },
+      env,
+      cwd: path.dirname(script),
+      // A vault laid down by 0.2.1 has the scripts without a BOM, and the
+      // template copy never overwrites; the scheduler is the one place those
+      // scripts matter, so this is where the three bytes go in (issue #12).
+      before: () => {
+        ensureScriptBoms(vault);
+      },
+    };
   }
   const clears = Object.keys(userVars).map((k) => `[Environment]::SetEnvironmentVariable(${q(k)}, $null, 'User')`);
   const ps = [`& ${q(script)} -Unregister -Vault ${q(vault)}`, ...clears].join('; ');
@@ -321,6 +333,14 @@ export async function runTask(cfg: Settings, id: TaskId, emit: Emit): Promise<Ta
   let state = applyTaskEvent(taskState(id), { id, kind: 'start', at: Date.now(), command });
   states.set(id, state);
   emit({ id, kind: 'start', at: state.startedAt, command });
+
+  if (plan.before) {
+    try {
+      plan.before();
+    } catch (e) {
+      return finish(id, emit, false, String((e as Error)?.message ?? e).slice(0, 400), state);
+    }
+  }
 
   const child = spawn(plan.spec.command, plan.spec.args, {
     cwd: plan.cwd,

@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Settings } from '@shared/api';
 import { DEFAULT_SETTINGS } from '@shared/defaults';
-import { buildKbEnv, buildTvEnv, EXTERNAL_PATHS, externalCloneFiles, gtRagSpawn, kbMode, modeOf, preferExternal, pythonBin, runtimeEnv, tvmcpSpawn, type RuntimePaths } from './runtime-spec';
+import { buildKbEnv, buildTvEnv, EXTERNAL_PATHS, externalCloneFiles, gtRagSpawn, kbMode, modeOf, outsideAsar, preferExternal, pythonBin, runtimeEnv, tvmcpSpawn, type RuntimePaths } from './runtime-spec';
 
 const cfg: Settings = { ...DEFAULT_SETTINGS, tvmcpPath: 'C:\\Projects\\tradingview-mcp', toolsets: 'hybrid,desktop', cdpPort: 9223 };
 
@@ -162,5 +162,23 @@ describe('a checkout already on the PC beats the payload', () => {
     expect(preferExternal(clone, (p) => p.endsWith('pyproject.toml'), true, 'win32')).toBe(false);
     expect(preferExternal('', has, true, 'win32')).toBe(false);
     expect(preferExternal('C:\\elsewhere', has, true, 'win32')).toBe(false);
+  });
+});
+
+describe('outsideAsar', () => {
+  // Issue #12: require.resolve() answers with a path INTO app.asar; the Task
+  // Scheduler, PowerShell and wt.exe cannot open it (0x80070002).
+  const packaged = 'C:\\Users\\T\\AppData\\Local\\Programs\\Strategy Desk\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe';
+  const unpacked = 'C:\\Users\\T\\AppData\\Local\\Programs\\Strategy Desk\\resources\\app.asar.unpacked\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe';
+  const dev = 'C:\\Projects\\strategy-desk\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe';
+  it('rewrites a path inside the archive to its app.asar.unpacked twin', () => {
+    expect(outsideAsar(packaged, '\\')).toBe(unpacked);
+  });
+  it('leaves an unpacked path and a dev path alone', () => {
+    expect(outsideAsar(unpacked, '\\')).toBe(unpacked);
+    expect(outsideAsar(dev, '\\')).toBe(dev);
+  });
+  it('does the same with POSIX separators', () => {
+    expect(outsideAsar('/Applications/Strategy Desk.app/Contents/Resources/app.asar/node_modules/x/claude', '/')).toBe('/Applications/Strategy Desk.app/Contents/Resources/app.asar.unpacked/node_modules/x/claude');
   });
 });

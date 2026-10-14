@@ -309,3 +309,17 @@ export function kbModelSpec(cfg: Settings, paths: RuntimePaths, platform: string
     env: buildKbEnv(cfg, process.env, paths),
   };
 }
+
+/**
+ * A path INTO `app.asar` rewritten to its `app.asar.unpacked` twin. Electron's
+ * patched `fs` reads through the archive and `execFile` extracts a binary from
+ * it, which is why `require.resolve()` and a `--version` probe both work on the
+ * archived path — but `spawn`, PowerShell's `Start-Process`, the Task Scheduler
+ * and `wt.exe` ask the OS, and the OS sees one file called `app.asar`
+ * (ERROR_FILE_NOT_FOUND, 0x80070002; issue #12). Anything the app hands to
+ * another process must be the unpacked path. A no-op for a path that does not
+ * go through an archive (a dev run) or is already unpacked.
+ */
+export function outsideAsar(p: string, sep: string = path.sep): string {
+  return p.split(`${sep}app.asar${sep}`).join(`${sep}app.asar.unpacked${sep}`);
+}
