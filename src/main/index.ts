@@ -9,7 +9,7 @@ import { sampleAssistantMessage } from '@shared/blocks-sample';
 import { adrFromScan, buildSentinelSpec, levelsArgs, levelsFromScan, todayISO } from '@shared/panel';
 import { parseBlocks } from '../renderer/chat/blocks';
 import { stopAll } from './agent';
-import { buildEnv } from './drivers/claude';
+import { buildEnv, optionsFor } from './drivers/claude';
 import { registerIpc } from './ipc';
 import { buildMcpServers } from './mcp';
 import { runPreflight } from './preflight';
@@ -160,6 +160,12 @@ async function runPackSmoke(): Promise<void> {
     console.log('[pack] claude --version', version || 'no output');
     if (!version || version.startsWith('FAILED')) problems.push('the Claude binary will not launch with spawn from the packaged location');
   }
+  // And the SDK itself must be told that path: left alone it resolves the
+  // platform package from inside app.asar and every chat dies on spawn with
+  // «exists but failed to launch» (0.2.2).
+  const sdkBin = optionsFor({ engine: 'claude', systemPrompt: '', model: '', effort: '', cwd: process.cwd(), mcpServers: {}, permissionPreset: 'standard' }).pathToClaudeCodeExecutable;
+  console.log('[pack] sdk executable', sdkBin ?? 'NOT SET');
+  if (sdkBin !== claudePath) problems.push('the SDK options do not name the unpacked Claude binary');
 
   // The bundled tvmcp. This is the check that catches a missing
   // `extraResources:` entry: in a dev run there is no payload at all and the
@@ -369,11 +375,16 @@ async function runSmoke(kind: string): Promise<void> {
     return;
   }
   if (kind === 'query') {
+    // Through the driver's own options, not a hand-written set: packaged, this
+    // is the one smoke that spawns the SDK's binary the way a chat does, and a
+    // hand-written set reproduced the 0.2.2 «exists but failed to launch» while
+    // `DESK_SMOKE=pack` passed.
     const { query } = await import('@anthropic-ai/claude-agent-sdk');
+    const base = optionsFor({ engine: 'claude', systemPrompt: 'Test.', model: '', effort: '', cwd: process.cwd(), mcpServers: {}, permissionPreset: 'standard' });
     let text = '';
     for await (const m of query({
       prompt: 'Reply with exactly: pong',
-      options: { systemPrompt: 'Test.', permissionMode: 'dontAsk', maxTurns: 1, settingSources: [], strictMcpConfig: true, mcpServers: {}, env: buildEnv(cfg, { apiKey: null, oauthToken: null }), includePartialMessages: true },
+      options: { ...base, maxTurns: 1, env: buildEnv(cfg, { apiKey: null, oauthToken: null }) },
     })) {
       if (m.type === 'system' && m.subtype === 'init') console.log('[smoke] init', m.model, m.claude_code_version, m.apiKeySource);
       if (m.type === 'stream_event' && m.event.type === 'content_block_delta' && m.event.delta.type === 'text_delta') text += m.event.delta.text;

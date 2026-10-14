@@ -183,3 +183,21 @@ describe('macro chat options', () => {
     expect(o.disallowedTools).toContain('Skill');
   });
 });
+
+// The SDK resolves its native binary from its own location, which in a
+// packaged app is inside app.asar: `existsSync` says yes through Electron's
+// fs, `spawn` gets ENOENT, and every chat opens with «exists but failed to
+// launch». Both profiles must name the file next to the archive explicitly.
+describe('the binary the SDK spawns', () => {
+  it.each([
+    ['desk chat', {}],
+    ['macro chat', { profile: 'macro' as const, cwd: 'C:/vault', mcpServers: {} }],
+  ])('names the platform package binary outside app.asar for the %s', async (_name, patch) => {
+    const { optionsFor } = await import('./claude');
+    const { claudeBin } = await import('../runtime');
+    const o = optionsFor({ ...spec, ...patch });
+    expect(o.pathToClaudeCodeExecutable).toBe(claudeBin());
+    expect(o.pathToClaudeCodeExecutable).toMatch(/claude-agent-sdk-[a-z0-9]+-[a-z0-9]+[\\/]claude(\.exe)?$/);
+    expect(o.pathToClaudeCodeExecutable).not.toMatch(/[\\/]app\.asar[\\/]/);
+  });
+});
