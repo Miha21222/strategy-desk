@@ -206,7 +206,10 @@ export function startAutoCheck(): void {
  * DESK_SMOKE=update (packaged build only): ask GitHub for real, log what came
  * back, and — with DESK_UPDATE_PRETEND=<version> making the running app look
  * older — download the installer so electron-updater checks its sha512 against
- * latest.yml. Never installs.
+ * latest.yml. Installs nothing — unless DESK_UPDATE_INSTALL=1 is set too, in
+ * which case it goes down the real path (`installUpdate()` → quitAndInstall →
+ * the silent installer → the relaunch), which is the only way to exercise the
+ * relaunch outside a user's press.
  */
 export async function runUpdateSmoke(): Promise<void> {
   console.log('[update] app', app.getVersion(), `packaged=${app.isPackaged}`, `repo=${OWNER}/${REPO}`);
@@ -246,5 +249,11 @@ export async function runUpdateSmoke(): Promise<void> {
   const done = updateState();
   console.log('[update] downloaded', JSON.stringify(files), `status=${done.status}`);
   if (done.status !== 'downloaded') throw new Error(`download ended in ${done.status}: ${done.error ?? ''}`);
+  if ((process.env.DESK_UPDATE_INSTALL ?? '').trim() === '1') {
+    const r = await installUpdate();
+    console.log('[update] install', JSON.stringify(r), r.ok ? '— quitting for the installer' : '');
+    if (!r.ok) throw new Error(`install refused: ${r.reason}`);
+    return;
+  }
   console.log('[update] ok — sha512 verified by electron-updater; not installing');
 }

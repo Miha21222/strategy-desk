@@ -186,6 +186,8 @@ DESK_SMOKE=kb     npm run dev   + seeds the course knowledge base and asks the s
 DESK_SMOKE=query  npm run dev   same + one trivial SDK query() without MCP (costs a few cents)
 DESK_SMOKE=codex  npm run dev   two turns through the Codex engine: app-server, real MCP map, tool call, reuse
 DESK_SMOKE=pack                 resources a packaged build must find + `claude --version`; runs PACKAGED too
+DESK_SMOKE=update               PACKAGED only: ask GitHub, and with DESK_UPDATE_PRETEND=0.0.1 download + verify sha512;
+                                + DESK_UPDATE_INSTALL=1 goes down the real path (quitAndInstall, silent NSIS, relaunch)
 ```
 
 Gotcha for agents on Windows: when writing source through a Git Bash heredoc, `\\` collapses to `\`; write files that
