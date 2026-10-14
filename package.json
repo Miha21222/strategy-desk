@@ -1,6 +1,6 @@
 {
   "name": "strategy-desk",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Strategy Desk - desktop chat shell over the tradingview MCP server (tvmcp), running on the Claude Agent SDK or the Codex CLI",
   "main": "./out/main/index.js",

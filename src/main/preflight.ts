@@ -243,13 +243,15 @@ async function schedulerFact(vault: string): Promise<SchedulerFact> {
   const fact: SchedulerFact = { queried: false, tasks: [], script: script && (await exists(script)) ? script : '' };
   if (process.platform !== 'win32') return fact;
   const names = SCHEDULER_TASKS.map((n) => `'${n}'`).join(',');
-  const ps = `Get-ScheduledTask -TaskName ${names} -ErrorAction SilentlyContinue | ForEach-Object { $_.TaskName + '|' + $_.State }`;
+  // The action's arguments too: that is where the `-Claude` path lives, and a
+  // 0.2.1 registration points it into app.asar (issue #12).
+  const ps = `Get-ScheduledTask -TaskName ${names} -ErrorAction SilentlyContinue | ForEach-Object { $_.TaskName + '|' + $_.State + '|' + ($_.Actions | ForEach-Object { $_.Arguments }) }`;
   const r = await run('powershell', ['-NoProfile', '-NonInteractive', '-Command', ps], 20_000);
   if (r.notFound) return fact;
   fact.queried = true;
   for (const line of r.out.split(/\r?\n/)) {
-    const [name, state] = line.split('|').map((x) => x.trim());
-    if (name && (SCHEDULER_TASKS as readonly string[]).includes(name)) fact.tasks.push({ name, state: state || '' });
+    const [name, state, ...rest] = line.split('|').map((x) => x.trim());
+    if (name && (SCHEDULER_TASKS as readonly string[]).includes(name)) fact.tasks.push({ name, state: state || '', arguments: rest.join('|') });
   }
   return fact;
 }

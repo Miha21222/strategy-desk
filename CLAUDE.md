@@ -48,6 +48,7 @@ src/renderer/components/    Sidebar, DayPanel, SettingsTab, WorkflowsTab, HelpTa
 src/renderer/setup.ts       the wizard's own logic: steps (MVP vs legacy), skipped steps, the limitation notes (pure, tested)
 src/main/macro-env.ts       the vault contract (MACRO_VAULT/MACRO_PYTHON/MACRO_CLAUDE/TV_SESSIONID/…) a macro session gets (pure, tested)
 src/main/vault-template.ts  vault-create: the template → the user's folder, missing files only (pure plan, tested)
+                            + `ensureScriptBoms`: the UTF-8 BOM the two .ps1 need under Windows PowerShell 5.1 (issue #12)
 src/renderer/panel/cards.tsx   presentational cards for the «День» tab (levels, calendar, risk, journal, event feed)
 workflows/<id>/             workflow.yaml + prompt.md (+ risk-rules.example.json): every strategy number lives here
 src/renderer/i18n/          ru.ts (source of truth), en.ts (stub), t()
@@ -232,6 +233,11 @@ Landmines:
   and refuses to stage the drift.
 - **Long paths.** `uv sync` into a directory near Windows' 260-character limit fails with `os error 3` while
   persisting a temporary file. `%APPDATA%/strategy-desk/py` is short; a deep test directory is not.
+- **`require.resolve()` answers with a path INTO `app.asar`, even for an asarUnpacked package.** Electron's fs
+  and `execFile` read through the archive, so everything inside the app works; the Task Scheduler, PowerShell
+  and `wt.exe` ask the OS and get 0x80070002 (issue #12, 0.2.1). `claudeBin()` passes its answer through
+  `outsideAsar()` (runtime-spec.ts, tested), and the pack smoke launches the binary with `spawn`, never
+  `execFile`, so a regression fails `npm run dist:check` instead of the trader's 09:30 review.
 - **Caches want to be written next to the code they belong to.** numba and `__pycache__` would land in the
   installation directory — read-only on a per-machine install, wiped by the uninstaller — so `NUMBA_CACHE_DIR`
   and `PYTHONPYCACHEPREFIX` point into `userData`; see `runtimeEnv`.

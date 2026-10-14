@@ -14,7 +14,7 @@
 //     which template the folder was last completed from;
 //   * a non-empty folder that is not a vault is refused outright. The app
 //     does not write into a stranger's files.
-import { promises as fs } from 'node:fs';
+import { promises as fs, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const TEMPLATE_MARKER = 'template.json';
@@ -106,4 +106,58 @@ export async function copyVaultTemplate(templateDir: string, target: string, pus
   }
   push(`${files} files written`);
   return { mode: plan.mode, files };
+}
+
+/** UTF-8 byte order mark. */
+export const UTF8_BOM = Buffer.from([0xef, 0xbb, 0xbf]);
+
+/**
+ * The two scripts the Task Scheduler runs carry Russian window titles. Windows
+ * PowerShell 5.1 reads a `.ps1` without a BOM in the system ANSI code page
+ * (cp1251 here), so «Макро US 13.10» reached `wt.exe --title` and `claude -n`
+ * as mojibake (issue #12). A BOM is the one thing that makes 5.1 read UTF-8.
+ */
+export const BOM_SCRIPTS = ['indices-kb/tools/macro_review.ps1', 'indices-kb/tools/macro_schedule.ps1'];
+
+/**
+ * The same bytes with a UTF-8 BOM in front. Unchanged when one is there
+ * already, when the file is UTF-16 (its own BOM), or when the bytes are not
+ * valid UTF-8 at all (an ANSI save): a BOM on those would corrupt them.
+ */
+export function withUtf8Bom(bytes: Buffer): Buffer {
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return bytes;
+  if (bytes.length >= 2 && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) return bytes;
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return bytes;
+  }
+  return Buffer.concat([UTF8_BOM, bytes]);
+}
+
+/**
+ * Prepend the BOM to `BOM_SCRIPTS` inside a vault laid down before the fix:
+ * `copyVaultTemplate` never overwrites, so a 0.2.1 vault keeps its scripts
+ * forever. Only the three bytes change — the text is the user's, byte for
+ * byte. Synchronous on purpose: it runs between "task started" and the spawn,
+ * and two small files are not worth a window in which a second press could
+ * start the same task. Returns the relative paths it rewrote; missing files
+ * are skipped.
+ */
+export function ensureScriptBoms(vault: string): string[] {
+  const fixed: string[] = [];
+  for (const rel of BOM_SCRIPTS) {
+    const p = path.join(vault, ...rel.split('/'));
+    let bytes: Buffer;
+    try {
+      bytes = readFileSync(p);
+    } catch {
+      continue;
+    }
+    const next = withUtf8Bom(bytes);
+    if (next === bytes) continue;
+    writeFileSync(p, next);
+    fixed.push(rel);
+  }
+  return fixed;
 }

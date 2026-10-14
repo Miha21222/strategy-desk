@@ -18,7 +18,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const TEMPLATE_VERSION = '2'; // 2: + .claude/skills/humanizer (2026-10-13)
+const TEMPLATE_VERSION = '3'; // 2: + .claude/skills/humanizer (2026-10-13); 3: the .ps1 scripts carry a UTF-8 BOM (2026-10-14)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'resources', 'vault-template');
 const DEFAULT_SRC = 'C:\\Users\\Admin\\Documents\\Obsidian Notes\\Trading\\Trading Strategy Assistant';
@@ -171,6 +171,16 @@ function copyFile(src, rel, destRel = rel) {
       s = s.split(a).join(b);
     }
     text = Buffer.from(s, 'utf8');
+  }
+  // Windows PowerShell 5.1 reads a .ps1 without a BOM in the ANSI code page, and
+  // the launcher's Russian window titles come out as mojibake (issue #12).
+  if (destRel.endsWith('.ps1') && !(text[0] === 0xef && text[1] === 0xbb && text[2] === 0xbf)) {
+    try {
+      new TextDecoder('utf-8', { fatal: true }).decode(text);
+    } catch {
+      die(`${rel}: not valid UTF-8, so a BOM would corrupt it; save the script as UTF-8 first`);
+    }
+    text = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), text]);
   }
   writeFileSync(to, text);
   record(destRel);

@@ -618,6 +618,16 @@ describe('the scheduler check', () => {
     expect(schedulerCheck({ ...registered, tasks: [], script: '' }, vault).fix).toBeUndefined();
     expect(schedulerCheck({ queried: false, tasks: [], script: '' }, vault).status).toBe('unknown');
   });
+
+  it('flags a 0.2.1 registration whose -Claude path points into app.asar, and offers to re-register (issue #12)', () => {
+    const inside = '-File "C:\\v\\macro_review.ps1" -Region us -Claude "C:\\Users\\T\\AppData\\Local\\Programs\\Strategy Desk\\resources\\app.asar\\node_modules\\@anthropic-ai\\claude-agent-sdk-win32-x64\\claude.exe"';
+    const unpacked = inside.replace('app.asar\\', 'app.asar.unpacked\\');
+    const stale = schedulerCheck({ ...registered, tasks: registered.tasks.map((t, i) => ({ ...t, arguments: i === 1 ? inside : unpacked })) }, vault);
+    expect(stale).toMatchObject({ status: 'warn', detailKey: 'preflight.scheduler.stale', vars: { list: 'Trading Macro US' }, fix: { task: 'scheduler-register' } });
+    expect(schedulerCheck({ ...registered, tasks: registered.tasks.map((t) => ({ ...t, arguments: unpacked })) }, vault).status).toBe('ok');
+    // no -Claude at all (claude on PATH) is fine too
+    expect(schedulerCheck({ ...registered, tasks: registered.tasks.map((t) => ({ ...t, arguments: '-File x -Region eu' })) }, vault).status).toBe('ok');
+  });
 });
 
 describe('the timezone check', () => {
