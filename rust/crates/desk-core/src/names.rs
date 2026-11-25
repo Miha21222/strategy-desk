@@ -30,6 +30,8 @@ pub enum StateKind {
     Remember(Region),
     /// `drift_<D>_<r>.json` — «Что изменилось».
     Drift(Region),
+    /// `similar_<D>_<r>.json` — «Похожие дни» (`scale.py similar`).
+    Similar(Region),
     /// `review_<D>.json` — the mechanical evening review.
     Review,
     /// `review_<D>_agent.json` — the agent's evening words.
@@ -54,6 +56,7 @@ pub fn state_file(kind: StateKind, date: NaiveDate) -> String {
         StateKind::HumanRead(r) => format!("human_read_{d}_{r}.json"),
         StateKind::Remember(r) => format!("remember_{d}_{r}.json"),
         StateKind::Drift(r) => format!("drift_{d}_{r}.json"),
+        StateKind::Similar(r) => format!("similar_{d}_{r}.json"),
         StateKind::Review => format!("review_{d}.json"),
         StateKind::ReviewAgent => format!("review_{d}_agent.json"),
         StateKind::DayAnswers => format!("day_answers_{d}.json"),
@@ -94,7 +97,7 @@ pub const LESSONS_FILE: &str = "lessons.md";
 pub const SCORES_FILE: &str = "scale_factor_scores.csv";
 
 /// The prefixes `dateOfStateFile` knows.
-const DATED_PREFIXES: [&str; 10] = [
+const DATED_PREFIXES: [&str; 11] = [
     "scale",
     "macro",
     "review",
@@ -105,6 +108,8 @@ const DATED_PREFIXES: [&str; 10] = [
     "remember",
     "drift",
     "week",
+    // Not in the TS list (the file is new); the watcher must see it change.
+    "similar",
 ];
 
 /// `dateOfStateFile`: which date a state file belongs to —
