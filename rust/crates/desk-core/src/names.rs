@@ -251,6 +251,21 @@ pub fn config_path() -> String {
     paths::CONFIG.join("/")
 }
 
+/// A date the desk may build an owner's file name from: `%Y-%m-%d` of it
+/// must be exactly ten characters (year 1000–9999), or `date_of_state_file`
+/// (`_\d{4}-\d{2}-\d{2}`) would not recognise the name the desk wrote —
+/// chrono happily formats year 10000 as `+10000-01-01`.
+pub fn checked_file_date(date: NaiveDate) -> Result<NaiveDate, crate::CoreError> {
+    use chrono::Datelike;
+    if (1000..=9999).contains(&date.year()) {
+        Ok(date)
+    } else {
+        Err(crate::CoreError::BadDate(
+            date.format("%Y-%m-%d").to_string(),
+        ))
+    }
+}
+
 /// Parse an ISO date the way the owner's two files require it (`/^\d{4}-\d{2}-\d{2}$/`
 /// and a real calendar day).
 pub fn parse_date(s: &str) -> Result<NaiveDate, crate::CoreError> {
@@ -275,6 +290,23 @@ mod tests {
 
     fn d(s: &str) -> NaiveDate {
         parse_date(s).unwrap()
+    }
+
+    #[test]
+    fn owner_file_dates_have_four_digit_years() {
+        let ymd = |y, m, d| NaiveDate::from_ymd_opt(y, m, d).unwrap();
+        assert_eq!(
+            checked_file_date(ymd(2026, 10, 8)).unwrap(),
+            ymd(2026, 10, 8)
+        );
+        assert!(checked_file_date(ymd(1000, 1, 1)).is_ok());
+        assert!(checked_file_date(ymd(9999, 12, 31)).is_ok());
+        assert!(checked_file_date(ymd(999, 12, 31)).is_err());
+        assert!(checked_file_date(ymd(10000, 1, 1)).is_err());
+        assert!(checked_file_date(ymd(-1, 1, 1)).is_err());
+        // Every accepted date makes a name the reverse lookup reads back.
+        let name = human_read_file(checked_file_date(ymd(1000, 1, 1)).unwrap(), Region::Eu);
+        assert_eq!(date_of_state_file(&name), Some("1000-01-01"));
     }
 
     #[test]

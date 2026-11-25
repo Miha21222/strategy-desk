@@ -32,6 +32,22 @@ const STDERR_TAIL: usize = 8 * 1024;
 /// After the process exited, how long to wait for its last stdout bytes.
 const DRAIN_AFTER_EXIT: Duration = Duration::from_millis(500);
 
+/// Bench hook (CONTRACTS «Хуки для замеров»): run this executable instead of
+/// the configured one, e.g. desk-bench's `fake-claude`.
+pub const CLAUDE_BIN_ENV: &str = "DESK_CLAUDE_BIN";
+
+/// The executable to start: `DESK_CLAUDE_BIN` when set and non-empty, else
+/// the configured program. `program_args` and the flags are kept either way.
+pub fn program_for(
+    configured: &std::path::Path,
+    env: Option<std::ffi::OsString>,
+) -> std::path::PathBuf {
+    match env {
+        Some(v) if !v.is_empty() => v.into(),
+        _ => configured.to_path_buf(),
+    }
+}
+
 /// The session's process is gone; start a new one (with `--resume`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 #[error("the claude process is gone")]
@@ -57,7 +73,8 @@ impl ClaudeSession {
     /// Fails only when the OS refuses to start the program (`NotFound` = Claude
     /// Code is not installed where we looked).
     pub fn spawn(cfg: &ClaudeConfig) -> io::Result<(Self, mpsc::UnboundedReceiver<DriverEvent>)> {
-        let mut cmd = Command::new(&cfg.program);
+        let program = program_for(&cfg.program, std::env::var_os(CLAUDE_BIN_ENV));
+        let mut cmd = Command::new(&program);
         cmd.args(&cfg.program_args)
             .args(cfg.args())
             .current_dir(&cfg.cwd)
@@ -75,7 +92,7 @@ impl ClaudeSession {
             cmd.creation_flags(0x0800_0000);
         }
         // Program and arg count only: never the env (sessionid).
-        tracing::debug!(program = %cfg.program.display(), args = cfg.args().len(), "claude: spawning");
+        tracing::debug!(program = %program.display(), args = cfg.args().len(), "claude: spawning");
         let mut child = cmd.spawn()?;
         let pid = child.id();
         let io = (child.stdin.take(), child.stdout.take(), child.stderr.take());
@@ -723,6 +740,17 @@ mod tests {
         assert!(
             matches!(ev.as_slice(), [DriverEvent::Error { key, .. }] if key == keys::PROCESS_EXITED),
             "{ev:?}"
+        );
+    }
+
+    #[test]
+    fn desk_claude_bin_overrides_the_program() {
+        let p = std::path::Path::new("claude");
+        assert_eq!(program_for(p, None), PathBuf::from("claude"));
+        assert_eq!(program_for(p, Some("".into())), PathBuf::from("claude"));
+        assert_eq!(
+            program_for(p, Some("/bench/fake-claude".into())),
+            PathBuf::from("/bench/fake-claude")
         );
     }
 

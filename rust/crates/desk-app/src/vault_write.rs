@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use desk_core::names;
 use desk_core::owner;
 use desk_core::vault::{paths, DayAnswerRegions, DayAnswers, HumanRead, HumanSide};
@@ -64,13 +64,9 @@ impl OwnerFile {
     }
 }
 
-/// Only four-digit years make a name `date_of_state_file` recognises.
+/// `desk_core::names::checked_file_date`, as this module's error.
 fn checked(date: NaiveDate) -> Result<NaiveDate, WriteError> {
-    if (1000..=9999).contains(&date.year()) {
-        Ok(date)
-    } else {
-        Err(WriteError::BadDate)
-    }
+    names::checked_file_date(date).map_err(|_| WriteError::BadDate)
 }
 
 /// `<vault>/indices-kb/state` on disk.
