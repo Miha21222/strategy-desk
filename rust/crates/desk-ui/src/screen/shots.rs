@@ -78,13 +78,17 @@ pub fn decode_png(bytes: &[u8]) -> Option<ColorImage> {
     let rgba: Vec<u8> = match info.color_type {
         png::ColorType::Rgba => px.to_vec(),
         png::ColorType::Rgb => px
-            .chunks_exact(3)
-            .flat_map(|c| [c[0], c[1], c[2], 255])
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .flat_map(|&[r, g, b]| [r, g, b, 255])
             .collect(),
         png::ColorType::Grayscale => px.iter().flat_map(|&g| [g, g, g, 255]).collect(),
         png::ColorType::GrayscaleAlpha => px
-            .chunks_exact(2)
-            .flat_map(|c| [c[0], c[0], c[0], c[1]])
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .flat_map(|&[g, a]| [g, g, g, a])
             .collect(),
         // normalize_to_color8 expands palettes, so this is not reached.
         png::ColorType::Indexed => return None,
