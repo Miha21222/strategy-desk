@@ -13,7 +13,7 @@ Nov 25, 2026 · QA · функционал (ветка `rust-qa-func`)
 | U | юнит: одна чистая функция, случаи из ТЗ и из TS-тестов | `rust/crates/<crate>/tests/*.rs` | `cargo test` |
 | G | golden: ответ Rust = сохранённый ответ старого приложения | `desk-core/tests/golden_*.rs`, `rust/fixtures/golden`, `rust/fixtures/edge` | `cargo test -p desk-core --features golden` |
 | I | интеграция: несколько частей вместе, временный vault, поддельный `claude` (скрипт, печатающий stream-json) | `desk-app/tests/*.rs` | `cargo test` (Linux и windows-latest в CI) |
-| S | снимок UI: `egui_kittest`, кадр сравнивается со снимком `scripts/preview/preview.sh` на тех же шагах `steps.json` | `desk-ui/tests/*.rs`, `rust/fixtures/ui/` | `cargo test -p desk-ui` |
+| S | снимок UI: `egui_kittest`, кадр сравнивается со снимком `scripts/preview/preview.sh` на тех же шагах `steps.json` | `desk-ui/tests/*.rs`, `rust/fixtures/reference-ui/`, `docs/rust/UI_CHECKLIST.md` | `cargo test -p desk-ui` |
 | E | e2e: собранный `strategy-desk.exe` на demo-vault, сценарий дня с поддельным временем (`DESK_NOW=`) и поддельным `claude` | `rust/fixtures/e2e/` + скрипт | CI windows-latest |
 | W | вручную на Windows-ПК владельца (или чистой учётке) | чек-лист в этом файле | человек |
 
@@ -356,7 +356,7 @@ Nov 25, 2026 · QA · функционал (ветка `rust-qa-func`)
 | 15 | сегодня | да | нет | нет, demo-vault | как строка 1; кнопки отправки в чат выключены |
 | 16 | сегодня, «Сегодня помни» | да | нет | нет | карточка скрыта вместе со шкалой |
 
-Уровни: U (функция по 16 строкам), S (строки 1, 2, 3, 6, 10), E (S1, шаг 09:30).
+Уровни: U (функция по 16 строкам — `rust/crates/desk-core/tests/visibility.rs`, 17 тестов против предложенной `desk_core::windows::visibility(id, &day, now, peek)`; пока за заглушкой `#![cfg(any())]`), S (строки 1, 2, 3, 6, 10 — `docs/rust/UI_CHECKLIST.md` §1–§3), E (S1, шаг 09:30).
 
 ---
 
@@ -439,6 +439,9 @@ Nov 25, 2026 · QA · функционал (ветка `rust-qa-func`)
 | Q20 | `writeDayAnswers` режет заметку `slice(0, 300)` по UTF-16: эмодзи на границе рвётся пополам; Rust режет по символам | — (запись) | решить: по символам, тест на 299 букв + эмодзи |
 | Q21 | Дебаунс watcher в старом коде 500 мс, ТЗ — 300 мс | `macro-state.ts` | по ТЗ (300) |
 | Q22 | `zoneOf` при вырожденных зонах `{0, 0}`: стрелка 0 → `strong-short` | `zones.json` | повторить (конфиг так не пишут, но не падать) |
+| Q23 | «Сначала человек» на вечерней вкладке прячет только плитку итога и полосу агента; само тело итога («Кто был прав», шкала) открывается, если нажать на плитку до ответа | `MacroDesk.tsx`: `ReviewView` не получает `unread`; `tests/visibility.rs` строка 10 | решить (логичнее прятать и тело); тесты пока держат поведение TS |
+| Q24 | Время окон зашито в строки словаря: `macro.yourReadAsk.us` «(16:30–18:30)», `macro.agentIdle.us` «в 16:00», плитка «· 16:00». В неделю рассинхрона это неверно | `rust/fixtures/reference-ui/index.md`, `docs/rust/UI_CHECKLIST.md` §9 | не повторять: строки с параметрами из `window_times` |
+| Q25 | На прошлом дне без итога: «Итога дня ещё нет — он появится в 20:00.» | шаг `21-prev-review` | повторить или поправить текст — решить |
 
 ---
 
@@ -478,13 +481,13 @@ Nov 25, 2026 · QA · функционал (ветка `rust-qa-func`)
 | W — вручную на Windows | 13 | 13 |
 | **Всего** | **119** | **14** |
 
-Плюс 6 сценариев дня (раздел 2), 16 строк таблицы «Сначала человек» (раздел 4) и 22 причуды TS (раздел 7).
+Плюс 6 сценариев дня (раздел 2), 16 строк таблицы «Сначала человек» (раздел 4) и 25 причуд TS (раздел 7).
 
 Golden-тесты уже написаны (`rust/crates/desk-core/tests/golden_day.rs`, `golden_helpers.rs`, за фичей `golden`) и соберутся, когда появится API desk-core; все вызовы — в одном модуле `api` каждого файла. `golden_harness.rs` работает уже сейчас: проверяет сами фикстуры и сравнение JSON.
 
 ## 10. Что не снято и почему
 
-- **Снимки экрана старого приложения для S-тестов.** `preview.sh` нужен собранный renderer (`npm run build` = electron-vite) и Playwright с Chromium. В этой среде браузер не ставился; снимки снимаются отдельным шагом в `rust/fixtures/ui/` перед этапом 3.
+- ~~Снимки экрана старого приложения для S-тестов~~ — сняты: `rust/fixtures/reference-ui/` (34 PNG, тексты шагов) и `docs/rust/UI_CHECKLIST.md`.
 - **Синхрон с доской.** Схемы `board_*.json` нет ни в коде, ни в CONTRACTS.md; эталона в старом приложении нет (поведение новое). Тесты Y1–Y15 описаны, фикстуры — после контракта.
 - **Запись владельца из TS в golden.** `writeHumanRead` / `writeDayAnswers` ставят `at` по настоящим часам; эталон их формы есть в demo-vault (`human_read_2026-09-14_*.json`, `day_answers_2026-09-14.json`) и в TS-тестах, отдельного golden нет.
 - **`defaults.json`** из `dump.ts` не сохранён: это контракт настроек desk-app, и в нём адрес GitHub-репозитория владельца.
