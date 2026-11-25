@@ -1,0 +1,353 @@
+{
+ "schema": "desk-perf-summary/1",
+ "generated_at": "2026-11-25T14:38:50Z",
+ "before": null,
+ "after": {
+  "file": "sample-linux.json",
+  "label": "НЕ РЕПРЕЗЕНТАТИВНО: облачный Linux-бокс, проверка стенда",
+  "kind": "rust",
+  "version": "0.3.0-dev",
+  "commit": "e7b3c78",
+  "date": "2026-11-25",
+  "created_at": "2026-11-25T14:38:29Z",
+  "representative": false
+ },
+ "representative": false,
+ "counts": {
+  "pass": 2,
+  "fail": 0,
+  "skip": 12,
+  "info": 5
+ },
+ "metrics": [
+  {
+   "id": "cold_start_ms",
+   "label": "Холодный старт до первого кадра",
+   "unit": "ms",
+   "target": 300.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "not measured on Linux: dropping the page cache needs root on the host, and only the Windows number counts",
+   "trend": []
+  },
+  {
+   "id": "warm_start_ms",
+   "label": "Тёплый старт",
+   "unit": "ms",
+   "target": 150.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "the binary printed no {\"first_frame_ms\":…} line (desk-ui has no window yet)",
+   "trend": []
+  },
+  {
+   "id": "idle_working_set_mb",
+   "label": "RAM в покое (Working Set)",
+   "unit": "MB",
+   "target": 80.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "exits on its own within 2 s (exit status: 0); a stub UI has nothing to idle",
+   "trend": []
+  },
+  {
+   "id": "idle_private_mb",
+   "label": "RAM в покое (Private Bytes)",
+   "unit": "MB",
+   "target": 80.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "exits on its own within 2 s (exit status: 0); a stub UI has nothing to idle",
+   "trend": []
+  },
+  {
+   "id": "idle_cpu_pct",
+   "label": "CPU в покое",
+   "unit": "%",
+   "target": 1.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "exits on its own within 2 s (exit status: 0); a stub UI has nothing to idle",
+   "trend": []
+  },
+  {
+   "id": "frame_p50_ms",
+   "label": "Кадр p50 при стриме",
+   "unit": "ms",
+   "target": 8.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "needs the window: DESK_FRAME_STATS=1 while fake-claude streams 10k events (bench.ps1 -StreamFrames)",
+   "trend": []
+  },
+  {
+   "id": "frame_p95_ms",
+   "label": "Кадр p95 при стриме",
+   "unit": "ms",
+   "target": 16.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "needs the window: DESK_FRAME_STATS=1 while fake-claude streams 10k events (bench.ps1 -StreamFrames)",
+   "trend": []
+  },
+  {
+   "id": "frame_p99_ms",
+   "label": "Кадр p99 при стриме",
+   "unit": "ms",
+   "target": 33.0,
+   "stat": "median",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "needs the window: DESK_FRAME_STATS=1 while fake-claude streams 10k events (bench.ps1 -StreamFrames)",
+   "trend": []
+  },
+  {
+   "id": "day_load_ms",
+   "label": "Загрузка дня (~22 файла)",
+   "unit": "ms",
+   "target": 30.0,
+   "stat": "median",
+   "before": null,
+   "after": 0.376,
+   "status": "pass",
+   "delta_pct": null,
+   "note": "",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 0.376,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "day_load_real_size_ms",
+   "label": "Загрузка дня, файлы реального размера",
+   "unit": "ms",
+   "target": 30.0,
+   "stat": "median",
+   "before": null,
+   "after": 1.184,
+   "status": "pass",
+   "delta_pct": null,
+   "note": "",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 1.184,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "vault_x10_parse_ms",
+   "label": "Разбор всего vault ×10",
+   "unit": "ms",
+   "target": null,
+   "stat": "median",
+   "before": null,
+   "after": 1568.711,
+   "status": "info",
+   "delta_pct": null,
+   "note": "",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 1568.711,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "vault_x10_list_days_ms",
+   "label": "Список дней vault ×10",
+   "unit": "ms",
+   "target": null,
+   "stat": "median",
+   "before": null,
+   "after": 2.407,
+   "status": "info",
+   "delta_pct": null,
+   "note": "",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 2.407,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "stream_parse_10k_ms",
+   "label": "Разбор 10 тыс. событий stream-json",
+   "unit": "ms",
+   "target": null,
+   "stat": "median",
+   "before": null,
+   "after": 10.624,
+   "status": "info",
+   "delta_pct": null,
+   "note": "",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 10.624,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "stream_pipe_10k_ms",
+   "label": "10 тыс. событий через трубу fake-claude",
+   "unit": "ms",
+   "target": null,
+   "stat": "median",
+   "before": null,
+   "after": 39.293,
+   "status": "info",
+   "delta_pct": null,
+   "note": "",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 39.293,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "watch_latency_ms",
+   "label": "Перерисовка после записи в state/",
+   "unit": "ms",
+   "target": 350.0,
+   "stat": "p95",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "needs desk-app's watcher (HOOK(desk-app)): slow-writer's `done` t_unix_ms → the app's snapshot line, see PERF.md",
+   "trend": []
+  },
+  {
+   "id": "switch_ms",
+   "label": "Переключение экрана / дня",
+   "unit": "ms",
+   "target": 100.0,
+   "stat": "p95",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "needs a desk-ui bench hook (proposed `--bench-switch`, PERF.md)",
+   "trend": []
+  },
+  {
+   "id": "exe_mb",
+   "label": "Размер exe",
+   "unit": "MB",
+   "target": 15.0,
+   "stat": "max",
+   "before": null,
+   "after": 0.327,
+   "status": "info",
+   "delta_pct": null,
+   "note": "stub binary without a window: size not comparable with the target yet",
+   "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 0.327,
+     "representative": false
+    }
+   ]
+  },
+  {
+   "id": "installer_mb",
+   "label": "Размер установщика",
+   "unit": "MB",
+   "target": 20.0,
+   "stat": "max",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "no installer yet (stage 7)",
+   "trend": []
+  },
+  {
+   "id": "soak_private_growth_pct",
+   "label": "Рост Private Bytes за сутки",
+   "unit": "%",
+   "target": 5.0,
+   "stat": "max",
+   "before": null,
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "24 h soak runs on Windows only (bench.ps1 -SoakHours)",
+   "trend": []
+  }
+ ],
+ "failed": [],
+ "stress": [
+  {
+   "detail": "10 000 events + init arrive, exit 0",
+   "id": "fake_claude_10k_complete",
+   "scope": "harness",
+   "status": "pass"
+  },
+  {
+   "detail": "garbage every 7th line: 10001 frames ok, 1428 broken lines skipped",
+   "id": "fake_claude_garbage",
+   "scope": "harness",
+   "status": "pass"
+  },
+  {
+   "detail": "5000 frames, then half a line and exit Some(3) after 37 ms",
+   "id": "fake_claude_dies_mid_line",
+   "scope": "harness",
+   "status": "pass"
+  },
+  {
+   "detail": "1.5 s stall mid-turn, all 101 frames after 1504 ms",
+   "id": "fake_claude_stall",
+   "scope": "harness",
+   "status": "pass"
+  },
+  {
+   "detail": "1839 reads during a chunked write, 1310 saw broken JSON, final file valid: true",
+   "id": "slow_writer_partial_reads",
+   "scope": "harness",
+   "status": "pass"
+  }
+ ]
+}

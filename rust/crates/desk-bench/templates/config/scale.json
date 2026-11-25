@@ -1,0 +1,233 @@
+{
+ "version": "v3.1",
+ "zones": {
+  "neutral": 15,
+  "strong": 40
+ },
+ "regions": {
+  "eu": {
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "Точка A / направление D1–H4",
+     "group": "контекст дня",
+     "share": 12
+    },
+    {
+     "id": "d1_flow",
+     "name": "D1 — направление (PO3)",
+     "group": "контекст дня",
+     "share": 6
+    },
+    {
+     "id": "h4_flow",
+     "name": "Структура H4",
+     "group": "контекст дня",
+     "share": 6
+    },
+    {
+     "id": "dr_zone",
+     "name": "Premium / Discount H4 DR",
+     "group": "контекст дня",
+     "share": 4
+    },
+    {
+     "id": "h1_flow",
+     "name": "Структура H1 (POI)",
+     "group": "контекст дня",
+     "share": 5
+    },
+    {
+     "id": "night_sweep",
+     "name": "Что снял премаркет",
+     "group": "окно открытия",
+     "share": 14
+    },
+    {
+     "id": "m15_flow",
+     "name": "Структура M15 (премаркет)",
+     "group": "окно открытия",
+     "share": 6
+    },
+    {
+     "id": "room",
+     "name": "Место до цели в окне",
+     "group": "окно открытия",
+     "share": 12
+    },
+    {
+     "id": "night_move",
+     "name": "Ход премаркета к закрытию Xetra",
+     "group": "окно открытия",
+     "share": 6
+    },
+    {
+     "id": "opens",
+     "name": "Цена к DO / WO",
+     "group": "окно открытия",
+     "share": 5
+    },
+    {
+     "id": "prev_close",
+     "name": "Как закрылась вчерашняя Xetra",
+     "group": "окно открытия",
+     "share": 4
+    },
+    {
+     "id": "m_verdict",
+     "name": "Новостной вердикт агента",
+     "group": "макро",
+     "share": 7
+    },
+    {
+     "id": "m_peers",
+     "name": "ES / NQ за ночь",
+     "group": "макро",
+     "share": 3
+    },
+    {
+     "id": "m_asia",
+     "name": "Азия",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_vol",
+     "name": "VSTOXX / VIX",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_yields",
+     "name": "Доходности Bund / US10Y",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_dollar",
+     "name": "Евро (EURUSD)",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_oil",
+     "name": "Нефть Brent",
+     "group": "макро",
+     "share": 1
+    }
+   ]
+  },
+  "us": {
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "Точка A / BIAS",
+     "group": "контекст дня",
+     "share": 12
+    },
+    {
+     "id": "d1_flow",
+     "name": "D1 — направление (PO3)",
+     "group": "контекст дня",
+     "share": 6
+    },
+    {
+     "id": "h4_flow",
+     "name": "Структура H4",
+     "group": "контекст дня",
+     "share": 5
+    },
+    {
+     "id": "dr_zone",
+     "name": "Premium / Discount H4 DR",
+     "group": "контекст дня",
+     "share": 4
+    },
+    {
+     "id": "h1_flow",
+     "name": "Структура H1 (POI)",
+     "group": "контекст дня",
+     "share": 6
+    },
+    {
+     "id": "night_sweep",
+     "name": "Что сняла ночь",
+     "group": "окно открытия",
+     "share": 11
+    },
+    {
+     "id": "m15_flow",
+     "name": "Структура M15 (ночь)",
+     "group": "окно открытия",
+     "share": 10
+    },
+    {
+     "id": "room",
+     "name": "Место до цели в окне",
+     "group": "окно открытия",
+     "share": 12
+    },
+    {
+     "id": "night_move",
+     "name": "Ход ночи к вчерашнему закрытию",
+     "group": "окно открытия",
+     "share": 6
+    },
+    {
+     "id": "opens",
+     "name": "Цена к DO / WO / NYM",
+     "group": "окно открытия",
+     "share": 5
+    },
+    {
+     "id": "prev_close",
+     "name": "Как закрылся вчерашний RTH",
+     "group": "окно открытия",
+     "share": 3
+    },
+    {
+     "id": "m_verdict",
+     "name": "Новостной вердикт агента",
+     "group": "макро",
+     "share": 7
+    },
+    {
+     "id": "m_peers",
+     "name": "Европа к 16:00 (FDAX, FESX)",
+     "group": "макро",
+     "share": 2
+    },
+    {
+     "id": "m_vol",
+     "name": "VIX",
+     "group": "макро",
+     "share": 2
+    },
+    {
+     "id": "m_yields",
+     "name": "Доходности US2Y / US10Y",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_dollar",
+     "name": "Доллар (DXY)",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_oil",
+     "name": "Нефть",
+     "group": "макро",
+     "share": 1
+    },
+    {
+     "id": "m_tone",
+     "name": "Тон заголовков",
+     "group": "макро",
+     "share": 1
+    }
+   ]
+  }
+ }
+}
