@@ -5,7 +5,7 @@ members = ["crates/desk-core", "crates/desk-app", "crates/desk-ui", "crates/desk
 [workspace.package]
 version = "0.3.0-dev"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.95"
 license = "UNLICENSED"
 publish = false
 
