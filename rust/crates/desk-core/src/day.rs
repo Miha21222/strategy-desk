@@ -23,7 +23,7 @@ use crate::stats;
 use crate::vault::*;
 use crate::zones::Zones;
 use chrono::NaiveDate;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 
@@ -110,7 +110,7 @@ pub fn day_files(date: NaiveDate) -> Vec<String> {
 }
 
 /// `RegionSnapshot`: one window of the day as the files have it.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RegionSnapshot {
     pub region: Region,
     /// Older scale files (v1) get the percentages the screen draws; a file
@@ -132,14 +132,14 @@ pub struct RegionSnapshot {
 }
 
 /// The 20:00 pictures of each window: IB, IB1/IB2, the first break, the morning levels.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReviewShots {
     pub eu: Option<Shots>,
     pub us: Option<Shots>,
 }
 
 /// `MacroDay.review`.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReviewDay {
     pub mech: Option<Raw<ReviewFile>>,
     pub agent: Option<Raw<ReviewAgent>>,
@@ -149,7 +149,10 @@ pub struct ReviewDay {
 }
 
 /// `MacroDay`: everything the macro-review screen shows for one date.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+///
+/// `Deserialize` reads the JSON `Serialize` writes (a dump or a cached
+/// snapshot) back into a day: passed-through files keep their raw JSON.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Day {
     pub date: NaiveDate,
     pub eu: RegionSnapshot,
@@ -777,6 +780,18 @@ mod tests {
             serde_json::to_value(load_day(&v, date)).unwrap(),
             serde_json::to_value(load_day(&vault(), date)).unwrap()
         );
+    }
+
+    #[test]
+    fn a_day_reads_back_from_its_own_json() {
+        let v = vault();
+        for date in ["2026-10-07", "2026-10-08", "2026-10-09", "2026-10-12"] {
+            let day = load_day(&v, d(date));
+            let text = serde_json::to_string(&day).unwrap();
+            let back: Day = serde_json::from_str(&text).unwrap();
+            assert_eq!(back, day, "{date}");
+            assert_eq!(serde_json::to_string(&back).unwrap(), text);
+        }
     }
 
     #[test]
