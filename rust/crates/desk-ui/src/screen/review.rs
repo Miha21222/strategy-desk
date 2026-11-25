@@ -572,13 +572,16 @@ fn factor_hits(ui: &mut Ui, p: &Palette, region: Region, rv: Option<&ReviewRegio
         ui.horizontal_wrapped(|ui| {
             for x in rows {
                 let id = x.factor.clone().unwrap_or_default();
-                let name = day.factor_name(&id).map(str::to_owned).unwrap_or_else(|| {
-                    if id.starts_with("talk_") {
-                        t("macro.talkArg").to_owned()
-                    } else {
-                        id.clone()
-                    }
-                });
+                let name = day
+                    .factor_name_in(region, &id)
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| {
+                        if id.starts_with("talk_") {
+                            t("macro.talkArg").to_owned()
+                        } else {
+                            id.clone()
+                        }
+                    });
                 let good = x.hit.as_deref() == Some("1");
                 let s = format!("{} {name}", if good { "✓" } else { "✗" });
                 kit::chip(
@@ -609,7 +612,7 @@ fn stats_card(ui: &mut Ui, p: &Palette, day: &Day) {
         for s in rows {
             let r = rate(s) as f32;
             let id = s.factor.clone().unwrap_or_default();
-            let name = day.factor_name(&id).unwrap_or(&id).to_owned();
+            let name = day.factor_name_in(s.region, &id).unwrap_or(&id).to_owned();
             let fill = if r >= 0.6 {
                 p.ok
             } else if r < 0.45 {

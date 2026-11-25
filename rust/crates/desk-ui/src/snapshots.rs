@@ -337,7 +337,7 @@ fn said_day_shows_read_memory_and_every_factor() {
     for f in split.long.iter().chain(&split.short).chain(&split.silent) {
         // The tag is the config's current name, else the file's.
         let id = f.id.as_deref().unwrap();
-        let name = day.factor_name(id).or(f.name.as_deref()).unwrap();
+        let name = day.factor_name_in(Region::Eu, id).unwrap();
         assert!(has(&h, name), "factor hidden: {name}");
     }
     // The argument's line is the observation, not the factor's name.
@@ -366,6 +366,66 @@ fn said_day_shows_read_memory_and_every_factor() {
     assert!(!has(&h, "Похожие дни"));
 }
 
+/// A hand-written `similar_<D>_eu.json`: the demo vault has no such file.
+fn sample_similar(date: &str) -> desk_core::vault::Similar {
+    let v = serde_json::json!({
+        "date": date, "region": "eu", "asof": format!("{date} 09:31"),
+        "days": [
+            {"date": "2026-09-08", "score": 0.84, "match": ["пила", "ночь ≥ 0.8 ADR", "стрелка −41"],
+             "day_move": {"side": "SHORT", "pct_adr": -0.62}, "ib_move": {"side": "SHORT", "reach": "IB1"},
+             "verdict": "план дошёл до IB1"},
+            {"date": "2026-09-14", "score": 0.71, "match": ["сняли максимум ночи", "новости за шорт"],
+             "day_move": {"side": "FLAT", "pct_adr": 0.18}, "ib_move": {"side": "LONG", "reach": "IB"}},
+            {"date": "2026-08-13", "score": 0.66, "match": ["понедельник после тренда", "VIX растёт"],
+             "day_move": {"side": "SHORT", "pct_adr": -0.91}, "ib_move": {"side": "SHORT", "reach": "IB2"}}
+        ]
+    });
+    desk_core::normalize::normalize_similar(&v, date, Region::Eu).unwrap()
+}
+
+#[test]
+fn badges_and_names_match_qa() {
+    // QA (UI_CHECKLIST): hit rates over the last 20 reviewed days before the
+    // date, from the score rows; no badge under 3 verdicts.
+    let mut h = screen(
+        Theme::Light,
+        "2026-09-14T11:00",
+        "2026-09-14",
+        Some(WindowId::Eu),
+    );
+    h.run();
+    assert!(has(&h, "6 из 8"), "bias_a 14.09 EU");
+    let mut h = screen(Theme::Light, TODAY, "2026-10-26", Some(WindowId::Eu));
+    h.run();
+    h.get_by_label("Показать обзор без ответа").click();
+    h.run();
+    for s in [
+        "Что снял премаркет",
+        "Структура M15 (премаркет)",
+        "9 из 13",
+        "7 из 14",
+        "4 из 13",
+    ] {
+        assert!(has(&h, s), "missing: {s}");
+    }
+    use crate::screen::region::shown_hit_rate;
+    let day = demo_snapshot(d("2026-10-26")).day.unwrap();
+    let rate = |id| shown_hit_rate(&day, Region::Eu, id).map(|r| (r.hits, r.total));
+    assert_eq!(rate("bias_a"), Some((9, 13)));
+    assert_eq!(rate("night_sweep"), Some((7, 14)));
+    assert_eq!(rate("room"), Some((4, 13)));
+    for f in &day.eu.scale.as_deref().unwrap().factors {
+        let id = f.id.as_deref().unwrap();
+        if day.hit_rate(Region::Eu, id).is_some_and(|r| r.total < 3) {
+            assert_eq!(
+                shown_hit_rate(&day, Region::Eu, id),
+                None,
+                "{id}: badge under 3"
+            );
+        }
+    }
+}
+
 #[test]
 fn renamed_factor_shows_its_new_name_on_old_days() {
     // Owner, 25.11: question-like names were renamed in the vault config;
@@ -376,10 +436,9 @@ fn renamed_factor_shows_its_new_name_on_old_days() {
         let mut snap = app.snapshot().clone();
         if let Some(day) = snap.day.as_mut() {
             let d = Arc::make_mut(day);
-            d.names.insert(
-                "night_sweep".into(),
-                serde_json::Value::String("Снятие PDH / PDL в премаркете".into()),
-            );
+            d.region_names
+                .eu
+                .insert("night_sweep".into(), "Снятие PDH / PDL в премаркете".into());
         }
         app.set_snapshot(snap);
     }
@@ -394,9 +453,7 @@ fn with_similar(h: &mut Harness<'static, DeskApp>) {
     let mut snap = app.snapshot().clone();
     if let Some(day) = snap.day.as_mut() {
         let d = Arc::make_mut(day);
-        d.eu.similar = Some(crate::screen::core_bridge::sample_similar(
-            &d.date.to_string(),
-        ));
+        d.eu.similar = Some(sample_similar(&d.date.to_string()));
     }
     app.set_snapshot(snap);
 }
@@ -417,6 +474,8 @@ fn similar_days_card_from_the_sample() {
         "совпало: пила · ночь ≥ 0.8 ADR · стрелка −41",
         "день: вниз 0.62 ADR · от IB: вниз до IB1",
         "разбор: план дошёл до IB1",
+        // 14.09 has scored rows: today's arguments on that day.
+        "сегодняшние доводы в тот день:",
         "от IB: вверх пробой без IB1",
         "от IB: вниз до IB2",
     ] {
