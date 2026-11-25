@@ -4,3 +4,4 @@
 //! a `Command` and renders the latest `Snapshot`. See docs/rust/CONTRACTS.md.
 
 pub mod claude;
+pub mod macro_env;
