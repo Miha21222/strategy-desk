@@ -1,33 +1,42 @@
-//! egui_kittest tests of the gauge and the window.
+//! egui_kittest tests of the gauge and the screen.
 //!
-//! Tree tests (accessible names, Cyrillic glyph coverage, the needle easing)
-//! run everywhere. Image snapshots render through wgpu on a software adapter
-//! (lavapipe on Linux) into `crates/desk-ui/snapshots/`; they are compared on
-//! Linux only, because another rasteriser (WARP on windows-latest) draws
-//! anti-aliased edges a few pixels differently. Update them with
-//! `UPDATE_SNAPSHOTS=1 cargo test -p desk-ui`.
+//! Tree tests (accessible names, «Сначала человек», glyph coverage, the
+//! needle easing) run everywhere. Image snapshots render through wgpu on a
+//! software adapter (lavapipe on Linux) into `crates/desk-ui/snapshots/`; they
+//! are compared on Linux only, because another rasteriser (WARP on
+//! windows-latest) draws anti-aliased edges a few pixels differently. Update
+//! them with `UPDATE_SNAPSHOTS=1 cargo test -p desk-ui`.
+//!
+//! The screen tests read the demo vault (`rust/fixtures/golden/vault`) the way
+//! desk-app does, synchronously, and hand the snapshot to the app.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use chrono::NaiveDate;
+use desk_app::{Command, ShotState, Snapshot};
+use desk_core::zones::Zones;
+use desk_core::{Region, WindowId};
 use eframe::egui::{self, Frame, Margin, Theme, ThemePreference, Ui};
 use egui_kittest::kittest::Queryable as _;
 use egui_kittest::Harness;
 
-use crate::app::DeskApp;
-use crate::cli::WindowOpts;
+use crate::app::{demo_vault, DeskApp};
+use crate::clock::{parse_now, Clock};
 use crate::gauge::{Gauge, NeedleAnim, NEEDLE_TRAVEL_S};
-use crate::geom::Zones;
 use crate::i18n;
 use crate::theme::{self, Palette};
 
-#[cfg(target_os = "linux")] // only the image snapshots use it
-const VALUES: [f32; 4] = [-80.0, 0.0, 30.0, 100.0];
-
-#[cfg(target_os = "linux")] // only the image snapshots use it
-fn theme_name(t: Theme) -> &'static str {
-    match t {
-        Theme::Dark => "dark",
-        Theme::Light => "light",
-    }
+fn d(s: &str) -> NaiveDate {
+    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
 }
+
+fn setup(ctx: &egui::Context) {
+    crate::fonts::install(ctx);
+    theme::apply(ctx, ThemePreference::System);
+}
+
+// ---------------------------------------------------------------- the gauge
 
 /// The gauge on a card background, like in the hero card.
 fn gauge_ui(ui: &mut Ui, value: f32) {
@@ -45,18 +54,8 @@ fn gauge_harness(theme: Theme, value: f32) -> Harness<'static, f32> {
     Harness::builder()
         .with_size(egui::vec2(360.0, 290.0))
         .with_theme(theme)
-        .with_context_setup(|ctx| theme::apply(ctx, ThemePreference::System))
+        .with_context_setup(setup)
         .build_ui_state(|ui, v: &mut f32| gauge_ui(ui, *v), value)
-}
-
-fn window_harness(theme: Theme) -> Harness<'static, DeskApp> {
-    let ctx = egui::Context::default();
-    let app = DeskApp::new(&ctx, WindowOpts::default(), None);
-    Harness::builder()
-        .with_size(egui::vec2(1200.0, 800.0))
-        .with_theme(theme)
-        .with_context_setup(|ctx| theme::apply(ctx, ThemePreference::System))
-        .build_ui_state(|ui, app: &mut DeskApp| app.draw(ui), app)
 }
 
 #[test]
@@ -76,14 +75,11 @@ fn gauge_names_value_and_zone() {
 
 #[test]
 fn gauge_follows_zone_inputs() {
-    let wide = Zones {
-        neutral: 35.0,
-        strong: 70.0,
-    };
+    let wide = Zones::new(35.0, 70.0);
     let mut h = Harness::builder()
         .with_size(egui::vec2(360.0, 290.0))
         .build_ui(|ui| {
-            Gauge::new(30.0, wide).show(ui);
+            Gauge::new(30.0, wide.clone()).show(ui);
         });
     h.run();
     h.get_by_label_contains("+30%, нет перевеса");
@@ -138,32 +134,298 @@ fn needle_travels_in_point_three_seconds() {
 #[test]
 fn every_string_has_glyphs() {
     // The harness panics on a character no font can draw, so laying out the
-    // whole dictionary proves the default fonts cover our Cyrillic.
+    // whole dictionary proves Inter + egui's fallback cover our text.
     let mut h = Harness::builder()
         .with_size(egui::vec2(900.0, 1600.0))
+        .with_context_setup(setup)
         .build_ui(|ui| {
-            for (_, s) in i18n::RU {
-                ui.label(*s);
-                ui.label(egui::RichText::new(s.to_uppercase()).strong());
-            }
-            ui.label("−+%·«»—…ё Ё");
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                for s in i18n::all() {
+                    ui.label(s);
+                    ui.label(egui::RichText::new(s.to_uppercase()).family(crate::fonts::bold()));
+                }
+                ui.label("−+%·«»—…ё Ё ✓ ✗ ⚠ × ‹ › ≈ ← →");
+            });
         });
     h.run();
 }
 
+// ---------------------------------------------------------------- the screen
+
+/// What desk-app would hold after `OpenDay(date)` and every `LoadShot`.
+fn demo_snapshot(date: NaiveDate) -> Snapshot {
+    let vault = demo_vault();
+    let (index, marks) = desk_app::day::read_index(&vault);
+    let day = desk_core::load_day(&desk_app::day::read_day(&vault, date), date);
+    let shots: HashMap<String, ShotState> = day
+        .shot_paths()
+        .into_iter()
+        .map(|p| {
+            let s = match desk_app::shots::load_shot(&vault, p) {
+                Ok(l) => ShotState::Ready(Arc::new(l)),
+                Err(e) => ShotState::Refused(e),
+            };
+            (p.to_owned(), s)
+        })
+        .collect();
+    Snapshot {
+        day: Some(Arc::new(day)),
+        days_index: Arc::new(marks),
+        index: Arc::new(index),
+        shots: Arc::new(shots),
+        rev: 1,
+        ..Snapshot::default()
+    }
+}
+
+/// The window on the demo vault: `date` open, the clock at `now` (Kyiv).
+fn screen(theme: Theme, now: &str, date: &str, win: Option<WindowId>) -> Harness<'static, DeskApp> {
+    let ctx = egui::Context::default();
+    let clock = Clock::Fixed(parse_now(now).unwrap());
+    let mut app = DeskApp::new(&ctx, clock, None, Some(demo_vault()));
+    app.set_snapshot(demo_snapshot(d(date)));
+    app.textures_mut().sync = true;
+    let s = app.screen_mut();
+    s.go(d(date));
+    s.win = win;
+    Harness::builder()
+        .with_size(egui::vec2(1280.0, 1900.0))
+        .with_theme(theme)
+        .with_context_setup(setup)
+        .build_ui_state(|ui, app: &mut DeskApp| app.draw(ui), app)
+}
+
+/// The «today» of the demo vault, at the hour of the reference shots.
+const TODAY: &str = "2026-10-26T09:40";
+
+fn has(h: &Harness<'_, DeskApp>, s: &str) -> bool {
+    h.query_all_by_label_contains(s).next().is_some()
+}
+
 #[test]
-fn window_shows_sidebar_and_gauge() {
-    let mut h = window_harness(Theme::Dark);
+fn ask_first_shows_only_the_question() {
+    // TEST_PLAN §4 row 1 / UI_CHECKLIST §1: 26.10 EU, review there, no read.
+    let mut h = screen(Theme::Light, TODAY, "2026-10-26", Some(WindowId::Eu));
     h.run();
-    h.get_by_label(i18n::t("app.title"));
-    h.get_by_label(i18n::t("macro.whereTitle"));
-    h.get_by_label(i18n::t("macro.groups"));
-    h.get_by_label_contains("+30%, лонг");
+    for s in [
+        "Сначала твой взгляд",
+        "Куда пойдёт окно открытия Европы (10:00–12:00)?",
+        "вверх",
+        "вниз",
+        "не знаю",
+        "не торгую",
+        "Показать обзор без ответа",
+        "после твоего взгляда",
+        "Обзор готов",
+    ] {
+        assert!(has(&h, s), "missing: {s}");
+    }
+    for s in [
+        "Сегодня помни",
+        "Что изменилось",
+        "Куда смотрит рынок",
+        "Что делать",
+        "Почему так",
+        "Не согласен?",
+        "Подробнее",
+        "сильный шорт",
+        "−41%",
+        "из 2 верно",
+    ] {
+        assert!(!has(&h, s), "must be hidden: {s}");
+    }
+    assert!(h.query_by_label("Понедельник, 26 октября").is_some());
+    // Both window tiles ask first; «Сегодня» is not offered on today.
+    assert_eq!(
+        h.query_all_by_label_contains("сначала твой взгляд").count(),
+        2
+    );
+    assert!(h.query_by_label("Сегодня").is_none());
+}
+
+#[test]
+fn peek_opens_the_review_and_marks_the_answer() {
+    // Rows 2 and 13: «Показать обзор без ответа», then an answer.
+    let mut h = screen(Theme::Light, TODAY, "2026-10-26", Some(WindowId::Us));
+    h.run();
+    h.get_by_label("Показать обзор без ответа").click();
+    h.run();
+    for s in [
+        "Сначала твой взгляд",
+        "Куда пойдёт окно открытия США (15:30–17:30)?",
+        "Куда смотрит рынок",
+        "Что делать",
+        "Почему так",
+        "Можно торговать, риск 1 %",
+    ] {
+        assert!(has(&h, s), "missing after peek: {s}");
+    }
+    assert!(!has(&h, "Показать обзор без ответа"));
+    // US has no drift signals: no empty «Что изменилось» frame.
+    assert!(!has(&h, "Что изменилось"));
+    // The evening tile stays hidden while Europe is unanswered.
+    assert!(has(&h, "после твоего взгляда"));
+    h.get_by_label("вниз").click();
+    h.run();
+    let wrote = h.state().sent.iter().any(|c| {
+        matches!(
+            c,
+            Command::WriteHumanRead {
+                region: Region::Us,
+                before_scale: false,
+                ..
+            }
+        )
+    });
+    assert!(
+        wrote,
+        "answer after a peek is written with before_scale: false"
+    );
+}
+
+#[test]
+fn answer_before_the_gauge_is_before_scale() {
+    let mut h = screen(Theme::Light, TODAY, "2026-10-26", Some(WindowId::Eu));
+    h.run();
+    h.get_by_label("вниз").click();
+    h.run();
+    assert!(h.state().sent.iter().any(|c| matches!(
+        c,
+        Command::WriteHumanRead {
+            region: Region::Eu,
+            before_scale: true,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn said_day_shows_read_memory_and_every_factor() {
+    // 14.09 seen on 14.09: the owner answered both windows (row 3).
+    let mut h = screen(
+        Theme::Light,
+        "2026-09-14T11:00",
+        "2026-09-14",
+        Some(WindowId::Eu),
+    );
+    h.run();
+    for s in [
+        "Твой взгляд:",
+        "Шкала:",
+        "Сегодня помни",
+        "Куда смотрит рынок",
+        "Почему так",
+        "Не согласен?",
+    ] {
+        assert!(has(&h, s), "missing: {s}");
+    }
+    assert!(!has(&h, "Сначала твой взгляд"));
+    // Owner rule (TZ item 6): every factor that voted is listed in «Почему так».
+    let day = demo_snapshot(d("2026-09-14")).day.unwrap();
+    let scale = day.eu.scale.as_deref().unwrap();
+    let split = desk_core::gauge::split_factors(&scale.factors);
+    for f in split.long.iter().chain(&split.short) {
+        let name = f.name.as_deref().unwrap();
+        assert!(has(&h, name), "factor hidden: {name}");
+    }
+}
+
+#[test]
+fn past_day_has_no_question() {
+    // Row 6: 18.09 Europe seen from 26.10.
+    let mut h = screen(Theme::Light, TODAY, "2026-09-18", Some(WindowId::Eu));
+    h.run();
+    assert!(!has(&h, "Сначала твой взгляд"));
+    assert!(has(&h, "Куда смотрит рынок"));
+    assert!(has(&h, "Явного перевеса нет"));
+    assert!(has(&h, "до обсуждения было"));
+    assert!(
+        h.query_by_label("Сегодня").is_some(),
+        "another day offers «Сегодня»"
+    );
+}
+
+#[test]
+fn evening_asks_your_day_first() {
+    let mut h = screen(
+        Theme::Light,
+        "2026-10-26T20:30",
+        "2026-10-26",
+        Some(WindowId::Review),
+    );
+    h.run();
+    for s in [
+        "Твой день",
+        "Брал ли сделку?",
+        "Сохранить",
+        "Как прошёл день",
+        "Окно пошло:",
+        "Идеи на проверке",
+        "Уроки дня",
+    ] {
+        assert!(has(&h, s), "missing: {s}");
+    }
+    // The evening still waits for the morning reads (row 10).
+    assert!(!has(&h, "Неделя в пять строк"));
+}
+
+#[test]
+fn friday_evening_has_the_week() {
+    let mut h = screen(Theme::Light, TODAY, "2026-09-18", Some(WindowId::Review));
+    h.run();
+    for s in [
+        "Неделя в пять строк",
+        "14.09 – 18.09",
+        "О ТЕБЕ",
+        "после обсуждения — пропуск",
+        "Обзора не было — оценивать нечего.",
+    ] {
+        assert!(has(&h, s), "missing: {s}");
+    }
+    assert!(
+        !has(&h, "Твой день"),
+        "a past day without answers asks nothing"
+    );
+}
+
+#[test]
+fn past_day_without_review_says_it_did_not_happen() {
+    // UI_CHECKLIST §5 (24.09 from 26.10) with QA's Q25: no «появится в 20:00».
+    let mut h = screen(Theme::Light, TODAY, "2026-09-24", Some(WindowId::Review));
+    h.run();
+    assert!(has(&h, "Четверг, 24 сентября"));
+    assert!(has(&h, "Итога дня не было."));
+    assert!(!has(&h, "появится в 20:00"));
+    assert!(!has(&h, "Твой день"));
+    assert!(!has(&h, "Сначала твой взгляд"));
+}
+
+#[test]
+fn shots_decode_once() {
+    let mut h = screen(Theme::Light, TODAY, "2026-09-14", Some(WindowId::Eu));
+    h.run();
+    let n = h.state_mut().textures_mut().decoded;
+    assert!(n >= 1, "the M15 picture was decoded");
+    h.run();
+    h.run();
+    assert_eq!(
+        h.state_mut().textures_mut().decoded,
+        n,
+        "a texture is decoded once"
+    );
 }
 
 // ---------------------------------------------------------------- images
 
-#[cfg(target_os = "linux")] // only the image snapshots use it
+#[cfg(target_os = "linux")]
+fn theme_name(t: Theme) -> &'static str {
+    match t {
+        Theme::Dark => "dark",
+        Theme::Light => "light",
+    }
+}
+
+#[cfg(target_os = "linux")]
 fn snapshot_options() -> egui_kittest::SnapshotOptions {
     egui_kittest::SnapshotOptions::new()
         .output_path(concat!(env!("CARGO_MANIFEST_DIR"), "/snapshots"))
@@ -174,7 +436,7 @@ fn snapshot_options() -> egui_kittest::SnapshotOptions {
 fn gauge_snapshots() {
     let mut results = egui_kittest::SnapshotResults::new();
     for theme in [Theme::Dark, Theme::Light] {
-        for v in VALUES {
+        for v in [-80.0, 0.0, 30.0, 100.0] {
             let mut h = gauge_harness(theme, v);
             h.run();
             let name = format!("gauge_{}_{}", theme_name(theme), v as i32);
@@ -183,14 +445,24 @@ fn gauge_snapshots() {
     }
 }
 
+/// One picture per screen state: a strong long day, a neutral day, an
+/// evening review, and «Сначала человек» on the demo vault's «today».
 #[cfg(target_os = "linux")]
 #[test]
-fn window_snapshots() {
+fn screen_snapshots() {
+    let states = [
+        ("0915_eu_strong_long", "2026-09-15", Some(WindowId::Eu)),
+        ("0916_eu_neutral", "2026-09-16", Some(WindowId::Eu)),
+        ("0914_review", "2026-09-14", Some(WindowId::Review)),
+        ("1026_eu_ask", "2026-10-26", Some(WindowId::Eu)),
+    ];
     let mut results = egui_kittest::SnapshotResults::new();
     for theme in [Theme::Dark, Theme::Light] {
-        let mut h = window_harness(theme);
-        h.run();
-        let name = format!("window_{}", theme_name(theme));
-        results.add(h.try_snapshot_options(name, &snapshot_options()));
+        for (name, date, win) in states {
+            let mut h = screen(theme, TODAY, date, win);
+            h.run();
+            let name = format!("screen_{}_{name}", theme_name(theme));
+            results.add(h.try_snapshot_options(name, &snapshot_options()));
+        }
     }
 }
