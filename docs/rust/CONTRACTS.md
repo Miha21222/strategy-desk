@@ -28,7 +28,7 @@ pub enum Command {
     OpenDay(NaiveDate),
     Today,
     WriteHumanRead { date: NaiveDate, region: Region, side: HumanSide, before_scale: bool },
-    WriteDayAnswers { date: NaiveDate, regions: RegionAnswers, note: String },
+    WriteDayAnswers { date: NaiveDate, regions: desk_core::vault::DayAnswerRegions, note: String },
     LoadShot(String),            // vault-relative; bytes land in Snapshot.shots
     Chat(ChatCommand),          // Send { chat_id, text } | Stop { chat_id } | New { kind }
     CheckStatus,

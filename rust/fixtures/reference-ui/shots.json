@@ -1,0 +1,410 @@
+{
+ "light/10-eu-ask.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 83328
+ },
+ "light/12-eu-said.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 108843
+ },
+ "light/14-us-ask.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 84177
+ },
+ "light/14b-us-peek.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 104169
+ },
+ "light/15-review-today.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 102172
+ },
+ "light/17-review-saved.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 102037
+ },
+ "light/18-review-saved2.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 113037
+ },
+ "light/21-prev-review.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 91143
+ },
+ "light/30-chat.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 105781
+ },
+ "light/32-help.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 146993
+ },
+ "light/m10-eu-ask.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 83328
+ },
+ "light/m12-eu-said.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 108663
+ },
+ "light/m14-us-peek.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 104169
+ },
+ "light/m15-review-today.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 102172
+ },
+ "light/m21-friday-review.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 119262
+ },
+ "light/m22-friday-eu.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 115257
+ },
+ "light/m32-help.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 146993
+ },
+ "dark/10-eu-ask.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 104694
+ },
+ "dark/12-eu-said.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 113819
+ },
+ "dark/14-us-ask.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 106017
+ },
+ "dark/14b-us-peek.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 110339
+ },
+ "dark/15-review-today.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 112960
+ },
+ "dark/17-review-saved.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 111568
+ },
+ "dark/18-review-saved2.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 122937
+ },
+ "dark/21-prev-review.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 116064
+ },
+ "dark/30-chat.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 131656
+ },
+ "dark/32-help.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 152238
+ },
+ "dark/m10-eu-ask.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 104694
+ },
+ "dark/m12-eu-said.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 113819
+ },
+ "dark/m14-us-peek.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 110339
+ },
+ "dark/m15-review-today.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 112960
+ },
+ "dark/m21-friday-review.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 133578
+ },
+ "dark/m22-friday-eu.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 121831
+ },
+ "dark/m32-help.png": {
+  "size": [
+   1380,
+   1400
+  ],
+  "original": [
+   1380,
+   1400
+  ],
+  "scale": 1.0,
+  "bytes": 152238
+ }
+}

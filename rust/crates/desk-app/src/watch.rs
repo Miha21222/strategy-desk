@@ -77,9 +77,14 @@ impl StateWatcher {
         let (tx, rx) = mpsc::channel();
         let dir = state_dir(vault);
         let events = tx.clone();
+        // Arm before returning: a file written right after `start` must not
+        // fall between «the caller read the folder» and «the watch is on».
+        let mut lp = Loop::new(dir, opts, events, Box::new(on_change));
+        lp.ensure_armed();
+        lp.next_check = Instant::now() + opts.recheck;
         let thread = std::thread::Builder::new()
             .name("desk-watch".into())
-            .spawn(move || Loop::new(dir, opts, events, Box::new(on_change)).run(rx))?;
+            .spawn(move || lp.run(rx))?;
         Ok(Self {
             tx,
             thread: Some(thread),
