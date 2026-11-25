@@ -1,7 +1,3 @@
-// GATE: compiled out until `desk_core::windows::visibility` exists. Delete the
-// next line when it lands. (`any()` is always false; a named feature would
-// need a Cargo.toml entry, and `golden` is on in CI, so it cannot be that.)
-#![cfg(any())]
 //! «Сначала человек» (note 23) as a pure decision, without the UI: given the
 //! day, `now` and the window the owner chose to peek at, what is withheld.
 //! The 16 rows of docs/rust/TEST_PLAN.md §4, plus the Kyiv-midnight edge.

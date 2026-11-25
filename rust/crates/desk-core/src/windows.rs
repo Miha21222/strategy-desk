@@ -253,6 +253,116 @@ pub fn default_window(day: &Day, now: DateTime<Utc>) -> WindowId {
     default_window_at(Some(day), day.date, kyiv_now(now))
 }
 
+/// The window the owner's read is about, as a range for the UI's words
+/// («Куда пойдёт окно открытия США (16:30–18:30)?»): from the cash open to
+/// the end of the window, Kyiv time, for `date` (TZ item 21, so 15:30–17:30
+/// in the weeks the clocks disagree). The evening review has no open; its
+/// range is 20:00–21:30. The tile's «в 16:00» is [`window_times`]`.at`.
+pub fn window_label_times(id: WindowId, date: NaiveDate) -> (NaiveTime, NaiveTime) {
+    let w = window_times(id, date);
+    (w.open.unwrap_or(w.at), w.until)
+}
+
+/// «Сначала человек» (note 23) for one window of one day: what the screen
+/// may show before the owner has said what he expects. The rule of `unread()`
+/// / `RegionView` / `ReviewView` in the old `MacroDesk.tsx`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Visibility {
+    /// `unread()`: the tile hides its needle and the agent strip its last
+    /// message. The evening tile is withheld while Europe or the US is.
+    pub withheld: bool,
+    /// «Твой взгляд» is asked on this window's screen (eu / us only).
+    pub ask_read: bool,
+    /// «Показать обзор без ответа» is offered.
+    pub offer_peek: bool,
+    /// The window's content is drawn — gauge, plan, factors, «Сегодня помни»,
+    /// «Что изменилось» (eu / us); the evening review body (review).
+    pub show_review: bool,
+    /// `before_scale` of a read the owner gives from this screen now: false
+    /// only after he peeked at a window that has a review.
+    pub before_scale: bool,
+    /// «Твой день» is asked (review only): on the day itself and later days,
+    /// and on a past day only when he answered.
+    pub ask_day: bool,
+}
+
+/// `r.scale || r.verdict`: the window has a review (JS truthiness of the verdict).
+fn has_review(day: &Day, id: WindowId) -> bool {
+    match id {
+        WindowId::Eu => {
+            day.eu.scale.is_some() || day.eu.verdict.as_ref().is_some_and(|v| v.is_truthy())
+        }
+        WindowId::Us => {
+            day.us.scale.is_some() || day.us.verdict.as_ref().is_some_and(|v| v.is_truthy())
+        }
+        WindowId::Review => {
+            day.review.mech.as_ref().is_some_and(|m| m.is_truthy())
+                || day.review.agent.as_ref().is_some_and(|m| m.is_truthy())
+        }
+    }
+}
+
+/// `unread(id)` of MacroDesk.tsx, with `today` the Kyiv date.
+fn unread(id: WindowId, day: &Day, today: NaiveDate, peek: Option<WindowId>) -> bool {
+    if day.date != today {
+        return false;
+    }
+    match id {
+        WindowId::Review => {
+            unread(WindowId::Eu, day, today, peek) || unread(WindowId::Us, day, today, peek)
+        }
+        WindowId::Eu | WindowId::Us => {
+            has_review(day, id) && day.region(region_of(id)).human.is_none() && peek != Some(id)
+        }
+    }
+}
+
+fn region_of(id: WindowId) -> crate::vault::Region {
+    if id == WindowId::Us {
+        crate::vault::Region::Us
+    } else {
+        crate::vault::Region::Eu
+    }
+}
+
+/// What window `id` of `day` shows at `now`, given the window the owner chose
+/// to peek at («Показать обзор без ответа»; one at a time, reset with the date).
+///
+/// Kept from the old app on purpose (TEST_PLAN Q23, pending the owner's
+/// answer): the evening tab draws its body even while the tile is withheld.
+pub fn visibility(
+    id: WindowId,
+    day: &Day,
+    now: DateTime<Utc>,
+    peek: Option<WindowId>,
+) -> Visibility {
+    let today = kyiv_now(now).date;
+    let past = day.date < today;
+    let reviewed = has_review(day, id);
+    let withheld = unread(id, day, today, peek);
+    let peeked = peek == Some(id);
+    if id == WindowId::Review {
+        return Visibility {
+            withheld,
+            ask_read: false,
+            offer_peek: false,
+            show_review: reviewed,
+            before_scale: true,
+            ask_day: !past || day.answers.is_some(),
+        };
+    }
+    let ask_read = day.region(region_of(id)).human.is_none() && !past;
+    let question_only = reviewed && ask_read && !peeked;
+    Visibility {
+        withheld,
+        ask_read,
+        offer_peek: question_only,
+        show_review: reviewed && !question_only,
+        before_scale: !(peeked && reviewed),
+        ask_day: false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,6 +583,48 @@ mod tests {
             window_state(WindowId::Us, utc("2026-03-02T12:55:00Z"), &plain),
             WindowState::Waiting
         );
+    }
+
+    #[test]
+    fn label_times_follow_the_exchange_clocks() {
+        assert_eq!(
+            window_label_times(WindowId::Us, d("2026-11-25")),
+            (t("16:30"), t("18:30"))
+        );
+        assert_eq!(
+            window_label_times(WindowId::Us, d("2026-10-26")),
+            (t("15:30"), t("17:30"))
+        );
+        assert_eq!(
+            window_label_times(WindowId::Eu, d("2026-10-26")),
+            (t("10:00"), t("12:00"))
+        );
+        assert_eq!(
+            window_label_times(WindowId::Review, d("2026-10-26")),
+            (t("20:00"), t("21:30"))
+        );
+    }
+
+    #[test]
+    fn a_false_verdict_is_no_review_for_the_human_first_rule() {
+        let day = with(
+            "2026-10-12",
+            &[("macro_2026-10-12_eu_verdict.json", json!(false))],
+        );
+        let v = visibility(WindowId::Eu, &day, utc("2026-10-12T07:00:00Z"), None);
+        assert_eq!(
+            v,
+            Visibility {
+                withheld: false,
+                ask_read: true,
+                offer_peek: false,
+                show_review: false,
+                before_scale: true,
+                ask_day: false
+            }
+        );
+        let empty = visibility(WindowId::Review, &day, utc("2026-10-12T07:00:00Z"), None);
+        assert!(!empty.withheld && !empty.show_review && empty.ask_day);
     }
 
     #[test]
