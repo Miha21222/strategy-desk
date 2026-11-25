@@ -155,6 +155,27 @@ mod linux {
             })
             .sum()
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn probes_see_this_process() {
+            let me = std::process::id();
+            let t = tree(me);
+            assert_eq!(t.first(), Some(&me));
+            let (rss, anon) = memory(&t);
+            assert!(rss > 1.0 && anon > 0.0, "{rss} {anon}");
+            // Burn a little CPU so utime moves past one 10 ms tick.
+            let start = std::time::Instant::now();
+            let mut x = 0u64;
+            while start.elapsed().as_millis() < 50 {
+                x = std::hint::black_box(x.wrapping_add(1));
+            }
+            assert!(cpu_seconds(&t) > 0.0);
+        }
+    }
 }
 
 /// Start + idle probes of a real binary. Returns metrics (possibly skipped).
