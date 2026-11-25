@@ -1247,6 +1247,98 @@ pub struct Ideas {
     pub items: Vec<Idea>,
 }
 
+// ---------------------------------------------------------------- similar_<D>_<region>.json
+
+/// How a day moved, by its side.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum MoveSide {
+    Long,
+    Short,
+    Flat,
+}
+
+impl MoveSide {
+    pub fn parse(s: &str) -> Option<MoveSide> {
+        match s {
+            "LONG" => Some(MoveSide::Long),
+            "SHORT" => Some(MoveSide::Short),
+            "FLAT" => Some(MoveSide::Flat),
+            _ => None,
+        }
+    }
+}
+
+/// How far the move from the IB went in the window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum IbReach {
+    #[serde(rename = "IB1")]
+    Ib1,
+    #[serde(rename = "IB2")]
+    Ib2,
+    /// Broke the IB without reaching IB1.
+    #[serde(rename = "IB")]
+    Ib,
+    /// Never left the IB.
+    #[serde(rename = "none")]
+    NoReach,
+}
+
+impl IbReach {
+    pub fn parse(s: &str) -> Option<IbReach> {
+        match s {
+            "IB1" => Some(IbReach::Ib1),
+            "IB2" => Some(IbReach::Ib2),
+            "IB" => Some(IbReach::Ib),
+            "none" => Some(IbReach::NoReach),
+            _ => None,
+        }
+    }
+}
+
+/// The move of the whole day: side and size in ADR (signed or not, as written).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DayMove {
+    pub side: Option<MoveSide>,
+    #[serde(serialize_with = "js::ser_opt_f64")]
+    pub pct_adr: Option<f64>,
+}
+
+/// The move from the IB: the side of the first break and how far it went.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct IbMove {
+    pub side: Option<MoveSide>,
+    pub reach: Option<IbReach>,
+}
+
+/// One similar day and how it ended.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SimilarDay {
+    pub date: String,
+    /// Similarity 0..1 (clamped); `None` when the file has no number.
+    #[serde(serialize_with = "js::ser_opt_f64")]
+    pub score: Option<f64>,
+    /// What matched, as short theses («гэп вниз 0.3 ADR», «пила»).
+    #[serde(rename = "match")]
+    pub matched: Vec<String>,
+    pub day_move: Option<DayMove>,
+    pub ib_move: Option<IbMove>,
+    /// The verdict of that day's plan review, when there is one.
+    pub verdict: Option<String>,
+    /// Factor id → did it call that day right.
+    pub factors_hit: std::collections::BTreeMap<String, bool>,
+}
+
+/// `state/similar_<D>_<region>.json` → «Похожие дни» (written by `scale.py similar`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Similar {
+    pub date: String,
+    pub region: Region,
+    pub asof: String,
+    /// At most [`crate::normalize::SIMILAR_MAX`], in the order the skill wrote them.
+    pub days: Vec<SimilarDay>,
+}
+
 /// One row of [`crate::stats::factor_stats`]: hit rate of a factor in a region.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FactorStat {
