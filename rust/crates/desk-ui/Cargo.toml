@@ -1,0 +1,16 @@
+[package]
+name = "desk-ui"
+description = "The egui window: macro-review screen, gauge, chat, wizard. Renders snapshots, sends commands."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "strategy-desk"
+path = "src/main.rs"
+
+[dependencies]
+desk-core.workspace = true
+desk-app.workspace = true
+anyhow.workspace = true

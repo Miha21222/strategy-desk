@@ -34,3 +34,4 @@ resources/vault-template/
 # Renderer screenshots against the demo vault (scripts/preview/preview.sh)
 scripts/preview/out/
 .cowork/
+rust/target/
