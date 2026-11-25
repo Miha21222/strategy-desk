@@ -3,10 +3,13 @@
 
 pub mod app;
 pub mod cli;
+pub mod clock;
+pub mod fonts;
 pub mod gauge;
 pub mod i18n;
-pub mod mock;
+mod i18n_ru;
 pub mod perf;
+pub mod screen;
 pub mod theme;
 
 #[cfg(test)]

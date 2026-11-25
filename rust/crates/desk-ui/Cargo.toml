@@ -26,6 +26,9 @@ wgpu = ["eframe/wgpu"]
 desk-core.workspace = true
 desk-app.workspace = true
 anyhow.workspace = true
+chrono.workspace = true
+# PNG screenshots are decoded off the UI thread; `png` alone, not `image`.
+png = "0.18"
 # No default features: no system_fonts (scans the OS font dir before the first
 # frame), no accesskit/clipboard/links until a screen needs them.
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "x11", "wayland"] }

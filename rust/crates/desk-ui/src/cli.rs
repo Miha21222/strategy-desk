@@ -2,13 +2,16 @@
 //! subcommand do not justify a parser crate in the binary.
 //!
 //! ```text
-//! strategy-desk                         open the window
-//! strategy-desk --demo                  … with the debug slider under the gauge
+//! strategy-desk                         open the window (vault from --vault or DESK_VAULT)
+//! strategy-desk --demo                  … on the demo vault (rust/fixtures/golden/vault), clock at its «today»
+//! strategy-desk --now 2026-10-26T10:15  … with the clock fixed (Kyiv wall time; also DESK_NOW)
 //! strategy-desk --bench-first-frame     open, print {"first_frame_ms":…} after the first frame, exit 0
+//! strategy-desk --bench-switch N        N day switches, print {"switch_ms":[…]}, exit 0
 //! strategy-desk run --window eu|us      headless scheduled review (stage 6; exits 2 for now)
 //! ```
 
 use std::ffi::OsString;
+use std::path::PathBuf;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Region {
@@ -25,10 +28,15 @@ impl Region {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WindowOpts {
     pub demo: bool,
     pub bench_first_frame: bool,
+    /// `--bench-switch N`: N day switches, then exit.
+    pub bench_switch: Option<u32>,
+    pub vault: Option<PathBuf>,
+    /// `--now`, unparsed (the app parses and reports it).
+    pub now: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,14 +47,18 @@ pub enum Cli {
 }
 
 pub const USAGE: &str = "\
-usage: strategy-desk [--demo] [--bench-first-frame]
+usage: strategy-desk [--vault DIR] [--demo] [--now TIME] [--bench-first-frame] [--bench-switch N]
        strategy-desk run --window eu|us
 
-  --demo               show a slider that moves the gauge
+  --vault DIR          the Trading Strategy Assistant folder (else env DESK_VAULT)
+  --demo               open the demo vault with the clock at its «today» (2026-10-26 10:15)
+  --now TIME           fix the clock: 2026-10-26T10:15 (Kyiv) or RFC 3339 (else env DESK_NOW)
   --bench-first-frame  print {\"first_frame_ms\": …, \"rss_mb\": …} after the first frame and exit
+  --bench-switch N     switch the day N times, print {\"switch_ms\": […]} and exit
   run --window eu|us   run the scheduled review without a window (not implemented yet)
 
-env: DESK_FRAME_STATS=1 logs frame time p50/p95/p99 to stderr every 10 s";
+env: DESK_FRAME_STATS=1 logs frame time p50/p95/p99 to stderr every 10 s;
+     DESK_BENCH_AUTOCHAT=1 sends one chat message after the first frame (stage 5: warns only)";
 
 /// Parses everything after the program name. `Err` carries the message to
 /// print above the usage.
@@ -82,10 +94,31 @@ where
     }
 
     let mut opts = WindowOpts::default();
-    for a in it {
-        match a {
+    while let Some(a) = it.next() {
+        // `--flag value` or `--flag=value`.
+        let (flag, inline) = match a.split_once('=') {
+            Some((f, v)) if f.starts_with("--") => (f, Some(v)),
+            _ => (a, None),
+        };
+        let mut value = |name: &str| -> Result<String, String> {
+            inline
+                .map(str::to_owned)
+                .or_else(|| it.next().map(str::to_owned))
+                .ok_or_else(|| format!("{name} needs a value"))
+        };
+        match flag {
             "--demo" => opts.demo = true,
             "--bench-first-frame" => opts.bench_first_frame = true,
+            "--bench-switch" => {
+                let v = value("--bench-switch")?;
+                let n =
+                    v.parse::<u32>().ok().filter(|n| *n > 0).ok_or_else(|| {
+                        format!("--bench-switch needs a positive count, not {v:?}")
+                    })?;
+                opts.bench_switch = Some(n);
+            }
+            "--vault" => opts.vault = Some(PathBuf::from(value("--vault")?)),
+            "--now" => opts.now = Some(value("--now")?),
             "-h" | "--help" => return Ok(Cli::Help),
             other => return Err(format!("unknown argument: {other}")),
         }
@@ -112,9 +145,29 @@ mod tests {
             p(&["--demo", "--bench-first-frame"]),
             Ok(Cli::Window(WindowOpts {
                 demo: true,
-                bench_first_frame: true
+                bench_first_frame: true,
+                ..WindowOpts::default()
             }))
         );
+    }
+
+    #[test]
+    fn values_both_spellings() {
+        let Ok(Cli::Window(o)) = p(&[
+            "--vault",
+            "/v",
+            "--now=2026-10-26T10:15",
+            "--bench-switch",
+            "20",
+        ]) else {
+            panic!("parse failed")
+        };
+        assert_eq!(o.vault, Some(PathBuf::from("/v")));
+        assert_eq!(o.now.as_deref(), Some("2026-10-26T10:15"));
+        assert_eq!(o.bench_switch, Some(20));
+        assert!(p(&["--bench-switch", "0"]).is_err());
+        assert!(p(&["--bench-switch", "x"]).is_err());
+        assert!(p(&["--vault"]).is_err());
     }
 
     #[test]

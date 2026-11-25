@@ -604,10 +604,12 @@ name = "desk-ui"
 version = "0.3.0-dev"
 dependencies = [
  "anyhow",
+ "chrono",
  "desk-app",
  "desk-core",
  "eframe",
  "egui_kittest",
+ "png",
  "windows-sys 0.61.2",
 ]
 

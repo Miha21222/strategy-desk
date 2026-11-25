@@ -2,77 +2,82 @@
 //!
 //! `t("macro.gauge")` returns the string; an unknown key returns the key
 //! itself (same rule as the TS `t()`), so a typo shows up on screen instead of
-//! crashing. Keys that already exist in `ru.ts` keep their spelling there;
-//! keys new to the Rust desk live under `desk.*`.
+//! crashing. The `app`, `tabs`, `macro` and `sidebar` sections are generated
+//! from `ru.ts` into [`crate::i18n_ru`] (`tools/gen-i18n.mjs`); keys new to the
+//! Rust desk live here under `desk.*` and `error.*` (desk-app's error keys).
 
 use std::fmt::Display;
 
-/// The whole dictionary. A flat slice instead of a map: it costs nothing at
-/// start-up (no hashing before the first frame) and a linear scan over a few
-/// dozen entries is a handful of nanoseconds per lookup.
-pub(crate) static RU: &[(&str, &str)] = &[
-    ("app.title", "Strategy Desk"),
-    ("tabs.macro", "Обзор дня"),
-    // ---- macro (keys from ru.ts) ----
-    ("macro.title", "Обзор дня"),
-    ("macro.gauge", "Перевес лонг / шорт"),
-    ("macro.long", "Лонг"),
-    ("macro.short", "Шорт"),
-    ("macro.forLong", "за лонг"),
-    ("macro.forShort", "за шорт"),
-    ("macro.undecided", "неясно"),
-    (
-        "macro.splitAria",
-        "за лонг {l} %, неясно {u} %, за шорт {s} %",
-    ),
-    ("macro.share", "вес"),
-    ("macro.beforeTalk", "до обсуждения было {v}"),
-    ("macro.zone.strong-short", "сильный шорт"),
-    ("macro.zone.short", "шорт"),
-    ("macro.zone.neutral", "нет перевеса"),
-    ("macro.zone.long", "лонг"),
-    ("macro.zone.strong-long", "сильный лонг"),
-    ("macro.head.strong-short", "Всё указывает вниз. Ищем шорт."),
-    ("macro.head.short", "Скорее вниз. Ищем шорт."),
-    (
-        "macro.head.neutral",
-        "Явного перевеса нет — по правилам день пропускаем.",
-    ),
-    ("macro.head.long", "Скорее вверх. Ищем лонг."),
-    ("macro.head.strong-long", "Всё указывает вверх. Ищем лонг."),
-    ("macro.lightGreen", "Можно торговать, риск {r} %"),
-    ("macro.lightYellow", "Торгуем осторожно, риск {r} %"),
-    ("macro.lightRed", "Сегодня не торгуем"),
-    ("macro.whereTitle", "Куда смотрит рынок"),
-    ("macro.groups", "Откуда перевес"),
-    ("macro.groupsNote", "Влево — в шорт, вправо — в лонг."),
-    ("macro.today", "Сегодня"),
-    // ---- sidebar (keys from ru.ts) ----
-    ("sidebar.simple.title", "Подключения"),
-    ("sidebar.chats", "Чаты"),
-    ("sidebar.newChat", "Новый чат"),
-    ("sidebar.empty", "Пока нет чатов — начните новый."),
-    // ---- new in the Rust desk ----
-    (
-        "desk.soon",
-        "Скоро здесь появятся лампочки подключений и чаты.",
-    ),
-    ("desk.demo.title", "Демо"),
-    ("desk.demo.needle", "Стрелка"),
-    ("desk.demo.ghost", "Показать «до обсуждения»"),
-    ("desk.demo.theme", "Тема"),
+use crate::i18n_ru::RU_TS;
+
+/// Strings the TS desk does not have. Few, so a linear scan is fine.
+pub(crate) static DESK: &[(&str, &str)] = &[
+    ("desk.soon", "Скоро здесь появятся лампочки подключений и чаты."),
+    ("desk.theme.title", "Тема"),
     ("desk.theme.system", "Как в системе"),
     ("desk.theme.light", "Светлая"),
     ("desk.theme.dark", "Тёмная"),
+    ("desk.loading", "Загружаю день…"),
     (
-        "desk.mockNote",
-        "Пример данных: настоящий обзор появится, когда подключим папку проекта.",
+        "desk.noVaultHint",
+        "Пока папка задаётся при запуске: strategy-desk --vault <папка> или переменная DESK_VAULT. Выбор папки появится в настройках.",
+    ),
+    ("desk.days", "Дни"),
+    ("desk.markWindow", "есть обзор"),
+    ("desk.markReview", "есть итог дня"),
+    ("desk.close", "Закрыть"),
+    (
+        "desk.zoomHint",
+        "Колёсико — крупнее или мельче, перетаскивание — сдвиг, ←/→ — другой снимок, Esc — закрыть",
+    ),
+    ("desk.zoomReset", "Вписать"),
+    ("desk.weekday.1", "понедельник"),
+    ("desk.weekday.2", "вторник"),
+    ("desk.weekday.3", "среда"),
+    ("desk.weekday.4", "четверг"),
+    ("desk.weekday.5", "пятница"),
+    ("desk.weekday.6", "суббота"),
+    ("desk.weekday.7", "воскресенье"),
+    ("desk.wd.1", "пн"),
+    ("desk.wd.2", "вт"),
+    ("desk.wd.3", "ср"),
+    ("desk.wd.4", "чт"),
+    ("desk.wd.5", "пт"),
+    ("desk.wd.6", "сб"),
+    ("desk.wd.7", "вс"),
+    ("desk.month.1", "января"),
+    ("desk.month.2", "февраля"),
+    ("desk.month.3", "марта"),
+    ("desk.month.4", "апреля"),
+    ("desk.month.5", "мая"),
+    ("desk.month.6", "июня"),
+    ("desk.month.7", "июля"),
+    ("desk.month.8", "августа"),
+    ("desk.month.9", "сентября"),
+    ("desk.month.10", "октября"),
+    ("desk.month.11", "ноября"),
+    ("desk.month.12", "декабря"),
+    // desk-app's `UserError` keys (crates/desk-app/src/app.rs `keys`).
+    ("error.not_implemented", "Это появится в следующей версии Desk."),
+    ("error.vault.not_set", "Папка проекта не указана."),
+    (
+        "error.vault.read_failed",
+        "Не получилось прочитать папку проекта: {detail}",
+    ),
+    (
+        "error.vault.watch_failed",
+        "Не получилось следить за папкой проекта — обновляй день вручную. {detail}",
     ),
 ];
 
 /// Looks a key up; an unknown key comes back as itself.
 pub fn t(key: &str) -> &str {
-    RU.iter().find(|(k, _)| *k == key).map_or(key, |(_, v)| *v)
+    if let Ok(i) = RU_TS.binary_search_by(|(k, _)| (*k).cmp(key)) {
+        return RU_TS[i].1;
+    }
+    DESK.iter()
+        .find(|(k, _)| *k == key)
+        .map_or(key, |(_, v)| *v)
 }
 
 /// `t()` plus `{name}` placeholders, e.g. `tf("macro.beforeTalk", &[("v", &"+12%")])`.
@@ -84,6 +89,12 @@ pub fn tf(key: &str, vars: &[(&str, &dyn Display)]) -> String {
     s
 }
 
+/// Every string the desk can show (tests: glyph coverage).
+#[cfg(test)]
+pub(crate) fn all() -> impl Iterator<Item = &'static str> {
+    RU_TS.iter().chain(DESK).map(|(_, v)| *v)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,6 +102,7 @@ mod tests {
     #[test]
     fn known_key_is_russian() {
         assert_eq!(t("macro.gauge"), "Перевес лонг / шорт");
+        assert_eq!(t("desk.month.10"), "октября");
     }
 
     #[test]
@@ -109,11 +121,18 @@ mod tests {
     }
 
     #[test]
-    fn keys_are_unique() {
-        let mut keys: Vec<_> = RU.iter().map(|(k, _)| *k).collect();
+    fn generated_table_is_sorted_and_unique() {
+        assert!(
+            RU_TS.windows(2).all(|w| w[0].0 < w[1].0),
+            "RU_TS must be sorted"
+        );
+        let mut keys: Vec<_> = DESK.iter().map(|(k, _)| *k).collect();
         keys.sort_unstable();
         let before = keys.len();
         keys.dedup();
-        assert_eq!(before, keys.len(), "duplicate i18n key");
+        assert_eq!(before, keys.len(), "duplicate desk key");
+        assert!(DESK
+            .iter()
+            .all(|(k, _)| RU_TS.binary_search_by(|(x, _)| (*x).cmp(k)).is_err()));
     }
 }
