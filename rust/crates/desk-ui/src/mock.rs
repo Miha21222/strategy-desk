@@ -5,7 +5,7 @@
 //! these for `desk_core::vault::*` and a `Snapshot` from desk-app; the field
 //! names follow the TS types so the swap is mechanical.
 
-use crate::geom::Zones;
+use desk_core::zones::Zones;
 
 /// One group of factors (`GroupResult`), with its name from the map key.
 #[derive(Clone, Debug, PartialEq)]

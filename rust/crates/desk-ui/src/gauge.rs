@@ -6,16 +6,15 @@
 //! Geometry is the SVG's: a 320 × 200 canvas, centre (160, 172), ring radii
 //! 104..142, scaled to the width the widget gets (at most 380 px, like the CSS).
 
+use desk_core::gauge::needle_angle;
+use desk_core::zones::{clamp_needle, zone_of, zone_segments, ZoneKey, Zones};
 use eframe::egui::{
-    self, emath::easing, pos2, vec2, Align2, AsIdSalt, Color32, CornerRadius, FontId, Id, IdSalt,
-    Pos2, Rect, Response, RichText, Role, Sense, Shape, Stroke, Ui, Vec2, WidgetInfo,
+    self, emath::easing, epaint::Mesh, pos2, vec2, Align2, AsIdSalt, Color32, CornerRadius, FontId,
+    Id, IdSalt, Pos2, Rect, Response, RichText, Role, Sense, Shape, Stroke, Ui, Vec2, WidgetInfo,
 };
 
-use crate::geom::{
-    clamp_needle, needle_angle, polar, signed, zone_of, zone_segments, ZoneKey, Zones,
-};
 use crate::i18n::{t, tf};
-use crate::theme::{radius, space, text, Palette};
+use crate::theme::{mix_oklab, radius, space, text, Palette};
 
 const W: f32 = 320.0;
 const H: f32 = 200.0;
@@ -28,15 +27,41 @@ const MAX_WIDTH: f32 = 380.0;
 /// How long the needle travels to a new value, seconds (TZ item 2).
 pub const NEEDLE_TRAVEL_S: f32 = 0.3;
 
-/// The colour a zone is painted with on the dial.
-pub fn zone_fill(p: &Palette, z: ZoneKey) -> Color32 {
-    match z {
+/// Longest chord of the ring's outer rim, in physical pixels: below this the
+/// polygon reads as a circle at any scale.
+const MAX_CHORD_PX: f32 = 1.5;
+
+/// The opaque fill of a zone on the dial. One family: each colour is its pole
+/// (`--err` / `--ok`) or the neutral grey mixed toward the card in oklab, so
+/// the five steps share a lightness ramp; zones the needle is not in sit
+/// further toward the card (the CSS did that with `opacity: .55`, which let
+/// the seams show through).
+pub fn dial_fill(p: &Palette, z: ZoneKey, active: bool) -> Color32 {
+    let base = match z {
         ZoneKey::StrongShort => p.short_strong,
-        ZoneKey::Short => p.short_soft,
+        ZoneKey::Short => mix_oklab(p.short_strong, p.bg_raised, 0.55),
         ZoneKey::Neutral => p.neutral_zone,
-        ZoneKey::Long => p.long_soft,
+        ZoneKey::Long => mix_oklab(p.long_strong, p.bg_raised, 0.55),
         ZoneKey::StrongLong => p.long_strong,
+    };
+    if active {
+        base
+    } else {
+        mix_oklab(base, p.bg_raised, 0.6)
     }
+}
+
+/// `signed()` of Gauge.tsx: rounded, real minus sign, `%` glued on.
+pub fn signed(n: f32) -> String {
+    let r = n.round();
+    let sign = if r > 0.0 {
+        "+"
+    } else if r < 0.0 {
+        "\u{2212}"
+    } else {
+        ""
+    };
+    format!("{sign}{}%", r.abs() as i64)
 }
 
 /// The colour of the zone's caption (`.zone-* .gauge-zone`).
@@ -178,11 +203,11 @@ impl<'a> Gauge<'a> {
 
     pub fn show(self, ui: &mut Ui) -> Response {
         let p = Palette::of(ui);
-        let target = clamp_needle(self.value);
-        let zone = zone_of(target, self.zones);
+        let target = clamp_needle(f64::from(self.value)) as f32;
+        let zone = zone_of(f64::from(target), &self.zones);
         let ghost = self
             .before
-            .map(clamp_needle)
+            .map(|b| clamp_needle(f64::from(b)) as f32)
             .filter(|b| b.round() != target.round());
 
         let canvas_h = if self.mini { CY + 8.0 } else { H };
@@ -233,6 +258,124 @@ impl<'a> Gauge<'a> {
     }
 }
 
+/// One sample along the ring: an angle (degrees, mathematical) and the zone
+/// whose colour the vertices there carry.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct RingSample {
+    pub angle: f64,
+    pub key: ZoneKey,
+}
+
+/// The ring's angles from 180° (strong short) to 0° (strong long), at most
+/// `max_step_deg` apart. Every zone boundary is sampled twice at the very
+/// same angle, once per zone, so the colour changes with a hard edge and
+/// no gap. A zone of zero width (or inverted thresholds) adds nothing.
+pub(crate) fn ring_samples(zones: &Zones, max_step_deg: f64) -> Vec<RingSample> {
+    let step = max_step_deg.max(0.05);
+    let mut out = Vec::new();
+    for seg in zone_segments(zones) {
+        let (a0, a1) = (needle_angle(seg.from), needle_angle(seg.to));
+        if a0 <= a1 {
+            continue;
+        }
+        let n = ((a0 - a1) / step).ceil().max(1.0) as usize;
+        out.extend((0..=n).map(|i| RingSample {
+            angle: a0 + (a1 - a0) * i as f64 / n as f64,
+            key: seg.key,
+        }));
+    }
+    out
+}
+
+/// The ring in screen points.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Ring {
+    pub center: Pos2,
+    pub r0: f32,
+    pub r1: f32,
+    /// Width of the anti-aliasing fringe: one physical pixel.
+    pub feather: f32,
+}
+
+impl Ring {
+    fn at(&self, r: f32, angle_deg: f64) -> Pos2 {
+        let a = angle_deg.to_radians() as f32;
+        pos2(self.center.x + r * a.cos(), self.center.y - r * a.sin())
+    }
+
+    /// The largest angular step that keeps the outer chord under `MAX_CHORD_PX`.
+    pub fn max_step_deg(&self, pixels_per_point: f32) -> f64 {
+        let r_px = (self.r1 * pixels_per_point).max(1.0);
+        f64::from(MAX_CHORD_PX / r_px).to_degrees()
+    }
+}
+
+/// The whole dial as ONE mesh: per sample four vertices across the ring —
+/// transparent fringe, solid inner rim, solid outer rim, transparent fringe —
+/// so only the outer and inner rims (and the two end caps) are feathered,
+/// by exactly one physical pixel, and nothing inside the ring is.
+pub(crate) fn ring_mesh(
+    ring: &Ring,
+    samples: &[RingSample],
+    fill: impl Fn(ZoneKey) -> Color32,
+) -> Mesh {
+    let mut mesh = Mesh::default();
+    if samples.len() < 2 {
+        return mesh;
+    }
+    let f = ring.feather;
+    let radii = [
+        ring.r0 - f / 2.0,
+        ring.r0 + f / 2.0,
+        ring.r1 - f / 2.0,
+        ring.r1 + f / 2.0,
+    ];
+    let clear = Color32::TRANSPARENT;
+
+    // A column of four vertices; returns the index of its first one.
+    let column = |mesh: &mut Mesh, pos: [Pos2; 4], color: Color32| -> u32 {
+        let base = mesh.vertices.len() as u32;
+        let colors = [clear, color, color, clear];
+        for (p, c) in pos.into_iter().zip(colors) {
+            mesh.colored_vertex(p, c);
+        }
+        base
+    };
+    // Three quads between two columns.
+    let strip = |mesh: &mut Mesh, a: u32, b: u32| {
+        for k in 0..3 {
+            mesh.add_triangle(a + k, a + k + 1, b + k);
+            mesh.add_triangle(a + k + 1, b + k + 1, b + k);
+        }
+    };
+    let ring_col = |angle: f64| radii.map(|r| ring.at(r, angle));
+    // End caps: the end column pushed one fringe width along the tangent,
+    // away from the arc, all transparent.
+    let cap = |angle: f64, outward: f32| {
+        let a = angle.to_radians() as f32;
+        // d/dangle of (cos a, −sin a) on a y-down screen.
+        let tangent = vec2(-a.sin(), -a.cos()) * outward;
+        ring_col(angle).map(|p| p + tangent * f)
+    };
+
+    let first = samples[0];
+    let last = samples[samples.len() - 1];
+    let mut prev = column(&mut mesh, cap(first.angle, 1.0), clear);
+    let mut prev_angle = f64::NAN;
+    for s in samples {
+        let col = column(&mut mesh, ring_col(s.angle), fill(s.key));
+        // A boundary pair shares its angle: only the colour changes there.
+        if s.angle != prev_angle {
+            strip(&mut mesh, prev, col);
+        }
+        prev = col;
+        prev_angle = s.angle;
+    }
+    let end = column(&mut mesh, cap(last.angle, -1.0), clear);
+    strip(&mut mesh, prev, end);
+    mesh
+}
+
 #[allow(clippy::too_many_arguments)] // one private painter, the arguments are its frame
 fn paint_dial(
     ui: &Ui,
@@ -246,28 +389,18 @@ fn paint_dial(
 ) {
     let painter = ui.painter_at(rect.expand(2.0));
     let at = |q: Pos2| rect.min + vec2(q.x, q.y) * s;
-    let mid = (R0 + R1) / 2.0;
+    let ppp = ui.ctx().pixels_per_point();
 
-    // The ring: each zone a thick arc with a 2 px seam between neighbours (the
-    // SVG strokes each segment with the card colour).
-    let seam_deg = (1.0 / mid).to_degrees();
-    for (key, from, to) in zone_segments(g.zones) {
-        let (a0, a1) = (needle_angle(from) - seam_deg, needle_angle(to) + seam_deg);
-        if a0 <= a1 {
-            continue; // degenerate zone (e.g. neutral = strong)
-        }
-        let steps = ((a0 - a1) / 3.0).ceil().max(2.0) as usize;
-        let points: Vec<Pos2> = (0..=steps)
-            .map(|i| at(polar(CX, CY, mid, a0 + (a1 - a0) * i as f32 / steps as f32)))
-            .collect();
-        let fill = zone_fill(p, key);
-        let fill = if key == zone {
-            fill
-        } else {
-            fill.gamma_multiply(0.55)
-        };
-        painter.add(Shape::line(points, Stroke::new((R1 - R0) * s, fill)));
-    }
+    let ring = Ring {
+        center: at(pos2(CX, CY)),
+        r0: R0 * s,
+        r1: R1 * s,
+        feather: 1.0 / ppp,
+    };
+    let samples = ring_samples(&g.zones, ring.max_step_deg(ppp));
+    painter.add(Shape::mesh(ring_mesh(&ring, &samples, |k| {
+        dial_fill(p, k, k == zone)
+    })));
 
     if !g.mini {
         let font = FontId::proportional(12.0 * s.max(0.75));
@@ -289,9 +422,8 @@ fn paint_dial(
     }
 
     if let Some(b) = ghost {
-        let mut outline = needle_points(b);
+        let mut outline: Vec<Pos2> = needle_points(b).into_iter().map(at).collect();
         outline.push(outline[0]);
-        let outline: Vec<Pos2> = outline.into_iter().map(at).collect();
         painter.extend(Shape::dashed_line(
             &outline,
             Stroke::new(1.5, p.fg_muted),
@@ -301,6 +433,7 @@ fn paint_dial(
     }
     let needle: Vec<Pos2> = needle_points(shown).into_iter().map(at).collect();
     painter.add(Shape::convex_polygon(needle, p.fg, Stroke::NONE));
+    // The hub goes on top, so the needle's base disappears under it.
     let hub_r = if g.mini { 10.0 } else { 9.0 };
     painter.circle(
         at(pos2(CX, CY)),
@@ -310,15 +443,27 @@ fn paint_dial(
     );
 }
 
-/// The needle's outline in canvas units: a slim trapezoid from the hub to
-/// 14 px short of the ring, rotated to the value's angle.
+/// Half-width of the needle at the hub and at the tip, canvas units.
+const NEEDLE_BASE: f32 = 5.0;
+const NEEDLE_TIP: f32 = 1.2;
+/// The tip stops this far inside the ring's inner rim.
+const NEEDLE_GAP: f32 = 6.0;
+
+/// The needle's outline in canvas units: one tapered quad whose base is
+/// centred on the hub and whose tip stops just short of the inner rim,
+/// rotated to the value's angle.
 fn needle_points(value: f32) -> Vec<Pos2> {
-    let a = needle_angle(value).to_radians();
+    let a = needle_angle(f64::from(value)).to_radians() as f32;
     let (sin, cos) = a.sin_cos();
     // Drawn pointing right, then rotated counter-clockwise on a y-down screen.
     let rot = |dx: f32, dy: f32| pos2(CX + dx * cos + dy * sin, CY - dx * sin + dy * cos);
-    let tip = R1 - 14.0;
-    vec![rot(0.0, -5.0), rot(tip, -1.2), rot(tip, 1.2), rot(0.0, 5.0)]
+    let tip = R0 - NEEDLE_GAP;
+    vec![
+        rot(0.0, -NEEDLE_BASE),
+        rot(tip, -NEEDLE_TIP),
+        rot(tip, NEEDLE_TIP),
+        rot(0.0, NEEDLE_BASE),
+    ]
 }
 
 // ---------------------------------------------------------------- split bar
@@ -571,12 +716,153 @@ mod tests {
     fn needle_points_follow_angle() {
         // +100 → needle points right: the tip is right of the hub, level with it.
         let pts = needle_points(100.0);
-        assert!(pts[1].x > CX + 100.0 && (pts[1].y - (CY - 1.2)).abs() < 1e-3);
+        assert!(pts[1].x > CX + 90.0 && (pts[1].y - (CY - NEEDLE_TIP)).abs() < 1e-3);
         // 0 → straight up.
         let pts = needle_points(0.0);
-        assert!(pts[1].y < CY - 100.0);
+        assert!(pts[1].y < CY - 90.0);
         // −100 → left.
-        assert!(needle_points(-100.0)[1].x < CX - 100.0);
+        assert!(needle_points(-100.0)[1].x < CX - 90.0);
+    }
+
+    #[test]
+    fn needle_base_is_centred_and_tip_inside_the_ring() {
+        for v in [-80.0, 0.0, 30.0, 100.0] {
+            let pts = needle_points(v);
+            let base_mid = pts[0].lerp(pts[3], 0.5);
+            assert!(
+                base_mid.distance(pos2(CX, CY)) < 1e-3,
+                "{v}: base off the hub"
+            );
+            let tip_mid = pts[1].lerp(pts[2], 0.5);
+            let r = tip_mid.distance(pos2(CX, CY));
+            assert!(r < R0 && r > R0 - 10.0, "{v}: tip at r={r}");
+        }
+    }
+
+    #[test]
+    fn signed_matches_ts() {
+        assert_eq!(signed(30.4), "+30%");
+        assert_eq!(signed(-80.0), "\u{2212}80%");
+        assert_eq!(signed(0.2), "0%");
+        assert_eq!(signed(-0.2), "0%");
+    }
+
+    fn zones() -> Zones {
+        Zones::new(15.0, 40.0)
+    }
+
+    #[test]
+    fn ring_boundaries_match_desk_core_zones() {
+        let samples = ring_samples(&zones(), 2.0);
+        let segs = zone_segments(&zones());
+        assert_eq!(samples.first().map(|s| s.angle), Some(180.0));
+        assert_eq!(samples.last().map(|s| s.angle), Some(0.0));
+        for w in segs.windows(2) {
+            let a = needle_angle(w[0].to);
+            // The boundary is sampled twice at the same angle: last of the
+            // left zone, first of the right one.
+            let i = samples
+                .iter()
+                .position(|s| s.key == w[1].key)
+                .expect("each zone is sampled");
+            assert_eq!(samples[i - 1].angle, a);
+            assert_eq!(samples[i].angle, a);
+            assert_eq!(samples[i - 1].key, w[0].key);
+        }
+    }
+
+    #[test]
+    fn ring_has_no_gaps_and_small_steps() {
+        let samples = ring_samples(&zones(), 1.0);
+        for w in samples.windows(2) {
+            let step = w[0].angle - w[1].angle;
+            assert!((0.0..=1.0 + 1e-9).contains(&step), "step {step}");
+            if step == 0.0 {
+                assert_ne!(w[0].key, w[1].key, "only boundaries repeat an angle");
+            }
+        }
+    }
+
+    #[test]
+    fn ring_skips_empty_zones() {
+        // neutral == strong: the plain long/short zones vanish, no duplicates of them.
+        let s = ring_samples(&Zones::new(40.0, 40.0), 2.0);
+        assert!(!s
+            .iter()
+            .any(|x| x.key == ZoneKey::Short || x.key == ZoneKey::Long));
+    }
+
+    #[test]
+    fn mesh_columns_share_positions_at_boundaries() {
+        let ring = Ring {
+            center: pos2(200.0, 200.0),
+            r0: 104.0,
+            r1: 142.0,
+            feather: 0.5,
+        };
+        let samples = ring_samples(&zones(), ring.max_step_deg(2.0));
+        let mesh = ring_mesh(&ring, &samples, |k| match k {
+            ZoneKey::StrongShort => Color32::RED,
+            ZoneKey::Short => Color32::LIGHT_RED,
+            ZoneKey::Neutral => Color32::GRAY,
+            ZoneKey::Long => Color32::LIGHT_GREEN,
+            ZoneKey::StrongLong => Color32::GREEN,
+        });
+        // cap + one column per sample + cap, four vertices each.
+        assert_eq!(mesh.vertices.len(), (samples.len() + 2) * 4);
+        let col = |i: usize| &mesh.vertices[(i + 1) * 4..(i + 2) * 4];
+        let mut boundaries = 0;
+        for i in 1..samples.len() {
+            if samples[i].angle == samples[i - 1].angle {
+                boundaries += 1;
+                let (a, b) = (col(i - 1), col(i));
+                for k in 0..4 {
+                    assert_eq!(a[k].pos, b[k].pos, "boundary column moved");
+                }
+                assert_ne!(a[1].color, b[1].color, "hard colour edge");
+            } else {
+                // Neighbouring columns are less than 1.5 px apart on the outer rim at 2x.
+                let d = col(i - 1)[2].pos.distance(col(i)[2].pos) * 2.0;
+                assert!(d <= MAX_CHORD_PX + 1e-3, "chord {d}px");
+            }
+        }
+        assert_eq!(boundaries, 4);
+        // Only the fringe vertices are transparent; the rims are solid.
+        for c in (0..samples.len()).map(col) {
+            assert_eq!(c[0].color, Color32::TRANSPARENT);
+            assert_eq!(c[3].color, Color32::TRANSPARENT);
+            assert_ne!(c[1].color, Color32::TRANSPARENT);
+            assert_ne!(c[2].color, Color32::TRANSPARENT);
+        }
+        // Every triangle index is in range.
+        assert!(mesh
+            .indices
+            .iter()
+            .all(|&i| (i as usize) < mesh.vertices.len()));
+    }
+
+    #[test]
+    fn zone_fills_form_one_ramp() {
+        for p in [Palette::light(), Palette::dark()] {
+            let card = crate::theme::oklab_l(p.bg_raised);
+            let l = |k| crate::theme::oklab_l(dial_fill(&p, k, true));
+            // Strong zones are furthest from the card, soft zones in between.
+            for (strong, soft) in [
+                (ZoneKey::StrongShort, ZoneKey::Short),
+                (ZoneKey::StrongLong, ZoneKey::Long),
+            ] {
+                let (ds, dm) = ((l(strong) - card).abs(), (l(soft) - card).abs());
+                assert!(ds > dm, "strong {ds} vs soft {dm}");
+            }
+            // The neutral zone stays close to the card.
+            assert!((l(ZoneKey::Neutral) - card).abs() < 0.2);
+            if p.dark {
+                assert!(l(ZoneKey::Neutral) > card, "neutral lighter than the card");
+            }
+            // Inactive zones sit toward the card.
+            let idle = crate::theme::oklab_l(dial_fill(&p, ZoneKey::StrongLong, false));
+            assert!((idle - card).abs() < (l(ZoneKey::StrongLong) - card).abs());
+        }
     }
 
     #[test]

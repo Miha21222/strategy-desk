@@ -4,7 +4,6 @@
 pub mod app;
 pub mod cli;
 pub mod gauge;
-pub mod geom;
 pub mod i18n;
 pub mod mock;
 pub mod perf;

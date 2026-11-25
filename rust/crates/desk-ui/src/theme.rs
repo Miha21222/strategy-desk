@@ -272,6 +272,11 @@ fn from_oklab([l, a, b]: [f32; 3]) -> Color32 {
     )
 }
 
+/// Perceptual lightness (oklab L, 0..1).
+pub fn oklab_l(c: Color32) -> f32 {
+    to_oklab(c)[0]
+}
+
 /// CSS `color-mix(in oklab, a <share>, b)`.
 pub fn mix_oklab(a: Color32, b: Color32, share: f32) -> Color32 {
     let (x, y) = (to_oklab(a), to_oklab(b));

@@ -11,11 +11,11 @@ use eframe::egui::{
 
 use crate::cli::WindowOpts;
 use crate::gauge::{group_bar, split_bar, Gauge};
-use crate::geom::zone_of;
 use crate::i18n::{t, tf};
 use crate::mock::{self, LightColor, ScaleState};
 use crate::perf::Perf;
 use crate::theme::{self, radius, space, text, Palette, SIDEBAR_WIDTH};
+use desk_core::zones::zone_of;
 
 /// Content column of the main area; wider screens get side margins.
 const MAIN_MAX_WIDTH: f32 = 720.0;
@@ -243,11 +243,11 @@ pub(crate) fn card<R>(ui: &mut Ui, p: &Palette, title: &str, body: impl FnOnce(&
 
 fn hero_card(ui: &mut Ui, p: &Palette, s: &ScaleState, needle: f32, before: Option<f32>) {
     card(ui, p, t("macro.whereTitle"), |ui| {
-        Gauge::new(needle, s.zones).before(before).show(ui);
-        let zone = zone_of(needle, s.zones);
+        Gauge::new(needle, s.zones.clone()).before(before).show(ui);
+        let zone = zone_of(f64::from(needle), &s.zones);
         ui.vertical_centered(|ui| {
             ui.label(
-                RichText::new(t(&format!("macro.head.{}", zone.slug())))
+                RichText::new(t(&format!("macro.head.{}", zone.as_str())))
                     .size(text::LG)
                     .color(p.fg)
                     .strong(),

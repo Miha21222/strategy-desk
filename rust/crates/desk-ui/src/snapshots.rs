@@ -14,9 +14,9 @@ use egui_kittest::Harness;
 use crate::app::DeskApp;
 use crate::cli::WindowOpts;
 use crate::gauge::{Gauge, NeedleAnim, NEEDLE_TRAVEL_S};
-use crate::geom::Zones;
 use crate::i18n;
 use crate::theme::{self, Palette};
+use desk_core::zones::Zones;
 
 #[cfg(target_os = "linux")] // only the image snapshots use it
 const VALUES: [f32; 4] = [-80.0, 0.0, 30.0, 100.0];
@@ -76,14 +76,11 @@ fn gauge_names_value_and_zone() {
 
 #[test]
 fn gauge_follows_zone_inputs() {
-    let wide = Zones {
-        neutral: 35.0,
-        strong: 70.0,
-    };
+    let wide = Zones::new(35.0, 70.0);
     let mut h = Harness::builder()
         .with_size(egui::vec2(360.0, 290.0))
         .build_ui(|ui| {
-            Gauge::new(30.0, wide).show(ui);
+            Gauge::new(30.0, wide.clone()).show(ui);
         });
     h.run();
     h.get_by_label_contains("+30%, нет перевеса");
