@@ -133,12 +133,25 @@ pub fn parse_day(input: &DayInput) -> Result<usize> {
     Ok(p.json_files + p.csv_rows)
 }
 
-/// HOOK(desk-core): the real parser. The call below follows CONTRACTS.md
-/// («`DayInput` (имя файла → байты) → `Day`»); adjust the path/signature to
-/// what desk-core actually exports when flipping the feature on.
+/// The real parser: `desk_core::day::load_day` over the same files. The day
+/// is taken from the first state file name, since every key names it.
 #[cfg(feature = "core-day")]
 pub fn parse_day(input: &DayInput) -> Result<usize> {
-    let day = desk_core::day::load_day(input)?;
+    let date = input
+        .keys()
+        .find_map(|k| {
+            let name = k.strip_prefix("indices-kb/state/")?;
+            (0..name.len().saturating_sub(9)).find_map(|i| {
+                name.get(i..i + 10)
+                    .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok())
+            })
+        })
+        .ok_or_else(|| anyhow::anyhow!("no dated state file in the input"))?;
+    let mut core = desk_core::day::DayInput::new();
+    for (k, v) in input {
+        core.insert(k.clone(), v.clone());
+    }
+    let day = desk_core::day::load_day(&core, date);
     std::hint::black_box(&day);
     Ok(input.len())
 }

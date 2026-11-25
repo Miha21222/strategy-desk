@@ -84,7 +84,7 @@ impl<W: Write> Out<W> {
         self.w.write_all(l.as_bytes())?;
         self.w.write_all(b"\n")?;
         self.real += 1;
-        if self.o.garbage_every > 0 && self.real % self.o.garbage_every == 0 {
+        if self.o.garbage_every > 0 && self.real.is_multiple_of(self.o.garbage_every) {
             self.w.write_all(&garbage(self.garbage))?;
             self.w.write_all(b"\n")?;
             self.garbage += 1;
