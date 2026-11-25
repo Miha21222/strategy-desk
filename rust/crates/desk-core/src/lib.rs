@@ -20,6 +20,9 @@
 //! | [`js`] | the JavaScript semantics the TS relied on (`String()`, `trim`, `Math.round`, …) |
 
 pub mod js;
+pub mod normalize;
+pub mod vault;
+pub use vault::{HumanSide, Raw, Region, Side};
 
 /// The errors desk-core can report. Reading a day never fails (a broken
 /// file is a missing file, as in the TS); these are for the callers that
