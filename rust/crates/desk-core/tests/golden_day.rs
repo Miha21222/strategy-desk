@@ -33,8 +33,11 @@ mod api {
     /// (`indices-kb/state/…`, `indices-kb/journal/…`, `indices-kb/config/scale.json`,
     /// `Макро-обзоры/<D> Европа.md`); the notes only need to exist.
     pub fn load_day(files: &Files, d: &str) -> Value {
-        let input = desk_core::day::DayInput::from(files.clone());
-        let day: desk_core::day::Day = desk_core::day::load(&input, date(d));
+        let mut input = desk_core::day::DayInput::new();
+        for (k, v) in files {
+            input.insert(k.clone(), v.clone());
+        }
+        let day: desk_core::day::Day = desk_core::day::load_day(&input, date(d));
         serde_json::to_value(&day).expect("Day serializes")
     }
 
@@ -44,10 +47,7 @@ mod api {
             .keys()
             .filter_map(|k| k.strip_prefix("indices-kb/state/"))
             .collect();
-        desk_core::day::list_days(&names)
-            .into_iter()
-            .map(|d| d.format("%Y-%m-%d").to_string())
-            .collect()
+        desk_core::day::list_days(names)
     }
 }
 
