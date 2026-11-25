@@ -4,3 +4,47 @@
 //! touches the disk, the network, a process or the clock. Callers hand in bytes
 //! and a `now`; functions hand back values. That is what makes it testable
 //! against the golden files in `rust/fixtures/golden/`.
+//!
+//! | Module | From TS |
+//! | --- | --- |
+//! | [`vault`] | the types of `src/shared/macro.ts` |
+//! | [`normalize`] | `normalize*`, `trimCollect`, `lessonsTail`, `visibleIdeas`, `humanHit` |
+//! | [`day`] | `loadDay` / `listDays` of `src/main/macro-state.ts`, without the disk |
+//! | [`zones`], [`gauge`] | `zoneOf`, `zoneSegments`, `needleAngle`, `arcPath`, `splitFactors` |
+//! | [`windows`] | `windowState`, `defaultWindow`, `kyivNow` + TZ item 21 (exchange clocks) |
+//! | [`stats`] | `parseCsv`, `factorStats`, `fmt` |
+//! | [`names`] | file names, `dateOfStateFile`, `isFriday`, `isShotPath`, `resolveNote` (pure half) |
+//! | [`shots`] | `legendColor`, `mainShot`, `shotTabLabel`, `shotsErrorText`, `readShot` (pure half) |
+//! | [`prompts`] | `runCommand`, `discussPrompt`, `macroChatTitle` |
+//! | [`owner`] | `writeHumanRead` / `writeDayAnswers` (pure half: the record and its text) |
+//! | [`js`] | the JavaScript semantics the TS relied on (`String()`, `trim`, `Math.round`, …) |
+
+pub mod day;
+pub mod gauge;
+pub mod js;
+pub mod names;
+pub mod normalize;
+pub mod owner;
+pub mod prompts;
+pub mod shots;
+pub mod stats;
+pub mod vault;
+pub mod windows;
+pub mod zones;
+
+pub use day::{list_days, load_day, Day, DayInput, MacroIndex, RegionSnapshot};
+pub use vault::{HumanSide, Raw, Region, Side};
+pub use windows::{window_state, WindowId, WindowState};
+
+/// The errors desk-core can report. Reading a day never fails (a broken
+/// file is a missing file, as in the TS); these are for the callers that
+/// need a checked value.
+#[derive(Debug, thiserror::Error)]
+pub enum CoreError {
+    /// Not an ISO calendar date (`YYYY-MM-DD` that exists).
+    #[error("bad date: {0:?}")]
+    BadDate(String),
+    /// A record could not be written as JSON.
+    #[error("json: {0}")]
+    Json(#[from] serde_json::Error),
+}
