@@ -1,0 +1,25 @@
+{
+ "asof": "x",
+ "items": [
+  {
+   "id": "a",
+   "date": "2026-10-08",
+   "text": "идея",
+   "side": "",
+   "region": "eu",
+   "source": "chat",
+   "confirmed": 1,
+   "refuted": 0,
+   "status": "open",
+   "backtest": {
+    "days": 1,
+    "hit": 1,
+    "rate": 1,
+    "p": 0.1
+   },
+   "last_check": "2026-10-08",
+   "owner_note": "x"
+  }
+ ],
+ "schema": 2
+}

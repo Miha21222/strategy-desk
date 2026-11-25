@@ -1,0 +1,289 @@
+{
+ "region": "us",
+ "date": "2026-09-16",
+ "asof": "2026-09-16 16:05",
+ "sym": "ES",
+ "pair": "NQ",
+ "version": "v3.1",
+ "factors": [
+  {
+   "id": "bias_a",
+   "name": "Точка A / BIAS",
+   "group": "контекст дня",
+   "share_cfg": 12.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "сегодня молчит: сигнал слабый",
+   "share": 12.6,
+   "points": 0.0
+  },
+  {
+   "id": "d1_flow",
+   "name": "D1 — направление (PO3)",
+   "group": "контекст дня",
+   "share_cfg": 6.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.6,
+   "why": "D1: тренд вниз (3 слома подряд)",
+   "share": 6.3,
+   "points": 3.8
+  },
+  {
+   "id": "h4_flow",
+   "name": "Структура H4",
+   "group": "контекст дня",
+   "share_cfg": 5.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "сегодня молчит: сигнал слабый",
+   "share": 5.3,
+   "points": 0.0
+  },
+  {
+   "id": "dr_zone",
+   "name": "Premium / Discount H4 DR",
+   "group": "контекст дня",
+   "share_cfg": 4.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.7,
+   "why": "цена в верхней половине диапазона H4 — Premium",
+   "share": 4.2,
+   "points": 2.9
+  },
+  {
+   "id": "h1_flow",
+   "name": "Структура H1 (POI)",
+   "group": "контекст дня",
+   "share_cfg": 6.0,
+   "on": true,
+   "side": "LONG",
+   "strength": 1.0,
+   "why": "H1: слом вверх у POI",
+   "share": 6.3,
+   "points": 6.3
+  },
+  {
+   "id": "night_sweep",
+   "name": "Что сняла ночь",
+   "group": "окно открытия",
+   "share_cfg": 11.0,
+   "on": true,
+   "side": "LONG",
+   "strength": 1.0,
+   "why": "ночь сняла вчерашний минимум и вернулась выше",
+   "share": 11.6,
+   "points": 11.6
+  },
+  {
+   "id": "m15_flow",
+   "name": "Структура M15 (ночь)",
+   "group": "окно открытия",
+   "share_cfg": 10.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.6,
+   "why": "M15: последний слом за ночь вниз",
+   "share": 10.5,
+   "points": 6.3
+  },
+  {
+   "id": "room",
+   "name": "Место до цели в окне",
+   "group": "окно открытия",
+   "share_cfg": 12.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.4,
+   "why": "вниз до ликвидности 0.5 ADR, вверх 0.2 ADR",
+   "share": 12.6,
+   "points": 5.0
+  },
+  {
+   "id": "night_move",
+   "name": "Ход ночи к вчерашнему закрытию",
+   "group": "окно открытия",
+   "share_cfg": 6.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "сегодня молчит: сигнал слабый",
+   "share": 6.3,
+   "points": 0.0
+  },
+  {
+   "id": "opens",
+   "name": "Цена к DO / WO / NYM",
+   "group": "окно открытия",
+   "share_cfg": 5.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 1.0,
+   "why": "цена ниже открытий дня и недели",
+   "share": 5.3,
+   "points": 5.3
+  },
+  {
+   "id": "prev_close",
+   "name": "Как закрылся вчерашний RTH",
+   "group": "окно открытия",
+   "share_cfg": 3.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.7,
+   "why": "вчера закрылись в нижней четверти дня",
+   "share": 3.2,
+   "points": 2.2
+  },
+  {
+   "id": "m_verdict",
+   "name": "Новостной вердикт агента",
+   "group": "макро",
+   "share_cfg": 7.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.4,
+   "why": "новости толкают открытие вниз",
+   "share": 7.4,
+   "points": 3.0
+  },
+  {
+   "id": "m_peers",
+   "name": "Европа к 16:00 (FDAX, FESX)",
+   "group": "макро",
+   "share_cfg": 2.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 0.6,
+   "why": "смежный рынок −0.5 %",
+   "share": 2.1,
+   "points": 1.3
+  },
+  {
+   "id": "m_vol",
+   "name": "VIX",
+   "group": "макро",
+   "share_cfg": 2.0,
+   "on": true,
+   "side": "LONG",
+   "strength": 1.0,
+   "why": "индекс страха падает на 5 %",
+   "share": 2.1,
+   "points": 2.1
+  },
+  {
+   "id": "m_yields",
+   "name": "Доходности US2Y / US10Y",
+   "group": "макро",
+   "share_cfg": 1.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "сегодня молчит: сигнал слабый",
+   "share": 1.1,
+   "points": 0.0
+  },
+  {
+   "id": "m_dollar",
+   "name": "Доллар (DXY)",
+   "group": "макро",
+   "share_cfg": 1.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "сегодня молчит: сигнал слабый",
+   "share": 1.1,
+   "points": 0.0
+  },
+  {
+   "id": "m_oil",
+   "name": "Нефть",
+   "group": "макро",
+   "share_cfg": 1.0,
+   "on": true,
+   "side": "LONG",
+   "strength": 0.6,
+   "why": "нефть −2.5 %",
+   "share": 1.1,
+   "points": 0.7
+  },
+  {
+   "id": "m_tone",
+   "name": "Тон заголовков",
+   "group": "макро",
+   "share_cfg": 1.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "сегодня молчит: сигнал слабый",
+   "share": 1.1,
+   "points": 0.0
+  }
+ ],
+ "result": {
+  "long": 20.7,
+  "short": 29.8,
+  "undecided": 49.5,
+  "max": 100,
+  "needle": -9,
+  "zone": "нейтрально",
+  "side": null,
+  "groups": {
+   "контекст дня": {
+    "share": 34.7,
+    "long": 6.3,
+    "short": 6.7,
+    "needle": 0
+   },
+   "окно открытия": {
+    "share": 49.5,
+    "long": 11.6,
+    "short": 18.8,
+    "needle": -7
+   },
+   "макро": {
+    "share": 16.0,
+    "long": 2.8,
+    "short": 4.3,
+    "needle": -2
+   }
+  }
+ },
+ "light": {
+  "color": "green",
+  "label": "🟢 торгуем",
+  "red": [],
+  "yellow": [],
+  "risk_pct": 1
+ },
+ "levels": {
+  "price": 7820,
+  "adr": 59
+ },
+ "plan": {
+  "side": null,
+  "price": 0,
+  "adr": 0,
+  "session": {
+   "entry": "16:30–18:30",
+   "setup1_until": "17:30",
+   "exit": "18:30 (крайний срок 22:00)",
+   "review_asof": "20:00"
+  },
+  "manipulation_levels": [],
+  "targets": [],
+  "setups": [],
+  "summary": "Направления нет — по правилам (заметка 20, п.2) день пропускаем."
+ },
+ "discussion": [],
+ "history": [
+  {
+   "asof": "2026-09-16 016:30",
+   "needle": -9,
+   "after": null
+  }
+ ]
+}

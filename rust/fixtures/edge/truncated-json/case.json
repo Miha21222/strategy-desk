@@ -1,0 +1,7 @@
+{
+ "dates": [
+  "2026-10-08"
+ ],
+ "compare": "strict",
+ "why": "A file cut off mid-write (crash, full disk, sync conflict) is read as absent; the rest of the day still loads."
+}

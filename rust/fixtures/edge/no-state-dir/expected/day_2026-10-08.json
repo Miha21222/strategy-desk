@@ -1,0 +1,45 @@
+{
+ "date": "2026-10-08",
+ "eu": {
+  "region": "eu",
+  "scale": null,
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "us": {
+  "region": "us",
+  "scale": null,
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "review": {
+  "mech": null,
+  "agent": null,
+  "note": null,
+  "shots": {
+   "eu": null,
+   "us": null
+  }
+ },
+ "answers": null,
+ "lessons": [],
+ "stats": [],
+ "names": {},
+ "zones": {
+  "neutral": 15,
+  "strong": 40
+ },
+ "week": null,
+ "ideas": null,
+ "trader": []
+}

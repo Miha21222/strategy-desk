@@ -1,0 +1,7 @@
+{
+ "dates": [
+  "2026-10-08"
+ ],
+ "compare": "strict",
+ "why": "A vault folder without indices-kb/state (wrong folder picked): the index says no-state-dir, loadDay still answers an empty day."
+}

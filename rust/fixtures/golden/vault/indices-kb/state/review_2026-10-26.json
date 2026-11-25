@@ -1,0 +1,406 @@
+{
+ "date": "2026-10-26",
+ "asof": "2026-10-26 20:01",
+ "regions": {
+  "eu": {
+   "facts": {
+    "sym": "FDAX",
+    "date": "2026-10-26",
+    "dir": "SHORT",
+    "chg_adr": -0.42,
+    "first_break": "down",
+    "ib_adr": 0.36,
+    "partial": false
+   },
+   "score": {
+    "needle_hit": "1",
+    "after_hit": "1",
+    "plan_hit": "да",
+    "manip_swept": true
+   },
+   "factors": [
+    {
+     "factor": "bias_a",
+     "group": "контекст дня",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "d1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "h4_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "SHORT",
+     "hit": ""
+    },
+    {
+     "factor": "dr_zone",
+     "group": "контекст дня",
+     "share": 4.2,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "h1_flow",
+     "group": "контекст дня",
+     "share": 5.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "SHORT",
+     "hit": ""
+    },
+    {
+     "factor": "night_sweep",
+     "group": "окно открытия",
+     "share": 14.7,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m15_flow",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "room",
+     "group": "окно открытия",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 0.7,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "night_move",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "SHORT",
+     "hit": ""
+    },
+    {
+     "factor": "opens",
+     "group": "окно открытия",
+     "share": 5.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "prev_close",
+     "group": "окно открытия",
+     "share": 4.2,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_verdict",
+     "group": "макро",
+     "share": 7.4,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_peers",
+     "group": "макро",
+     "share": 3.2,
+     "side": "LONG",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "0"
+    },
+    {
+     "factor": "m_asia",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "0"
+    },
+    {
+     "factor": "m_vol",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_yields",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_dollar",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_oil",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    }
+   ],
+   "discussion": [
+    {
+     "at": "2026-10-26 09:48",
+     "by": "owner",
+     "side": "LONG",
+     "share": 10,
+     "text": "DAX у недельного минимума — шортить в самый низ поздно",
+     "reply": "Частично: минимум недели рядом, но ночь сняла вчерашний максимум и вернулась ниже — шорт, но только до IB1.",
+     "agent_view": "partial"
+    }
+   ],
+   "needle": -57,
+   "after": -41,
+   "zone": "сильный шорт",
+   "light": {
+    "color": "yellow",
+    "label": "🟡 осторожно",
+    "red": [],
+    "yellow": [
+     "фаза ПИЛА (5 из 10 дней в обе стороны) — риск ×0.5, цель до IB1"
+    ],
+    "risk_pct": 0.5
+   }
+  },
+  "us": {
+   "facts": {
+    "sym": "ES",
+    "date": "2026-10-26",
+    "dir": "SHORT",
+    "chg_adr": -0.25,
+    "first_break": "down",
+    "ib_adr": 0.36,
+    "partial": false
+   },
+   "score": {
+    "needle_hit": "1",
+    "after_hit": "",
+    "plan_hit": "пробой без IB1",
+    "manip_swept": true
+   },
+   "factors": [
+    {
+     "factor": "bias_a",
+     "group": "контекст дня",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "d1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "SHORT",
+     "hit": ""
+    },
+    {
+     "factor": "h4_flow",
+     "group": "контекст дня",
+     "share": 5.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "SHORT",
+     "hit": ""
+    },
+    {
+     "factor": "dr_zone",
+     "group": "контекст дня",
+     "share": 4.2,
+     "side": "SHORT",
+     "strength": 0.7,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "h1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "night_sweep",
+     "group": "окно открытия",
+     "share": 11.6,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m15_flow",
+     "group": "окно открытия",
+     "share": 10.5,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "room",
+     "group": "окно открытия",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "night_move",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "opens",
+     "group": "окно открытия",
+     "share": 5.3,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "prev_close",
+     "group": "окно открытия",
+     "share": 3.2,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_verdict",
+     "group": "макро",
+     "share": 7.4,
+     "side": "SHORT",
+     "strength": 0.7,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_peers",
+     "group": "макро",
+     "share": 2.1,
+     "side": "SHORT",
+     "strength": 0.7,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_vol",
+     "group": "макро",
+     "share": 2.1,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_yields",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "SHORT",
+     "hit": "1"
+    },
+    {
+     "factor": "m_dollar",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "0"
+    },
+    {
+     "factor": "m_oil",
+     "group": "макро",
+     "share": 1.1,
+     "side": "",
+     "strength": 0.0,
+     "dir": "SHORT",
+     "hit": ""
+    },
+    {
+     "factor": "m_tone",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "SHORT",
+     "hit": "0"
+    }
+   ],
+   "discussion": [],
+   "needle": -52,
+   "after": null,
+   "zone": "сильный шорт",
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   }
+  }
+ },
+ "trader": [
+  "[демо] 4 стопа из 5 за две недели — вход до закрытия IB.",
+  "В пилу входишь чаще, чем в тренд, а угадываешь реже."
+ ]
+}

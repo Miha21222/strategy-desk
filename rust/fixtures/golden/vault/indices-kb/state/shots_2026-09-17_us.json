@@ -1,0 +1,93 @@
+{
+ "date": "2026-09-17",
+ "region": "us",
+ "asof": "2026-09-17 15:55",
+ "ok": true,
+ "error": null,
+ "shots": [
+  {
+   "name": "m15",
+   "tf": "M15",
+   "title": "M15 — ночь и уровни у открытия",
+   "path": "indices-kb/shots/2026-09-17/macro_us/m15.png",
+   "verify_ok": true,
+   "legend": [
+    {
+     "key": "manip1",
+     "label": "манипуляция: минимум ночи",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "manip2",
+     "label": "манипуляция: открытие дня",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "target1",
+     "label": "цель: вчерашнее закрытие",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "target2",
+     "label": "цель: максимум H4",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "prev_high",
+     "label": "вчерашний максимум",
+     "kind": "level",
+     "color": "#37474f"
+    },
+    {
+     "key": "NYM",
+     "label": "полночь Нью-Йорка",
+     "kind": "open",
+     "color": "#9e9e9e"
+    }
+   ]
+  },
+  {
+   "name": "h1",
+   "tf": "H1",
+   "title": "H1 — зоны и цели дня",
+   "path": "indices-kb/shots/2026-09-17/macro_us/h1.png",
+   "verify_ok": true,
+   "legend": [
+    {
+     "key": "manip1",
+     "label": "манипуляция: минимум ночи",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "manip2",
+     "label": "манипуляция: открытие дня",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "target1",
+     "label": "цель: вчерашнее закрытие",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "target2",
+     "label": "цель: максимум H4",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "prev_high",
+     "label": "вчерашний максимум",
+     "kind": "level",
+     "color": "#37474f"
+    }
+   ]
+  }
+ ]
+}

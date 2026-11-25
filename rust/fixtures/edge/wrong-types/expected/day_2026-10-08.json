@@ -1,0 +1,246 @@
+{
+ "date": "2026-10-08",
+ "eu": {
+  "region": "eu",
+  "scale": {
+   "region": "eu",
+   "date": "2026-10-08",
+   "asof": "2026-10-08 09:35",
+   "sym": "FDAX",
+   "version": "v3.1",
+   "factors": [],
+   "result": {
+    "long": 10,
+    "short": 40,
+    "undecided": 50,
+    "max": 100,
+    "needle": -30,
+    "zone": "шорт",
+    "side": "SHORT",
+    "groups": {
+     "контекст дня": {
+      "share": 40,
+      "long": 0,
+      "short": 40,
+      "needle": -40
+     }
+    }
+   },
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   },
+   "levels": {
+    "price": 25000,
+    "adr": 280
+   },
+   "discussion": [],
+   "history": []
+  },
+  "verdict": "LONG",
+  "collect": {
+   "asof_eet": 931,
+   "calendar": "нет данных",
+   "markets": [],
+   "headlines": {},
+   "tilt": 5,
+   "regime": null,
+   "prev_day_check": [],
+   "previous_verdict": null
+  },
+  "note": null,
+  "shots": {
+   "date": "",
+   "region": "eu",
+   "asof": "",
+   "ok": true,
+   "error": "0",
+   "shots": [
+    {
+     "name": "",
+     "tf": "",
+     "title": "",
+     "path": "indices-kb/shots/a/b.png",
+     "verify_ok": null,
+     "legend": [
+      {
+       "key": "",
+       "label": "ок",
+       "kind": "level",
+       "color": "5"
+      }
+     ]
+    }
+   ]
+  },
+  "human": {
+   "date": "2026-10-08",
+   "region": "eu",
+   "side": "SHORT",
+   "at": "",
+   "before_scale": true
+  },
+  "remember": null,
+  "drift": null
+ },
+ "us": {
+  "region": "us",
+  "scale": null,
+  "verdict": null,
+  "collect": {
+   "calendar": null,
+   "markets": [
+    {
+     "label": "ES",
+     "chg_pct": "0.4",
+     "main": true
+    },
+    {
+     "label": "5",
+     "main": false
+    }
+   ],
+   "headlines": null,
+   "tilt": null,
+   "regime": null,
+   "prev_day_check": [],
+   "previous_verdict": null
+  },
+  "note": null,
+  "shots": {
+   "date": "",
+   "region": "us",
+   "asof": "",
+   "ok": true,
+   "error": null,
+   "shots": [
+    {
+     "name": "",
+     "tf": "",
+     "title": "",
+     "path": "indices-kb/shots/a/c.png",
+     "verify_ok": null,
+     "legend": []
+    }
+   ]
+  },
+  "human": null,
+  "remember": {
+   "date": "2026-10-08",
+   "region": "us",
+   "asof": "",
+   "items": [
+    {
+     "kind": "lesson",
+     "text": "с пробелами",
+     "why": "5",
+     "ref": "",
+     "tags": [
+      "a",
+      "b"
+     ]
+    }
+   ],
+   "conditions": null,
+   "similar": null,
+   "lesson_candidates": 3,
+   "enough_history": false
+  },
+  "drift": {
+   "date": "2026-10-08",
+   "region": "us",
+   "days": 0,
+   "enough_data": false,
+   "signals": [
+    {
+     "kind": "factor",
+     "text": "без вида",
+     "severity": "info",
+     "data": {}
+    }
+   ]
+  }
+ },
+ "review": {
+  "mech": null,
+  "agent": null,
+  "note": null,
+  "shots": {
+   "eu": null,
+   "us": null
+  }
+ },
+ "answers": {
+  "date": "2026-10-08",
+  "at": "",
+  "regions": {},
+  "note": "только заметка"
+ },
+ "lessons": [
+  "2026-10-03: с отступом",
+  "2026-10-02: звёздочка",
+  "2026-10-01: [синтетика] первая строка с BOM"
+ ],
+ "stats": [
+  {
+   "region": "eu",
+   "factor": "room",
+   "hits": 2,
+   "total": 2
+  },
+  {
+   "region": "eu",
+   "factor": "m_vol",
+   "hits": 1,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "m15_flow",
+   "hits": 1,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "q,uoted",
+   "hits": 0,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "Room",
+   "hits": 0,
+   "total": 1
+  }
+ ],
+ "names": {
+  "bias_a": 7
+ },
+ "zones": {
+  "neutral": "20",
+  "strong": 40
+ },
+ "week": null,
+ "ideas": {
+  "asof": "5",
+  "items": [
+   {
+    "id": "idea-0",
+    "date": "20261001",
+    "text": "ок",
+    "side": "",
+    "region": "",
+    "source": "",
+    "confirmed": 0,
+    "refuted": 3,
+    "status": "open",
+    "backtest": null,
+    "last_check": ""
+   }
+  ]
+ },
+ "trader": []
+}

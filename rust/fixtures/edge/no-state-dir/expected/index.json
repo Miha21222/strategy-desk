@@ -1,0 +1,6 @@
+{
+ "vault": "$VAULT",
+ "ok": false,
+ "error": "no-state-dir",
+ "days": []
+}

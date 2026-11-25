@@ -1,0 +1,7 @@
+{
+ "dates": [
+  "2026-10-08"
+ ],
+ "compare": "strict",
+ "why": "The state folder exists but is empty (fresh vault before the first run); no journal, no config: defaults everywhere."
+}

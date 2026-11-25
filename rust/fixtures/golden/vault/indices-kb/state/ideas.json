@@ -1,0 +1,78 @@
+{
+ "asof": "2026-09-18 20:10",
+ "items": [
+  {
+   "id": "i1",
+   "date": "2026-09-02",
+   "text": "[демо] После широкой ночи (≥ 0.8 ADR) окно Европы чаще разворачивается против ночи.",
+   "side": "",
+   "region": "eu",
+   "source": "chat",
+   "confirmed": 3,
+   "refuted": 1,
+   "status": "proposed",
+   "backtest": {
+    "days": 30,
+    "hit": 19,
+    "rate": 0.63
+   },
+   "last_check": "2026-09-17"
+  },
+  {
+   "id": "i2",
+   "date": "2026-09-14",
+   "text": "[демо] DAX у недельного минимума — шортить в самый низ поздно.",
+   "side": "LONG",
+   "region": "eu",
+   "source": "discuss",
+   "confirmed": 1,
+   "refuted": 1,
+   "status": "open",
+   "backtest": null,
+   "last_check": "2026-09-14"
+  },
+  {
+   "id": "i3",
+   "date": "2026-09-18",
+   "text": "[демо] В день квартальной экспирации цену держат у страйка — выносы у открытия ложные.",
+   "side": "",
+   "region": "eu",
+   "source": "discuss",
+   "confirmed": 1,
+   "refuted": 0,
+   "status": "open",
+   "backtest": {
+    "days": 60,
+    "hit": 4,
+    "rate": 0.57
+   },
+   "last_check": "2026-09-18"
+  },
+  {
+   "id": "i4",
+   "date": "2026-09-10",
+   "text": "[демо] Ход ночи и «что сняла ночь» — одна история, считать одним фактором.",
+   "side": "",
+   "region": "us",
+   "source": "weight_ideas",
+   "confirmed": 0,
+   "refuted": 2,
+   "status": "dropped",
+   "backtest": null,
+   "last_check": "2026-09-16"
+  },
+  {
+   "id": "i5",
+   "date": "2026-09-05",
+   "text": "[демо] После CPI первые 15 минут не входить.",
+   "side": "",
+   "region": "us",
+   "source": "chat",
+   "confirmed": 4,
+   "refuted": 0,
+   "status": "rule",
+   "backtest": null,
+   "last_check": "2026-09-17"
+  }
+ ]
+}

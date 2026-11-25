@@ -1,0 +1,38 @@
+{
+ "region": "us",
+ "date": "2026-10-08",
+ "asof": "",
+ "sym": "ES",
+ "version": "v1",
+ "factors": [
+  {
+   "id": "a",
+   "name": "A",
+   "group": "техника",
+   "weight": 2,
+   "side": "LONG",
+   "strength": 0.7,
+   "points": 1.4
+  },
+  {
+   "id": "b",
+   "name": "B",
+   "group": "техника",
+   "weight": 1,
+   "side": "SHORT",
+   "strength": 1,
+   "points": 1
+  }
+ ],
+ "result": {
+  "long": 1.4,
+  "short": 1,
+  "needle": 17,
+  "zone": "лонг",
+  "side": "LONG"
+ },
+ "light": {
+  "color": "green",
+  "label": ""
+ }
+}

@@ -1,0 +1,13 @@
+{
+ "verdict": "SHORT",
+ "confidence": "medium",
+ "summary": "[синтетика] вердикт",
+ "plan": [
+  "строка плана"
+ ],
+ "model": "x",
+ "ib": {
+  "side": "SHORT",
+  "reach": "IB1"
+ }
+}

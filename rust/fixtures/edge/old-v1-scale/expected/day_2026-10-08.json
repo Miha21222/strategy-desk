@@ -1,0 +1,189 @@
+{
+ "date": "2026-10-08",
+ "eu": {
+  "region": "eu",
+  "scale": {
+   "region": "eu",
+   "date": "2026-10-08",
+   "asof": "",
+   "sym": "FDAX",
+   "version": "v1",
+   "factors": [
+    {
+     "id": "a",
+     "name": "A",
+     "group": "техника",
+     "weight": 3,
+     "side": "LONG",
+     "strength": 1,
+     "points": 50,
+     "share": 50
+    },
+    {
+     "id": "b",
+     "name": "B",
+     "group": "сессия",
+     "weight": 2,
+     "side": "SHORT",
+     "strength": 0.5,
+     "points": 16.7,
+     "share": 33.3
+    },
+    {
+     "id": "c",
+     "name": "C",
+     "group": "сессия",
+     "weight": 1,
+     "side": "",
+     "strength": 0,
+     "points": 0,
+     "share": 16.7
+    },
+    {
+     "id": "d",
+     "name": "D",
+     "group": "сессия",
+     "weight": 1,
+     "side": "SHORT",
+     "strength": 1,
+     "points": 16.7,
+     "on": false,
+     "share": 16.7
+    }
+   ],
+   "result": {
+    "long": 42.9,
+    "short": 14.3,
+    "max": 7,
+    "needle": 50,
+    "zone": "сильный лонг",
+    "side": "LONG",
+    "groups": {
+     "техника": {
+      "share": 42.9,
+      "long": 42.9,
+      "short": 0,
+      "needle": 100
+     },
+     "сессия": {
+      "share": 42.9,
+      "long": 0,
+      "short": 14.3,
+      "needle": -100
+     }
+    },
+    "undecided": 42.8
+   },
+   "after": {
+    "long": 42.9,
+    "short": 28.6,
+    "max": 7,
+    "needle": 20,
+    "zone": "лонг",
+    "side": "LONG",
+    "undecided": 28.5
+   },
+   "light": {
+    "color": "red",
+    "label": ""
+   }
+  },
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "us": {
+  "region": "us",
+  "scale": {
+   "region": "us",
+   "date": "2026-10-08",
+   "asof": "",
+   "sym": "ES",
+   "version": "v1",
+   "factors": [
+    {
+     "id": "a",
+     "name": "A",
+     "group": "техника",
+     "weight": 2,
+     "side": "LONG",
+     "strength": 0.7,
+     "points": 46.7,
+     "share": 66.7
+    },
+    {
+     "id": "b",
+     "name": "B",
+     "group": "техника",
+     "weight": 1,
+     "side": "SHORT",
+     "strength": 1,
+     "points": 33.3,
+     "share": 33.3
+    }
+   ],
+   "result": {
+    "long": 46.7,
+    "short": 33.3,
+    "needle": 17,
+    "zone": "лонг",
+    "side": "LONG",
+    "undecided": 20
+   },
+   "light": {
+    "color": "green",
+    "label": ""
+   }
+  },
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "review": {
+  "mech": null,
+  "agent": null,
+  "note": null,
+  "shots": {
+   "eu": null,
+   "us": null
+  }
+ },
+ "answers": null,
+ "lessons": [
+  "2026-10-08: [синтетика] новый",
+  "2026-10-07: [синтетика] старый"
+ ],
+ "stats": [
+  {
+   "region": "eu",
+   "factor": "bias_a",
+   "hits": 1,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "room",
+   "hits": 0,
+   "total": 1
+  }
+ ],
+ "names": {
+  "bias_a": "Точка A",
+  "room": "Место до цели"
+ },
+ "zones": {
+  "neutral": 15,
+  "strong": 40
+ },
+ "week": null,
+ "ideas": null,
+ "trader": []
+}
