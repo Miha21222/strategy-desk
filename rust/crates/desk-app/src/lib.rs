@@ -4,4 +4,6 @@
 //! a `Command` and renders the latest `Snapshot`. See docs/rust/CONTRACTS.md.
 
 pub mod claude;
+pub mod core_stub;
 pub mod macro_env;
+pub mod vault_write;
