@@ -7,3 +7,4 @@ pub mod claude;
 pub mod core_stub;
 pub mod macro_env;
 pub mod vault_write;
+pub mod watch;
