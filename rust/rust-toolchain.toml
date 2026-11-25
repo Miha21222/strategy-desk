@@ -1,4 +1,3 @@
 [toolchain]
-# Pinned so local and CI clippy see the same lints (1.98 added manual_chunks lints).
-channel = "1.97.0"
+channel = "stable"
 components = ["rustfmt", "clippy"]
