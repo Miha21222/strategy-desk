@@ -1,0 +1,11 @@
+﻿{
+ "asof": "x",
+ "items": [
+  {
+   "id": "a",
+   "date": "2026-10-08",
+   "text": "идея",
+   "status": "proposed"
+  }
+ ]
+}

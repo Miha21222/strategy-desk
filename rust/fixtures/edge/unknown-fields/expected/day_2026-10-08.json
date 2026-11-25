@@ -1,0 +1,351 @@
+{
+ "date": "2026-10-08",
+ "eu": {
+  "region": "eu",
+  "scale": {
+   "region": "eu",
+   "date": "2026-10-08",
+   "asof": "2026-10-08 09:35",
+   "sym": "FDAX",
+   "version": "v4.0",
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "bias_a",
+     "group": "контекст дня",
+     "share_cfg": 40,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "синтетика",
+     "share": 40,
+     "points": 40,
+     "confidence": 0.8
+    },
+    {
+     "id": "room",
+     "name": "room",
+     "group": "окно открытия",
+     "share_cfg": 10,
+     "on": true,
+     "side": "LONG",
+     "strength": 1,
+     "why": "синтетика",
+     "share": 10,
+     "points": 10
+    },
+    {
+     "id": "m_vol",
+     "name": "m_vol",
+     "group": "макро",
+     "share_cfg": 50,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "синтетика",
+     "share": 50,
+     "points": 0
+    }
+   ],
+   "result": {
+    "long": 10,
+    "short": 40,
+    "undecided": 50,
+    "max": 100,
+    "needle": -30,
+    "zone": "шорт",
+    "side": "SHORT",
+    "groups": {
+     "контекст дня": {
+      "share": 40,
+      "long": 0,
+      "short": 40,
+      "needle": -40
+     }
+    },
+    "entropy": 0.42
+   },
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   },
+   "levels": {
+    "price": 25000,
+    "adr": 280
+   },
+   "discussion": [],
+   "history": [],
+   "future_block": {
+    "a": 1,
+    "b": [
+     1,
+     2
+    ]
+   },
+   "plan": {
+    "side": "SHORT",
+    "summary": "план",
+    "new_plan_field": true
+   }
+  },
+  "verdict": {
+   "verdict": "SHORT",
+   "confidence": "medium",
+   "summary": "[синтетика] вердикт",
+   "plan": [
+    "строка плана"
+   ],
+   "model": "x",
+   "ib": {
+    "side": "SHORT",
+    "reach": "IB1"
+   }
+  },
+  "collect": {
+   "asof_eet": "2026-10-08 09:31",
+   "open_eet": "10:00",
+   "calendar": {
+    "status": "TRADE",
+    "events": [
+     {
+      "title": "Ifo",
+      "impact": "Medium",
+      "time_eet": "11:00",
+      "extra": "x"
+     }
+    ],
+    "future": true
+   },
+   "markets": [
+    {
+     "label": "FDAX",
+     "chg_pct": 0.3,
+     "main": true,
+     "kind": "index"
+    }
+   ],
+   "headlines": {
+    "count": 10,
+    "relevant": 4,
+    "tone_sum": -1,
+    "tags": {
+     "ставки": 3
+    }
+   },
+   "tilt": {
+    "score": -1,
+    "hint": "шорт",
+    "more": 1
+   },
+   "regime": {
+    "phase": "пила",
+    "new": 2
+   },
+   "prev_day_check": [
+    {
+     "x": 1
+    }
+   ],
+   "previous_verdict": null
+  },
+  "note": null,
+  "shots": {
+   "date": "2026-10-08",
+   "region": "eu",
+   "asof": "x",
+   "ok": true,
+   "error": null,
+   "shots": [
+    {
+     "name": "h4",
+     "tf": "H4",
+     "title": "H4",
+     "path": "indices-kb/shots/x/h4.png",
+     "verify_ok": null,
+     "legend": [
+      {
+       "key": "k",
+       "label": "линия",
+       "kind": "new_kind",
+       "color": "rgb(1,2,3)"
+      }
+     ]
+    }
+   ]
+  },
+  "human": {
+   "date": "2026-10-08",
+   "region": "eu",
+   "side": "SHORT",
+   "at": "2026-10-08 09:31",
+   "before_scale": true
+  },
+  "remember": {
+   "date": "2026-10-08",
+   "region": "eu",
+   "asof": "x",
+   "items": [
+    {
+     "kind": "lesson",
+     "text": "урок",
+     "why": "",
+     "ref": "",
+     "tags": []
+    }
+   ],
+   "conditions": {
+    "night_adr": null,
+    "tags": [
+     "eu"
+    ]
+   },
+   "similar": null,
+   "lesson_candidates": 1,
+   "enough_history": true
+  },
+  "drift": {
+   "date": "2026-10-08",
+   "region": "eu",
+   "days": 20,
+   "enough_data": true,
+   "signals": [
+    {
+     "kind": "new_kind",
+     "text": "новый вид сигнала",
+     "severity": "info",
+     "data": {
+      "k": 1
+     }
+    }
+   ]
+  }
+ },
+ "us": {
+  "region": "us",
+  "scale": null,
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "review": {
+  "mech": {
+   "date": "2026-10-08",
+   "asof": "x",
+   "regions": {
+    "eu": {
+     "facts": {
+      "dir": "SHORT",
+      "day_move": -0.6
+     },
+     "score": {
+      "needle_hit": "1"
+     },
+     "ib": {
+      "side": "SHORT"
+     }
+    }
+   },
+   "trader": [
+    "наблюдение"
+   ],
+   "new_section": {
+    "a": 1
+   }
+  },
+  "agent": {
+   "summary": "итог",
+   "lessons": [
+    "урок"
+   ],
+   "extra": true
+  },
+  "note": null,
+  "shots": {
+   "eu": null,
+   "us": null
+  }
+ },
+ "answers": {
+  "date": "2026-10-08",
+  "at": "2026-10-08 20:05",
+  "regions": {
+   "eu": {
+    "trade": "short",
+    "by_rule": "yes"
+   }
+  },
+  "note": "заметка"
+ },
+ "lessons": [
+  "2026-10-08: [синтетика] новый",
+  "2026-10-07: [синтетика] старый"
+ ],
+ "stats": [
+  {
+   "region": "eu",
+   "factor": "bias_a",
+   "hits": 1,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "room",
+   "hits": 0,
+   "total": 1
+  }
+ ],
+ "names": {
+  "bias_a": "Точка A",
+  "room": "Место до цели"
+ },
+ "zones": {
+  "neutral": 15,
+  "strong": 40
+ },
+ "week": {
+  "week_start": "2026-10-05",
+  "week_end": "2026-10-08",
+  "days": 4,
+  "enough_data": false,
+  "lines": [
+   "строка"
+  ],
+  "stats": {
+   "a": 1
+  },
+  "trader": [],
+  "share_proposal": null
+ },
+ "ideas": {
+  "asof": "x",
+  "items": [
+   {
+    "id": "a",
+    "date": "2026-10-08",
+    "text": "идея",
+    "side": "",
+    "region": "eu",
+    "source": "chat",
+    "confirmed": 1,
+    "refuted": 0,
+    "status": "open",
+    "backtest": {
+     "days": 1,
+     "hit": 1,
+     "rate": 1
+    },
+    "last_check": "2026-10-08"
+   }
+  ]
+ },
+ "trader": [
+  "наблюдение"
+ ]
+}

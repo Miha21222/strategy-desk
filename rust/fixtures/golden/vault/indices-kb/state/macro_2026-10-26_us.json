@@ -1,0 +1,83 @@
+{
+ "region": "us",
+ "date": "2026-10-26",
+ "asof_eet": "2026-10-26 16:01",
+ "calendar": {
+  "status": "TRADE",
+  "reasons": [],
+  "events": [
+   {
+    "time_eet": "17:00",
+    "title": "Запасы нефти",
+    "impact": "Medium"
+   },
+   {
+    "time_eet": "21:00",
+    "title": "Выступление ФРС",
+    "impact": "Medium"
+   }
+  ]
+ },
+ "markets": [
+  {
+   "label": "FDAX",
+   "chg_pct": -0.4,
+   "main": true
+  },
+  {
+   "label": "FESX",
+   "chg_pct": -0.3,
+   "main": true
+  },
+  {
+   "label": "ES (S&P 500)",
+   "chg_pct": -0.2,
+   "main": false
+  },
+  {
+   "label": "NQ (Nasdaq 100)",
+   "chg_pct": -0.5,
+   "main": false
+  },
+  {
+   "label": "Nikkei 225",
+   "chg_pct": 0.3,
+   "main": false
+  },
+  {
+   "label": "VIX",
+   "chg_pct": 4.1,
+   "main": false
+  },
+  {
+   "label": "US 10Y",
+   "chg_pct": -0.04,
+   "main": false
+  },
+  {
+   "label": "DXY",
+   "chg_pct": 0.2,
+   "main": false
+  },
+  {
+   "label": "Brent",
+   "chg_pct": -1.8,
+   "main": false
+  },
+  {
+   "label": "Золото",
+   "chg_pct": -0.6,
+   "main": false
+  }
+ ],
+ "headlines": {
+  "count": 240,
+  "relevant": 120,
+  "tone_sum": -3,
+  "tags": {
+   "ставки/ЦБ": 30,
+   "энергия": 18
+  }
+ },
+ "prev_day_check": []
+}

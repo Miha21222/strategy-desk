@@ -1,0 +1,8 @@
+{
+ "dates": [
+  "2026-10-08",
+  "2026-10-09"
+ ],
+ "compare": "strict",
+ "why": "What the watcher can see during a write: a scale without `result` (half-written by an old writer), an empty file, and the temp files of the temp+rename write. TS quirk: `scale_<D>_<r>.json.<pid>.tmp` matches dateOfStateFile, so a date that has ONLY a temp file is still listed as a day (2026-10-09 here)."
+}

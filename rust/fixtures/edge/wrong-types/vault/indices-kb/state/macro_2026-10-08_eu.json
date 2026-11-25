@@ -1,0 +1,12 @@
+{
+ "asof_eet": 931,
+ "markets": {
+  "FDAX": 0.3
+ },
+ "headlines": "много",
+ "calendar": "нет данных",
+ "tilt": 5,
+ "prev_day_check": {
+  "x": 1
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "ok": "yes",
+ "shots": [
+  {
+   "name": 5,
+   "path": 7
+  },
+  {
+   "path": "indices-kb/shots/a/b.png",
+   "legend": [
+    {
+     "label": 1
+    },
+    {
+     "label": "ок",
+     "kind": "",
+     "color": 5
+    }
+   ]
+  }
+ ],
+ "error": 0
+}

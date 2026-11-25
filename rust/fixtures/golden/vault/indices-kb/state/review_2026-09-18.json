@@ -1,0 +1,234 @@
+{
+ "date": "2026-09-18",
+ "asof": "2026-09-18 20:01",
+ "regions": {
+  "eu": {
+   "facts": {
+    "sym": "FDAX",
+    "date": "2026-09-18",
+    "dir": "LONG",
+    "chg_adr": 0.12,
+    "first_break": "up",
+    "ib_adr": 0.36,
+    "partial": false
+   },
+   "score": {
+    "needle_hit": "0",
+    "after_hit": "",
+    "plan_hit": null,
+    "manip_swept": null
+   },
+   "factors": [
+    {
+     "factor": "bias_a",
+     "group": "контекст дня",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "d1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "h4_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "dr_zone",
+     "group": "контекст дня",
+     "share": 4.2,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "h1_flow",
+     "group": "контекст дня",
+     "share": 5.3,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "night_sweep",
+     "group": "окно открытия",
+     "share": 14.7,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m15_flow",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "room",
+     "group": "окно открытия",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "night_move",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "opens",
+     "group": "окно открытия",
+     "share": 5.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "prev_close",
+     "group": "окно открытия",
+     "share": 4.2,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "1"
+    },
+    {
+     "factor": "m_verdict",
+     "group": "макро",
+     "share": 7.4,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "m_peers",
+     "group": "макро",
+     "share": 3.2,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m_asia",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "1"
+    },
+    {
+     "factor": "m_vol",
+     "group": "макро",
+     "share": 1.1,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "m_yields",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m_dollar",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m_oil",
+     "group": "макро",
+     "share": 1.1,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    }
+   ],
+   "discussion": [
+    {
+     "at": "2026-09-18 09:41",
+     "by": "owner",
+     "side": "LONG",
+     "share": 20,
+     "text": "Квартальная экспирация опционов — к открытию цену будут держать у страйка 25 200, шорт сегодня ненадёжен",
+     "reply": "Согласен: в день экспирации выносы у открытия чаще ложные. Стрелка уходит в нейтраль — по правилам это пропуск.",
+     "agent_view": "agree"
+    },
+    {
+     "at": "2026-09-18 09:44",
+     "by": "agent",
+     "side": "SHORT",
+     "share": 5,
+     "text": "Ночь всё-таки закрылась ниже открытия недели — слабый довод за шорт остаётся",
+     "reply": "",
+     "agent_view": ""
+    },
+    {
+     "at": "2026-09-18 09:52",
+     "by": "owner",
+     "side": "LONG",
+     "share": 10,
+     "text": "Азия закрылась на максимумах",
+     "reply": "Не согласен: Азия уже в цене премаркета, её доля в шкале и так учтена — двойной счёт.",
+     "agent_view": "disagree"
+    }
+   ],
+   "needle": -48,
+   "after": -6,
+   "zone": "сильный шорт",
+   "light": {
+    "color": "yellow",
+    "label": "🟡 осторожно",
+    "red": [],
+    "yellow": [
+     "пятница в Европе — риск ×0.5"
+    ],
+    "risk_pct": 0.5
+   }
+  },
+  "us": {
+   "missing": "шкалы за этот день нет"
+  }
+ },
+ "trader": [
+  "[демо] За неделю 3 входа из 4 — против своего утреннего взгляда."
+ ]
+}

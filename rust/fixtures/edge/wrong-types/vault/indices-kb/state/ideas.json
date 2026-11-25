@@ -1,0 +1,18 @@
+{
+ "asof": 5,
+ "items": [
+  {
+   "text": "без статуса"
+  },
+  {
+   "text": "ок",
+   "status": "open",
+   "confirmed": -3,
+   "refuted": 2.5,
+   "backtest": [],
+   "date": 20261001
+  },
+  "x",
+  null
+ ]
+}

@@ -1,0 +1,23 @@
+{
+ "date": "2026-10-08",
+ "items": [
+  {
+   "kind": "lesson",
+   "text": "  с пробелами  ",
+   "why": 5,
+   "ref": null,
+   "tags": [
+    "a",
+    1,
+    " ",
+    " b "
+   ]
+  }
+ ],
+ "conditions": [],
+ "similar": {
+  "date": 20261001
+ },
+ "lesson_candidates": 2.6,
+ "enough_history": "yes"
+}

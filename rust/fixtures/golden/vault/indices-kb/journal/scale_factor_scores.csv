@@ -1,0 +1,389 @@
+date,region,factor,group,share,side,strength,dir,hit
+2026-09-14,eu,bias_a,контекст дня,12.6,SHORT,0.6,SHORT,1
+2026-09-14,eu,d1_flow,контекст дня,6.3,SHORT,0.6,SHORT,1
+2026-09-14,eu,dr_zone,контекст дня,4.2,SHORT,1.0,SHORT,1
+2026-09-14,eu,night_sweep,окно открытия,14.7,SHORT,0.6,SHORT,1
+2026-09-14,eu,m15_flow,окно открытия,6.3,SHORT,1.0,SHORT,1
+2026-09-14,eu,room,окно открытия,12.6,SHORT,0.7,SHORT,1
+2026-09-14,eu,opens,окно открытия,5.3,SHORT,1.0,SHORT,1
+2026-09-14,eu,prev_close,окно открытия,4.2,SHORT,1.0,SHORT,1
+2026-09-14,eu,m_verdict,макро,7.4,SHORT,1.0,SHORT,1
+2026-09-14,eu,m_peers,макро,3.2,LONG,0.4,SHORT,0
+2026-09-14,eu,m_asia,макро,1.1,LONG,0.6,SHORT,0
+2026-09-14,eu,m_vol,макро,1.1,SHORT,0.6,SHORT,1
+2026-09-14,eu,m_yields,макро,1.1,SHORT,0.4,SHORT,1
+2026-09-14,eu,m_dollar,макро,1.1,SHORT,0.6,SHORT,1
+2026-09-14,eu,m_oil,макро,1.1,SHORT,0.4,SHORT,1
+2026-09-14,us,bias_a,контекст дня,12.6,SHORT,1.0,SHORT,1
+2026-09-14,us,dr_zone,контекст дня,4.2,SHORT,0.7,SHORT,1
+2026-09-14,us,h1_flow,контекст дня,6.3,SHORT,1.0,SHORT,1
+2026-09-14,us,night_sweep,окно открытия,11.6,SHORT,0.4,SHORT,1
+2026-09-14,us,m15_flow,окно открытия,10.5,SHORT,0.6,SHORT,1
+2026-09-14,us,room,окно открытия,12.6,SHORT,0.4,SHORT,1
+2026-09-14,us,night_move,окно открытия,6.3,SHORT,0.4,SHORT,1
+2026-09-14,us,opens,окно открытия,5.3,SHORT,0.4,SHORT,1
+2026-09-14,us,prev_close,окно открытия,3.2,SHORT,1.0,SHORT,1
+2026-09-14,us,m_verdict,макро,7.4,SHORT,0.7,SHORT,1
+2026-09-14,us,m_peers,макро,2.1,SHORT,0.7,SHORT,1
+2026-09-14,us,m_vol,макро,2.1,SHORT,0.6,SHORT,1
+2026-09-14,us,m_yields,макро,1.1,SHORT,0.4,SHORT,1
+2026-09-14,us,m_dollar,макро,1.1,LONG,1.0,SHORT,0
+2026-09-14,us,m_tone,макро,1.1,LONG,1.0,SHORT,0
+2026-09-15,eu,bias_a,контекст дня,12.6,LONG,0.6,SHORT,0
+2026-09-15,eu,d1_flow,контекст дня,6.3,LONG,1.0,SHORT,0
+2026-09-15,eu,h4_flow,контекст дня,6.3,LONG,0.6,SHORT,0
+2026-09-15,eu,dr_zone,контекст дня,4.2,LONG,1.0,SHORT,0
+2026-09-15,eu,night_sweep,окно открытия,14.7,LONG,0.6,SHORT,0
+2026-09-15,eu,m15_flow,окно открытия,6.3,LONG,0.4,SHORT,0
+2026-09-15,eu,night_move,окно открытия,6.3,LONG,1.0,SHORT,0
+2026-09-15,eu,opens,окно открытия,5.3,LONG,1.0,SHORT,0
+2026-09-15,eu,prev_close,окно открытия,4.2,LONG,0.4,SHORT,0
+2026-09-15,eu,m_peers,макро,3.2,LONG,1.0,SHORT,0
+2026-09-15,eu,m_asia,макро,1.1,LONG,1.0,SHORT,0
+2026-09-15,eu,m_vol,макро,1.1,LONG,0.4,SHORT,0
+2026-09-15,eu,m_yields,макро,1.1,LONG,1.0,SHORT,0
+2026-09-15,eu,m_dollar,макро,1.1,LONG,0.7,SHORT,0
+2026-09-15,eu,m_oil,макро,1.1,LONG,0.6,SHORT,0
+2026-09-15,us,bias_a,контекст дня,12.6,LONG,0.6,SHORT,0
+2026-09-15,us,d1_flow,контекст дня,6.3,LONG,1.0,SHORT,0
+2026-09-15,us,h4_flow,контекст дня,5.3,LONG,0.4,SHORT,0
+2026-09-15,us,h1_flow,контекст дня,6.3,SHORT,1.0,SHORT,1
+2026-09-15,us,night_sweep,окно открытия,11.6,LONG,0.4,SHORT,0
+2026-09-15,us,m15_flow,окно открытия,10.5,LONG,1.0,SHORT,0
+2026-09-15,us,night_move,окно открытия,6.3,LONG,0.7,SHORT,0
+2026-09-15,us,prev_close,окно открытия,3.2,LONG,1.0,SHORT,0
+2026-09-15,us,m_verdict,макро,7.4,LONG,0.7,SHORT,0
+2026-09-15,us,m_peers,макро,2.1,LONG,1.0,SHORT,0
+2026-09-15,us,m_vol,макро,2.1,LONG,0.7,SHORT,0
+2026-09-15,us,m_yields,макро,1.1,LONG,0.7,SHORT,0
+2026-09-15,us,m_dollar,макро,1.1,LONG,0.4,SHORT,0
+2026-09-15,us,m_oil,макро,1.1,LONG,0.6,SHORT,0
+2026-09-15,us,m_tone,макро,1.1,LONG,1.0,SHORT,0
+2026-09-17,eu,bias_a,контекст дня,12.6,LONG,1.0,LONG,1
+2026-09-17,eu,d1_flow,контекст дня,6.3,SHORT,1.0,LONG,0
+2026-09-17,eu,h4_flow,контекст дня,6.3,LONG,1.0,LONG,1
+2026-09-17,eu,dr_zone,контекст дня,4.2,SHORT,1.0,LONG,0
+2026-09-17,eu,night_sweep,окно открытия,14.7,LONG,0.6,LONG,1
+2026-09-17,eu,m15_flow,окно открытия,6.3,LONG,1.0,LONG,1
+2026-09-17,eu,room,окно открытия,12.6,LONG,0.6,LONG,1
+2026-09-17,eu,night_move,окно открытия,6.3,LONG,0.4,LONG,1
+2026-09-17,eu,opens,окно открытия,5.3,LONG,1.0,LONG,1
+2026-09-17,eu,m_verdict,макро,7.4,LONG,0.4,LONG,1
+2026-09-17,eu,m_asia,макро,1.1,SHORT,0.4,LONG,0
+2026-09-17,eu,m_vol,макро,1.1,LONG,1.0,LONG,1
+2026-09-17,eu,m_yields,макро,1.1,SHORT,1.0,LONG,0
+2026-09-17,eu,m_dollar,макро,1.1,LONG,1.0,LONG,1
+2026-09-17,eu,m_oil,макро,1.1,LONG,1.0,LONG,1
+2026-09-18,eu,bias_a,контекст дня,12.6,SHORT,1.0,LONG,0
+2026-09-18,eu,d1_flow,контекст дня,6.3,SHORT,0.6,LONG,0
+2026-09-18,eu,dr_zone,контекст дня,4.2,SHORT,1.0,LONG,0
+2026-09-18,eu,h1_flow,контекст дня,5.3,SHORT,0.4,LONG,0
+2026-09-18,eu,night_sweep,окно открытия,14.7,SHORT,0.6,LONG,0
+2026-09-18,eu,m15_flow,окно открытия,6.3,SHORT,0.6,LONG,0
+2026-09-18,eu,room,окно открытия,12.6,SHORT,0.6,LONG,0
+2026-09-18,eu,opens,окно открытия,5.3,SHORT,1.0,LONG,0
+2026-09-18,eu,prev_close,окно открытия,4.2,LONG,1.0,LONG,1
+2026-09-18,eu,m_peers,макро,3.2,SHORT,0.4,LONG,0
+2026-09-18,eu,m_asia,макро,1.1,LONG,0.6,LONG,1
+2026-09-18,eu,m_yields,макро,1.1,SHORT,1.0,LONG,0
+2026-09-18,eu,m_dollar,макро,1.1,SHORT,1.0,LONG,0
+2026-09-18,eu,m_oil,макро,1.1,SHORT,0.6,LONG,0
+2026-09-23,eu,bias_a,контекст дня,12.6,LONG,1.0,LONG,1
+2026-09-23,eu,d1_flow,контекст дня,6.3,SHORT,0.6,LONG,0
+2026-09-23,eu,h4_flow,контекст дня,6.3,LONG,0.6,LONG,1
+2026-09-23,eu,dr_zone,контекст дня,4.2,LONG,0.4,LONG,1
+2026-09-23,eu,h1_flow,контекст дня,5.3,LONG,1.0,LONG,1
+2026-09-23,eu,night_sweep,окно открытия,14.7,LONG,1.0,LONG,1
+2026-09-23,eu,m15_flow,окно открытия,6.3,SHORT,0.7,LONG,0
+2026-09-23,eu,room,окно открытия,12.6,LONG,1.0,LONG,1
+2026-09-23,eu,opens,окно открытия,5.3,LONG,1.0,LONG,1
+2026-09-23,eu,prev_close,окно открытия,4.2,LONG,0.7,LONG,1
+2026-09-23,eu,m_peers,макро,3.2,LONG,1.0,LONG,1
+2026-09-23,eu,m_asia,макро,1.1,LONG,1.0,LONG,1
+2026-09-23,eu,m_vol,макро,1.1,SHORT,0.4,LONG,0
+2026-09-23,eu,m_dollar,макро,1.1,LONG,0.6,LONG,1
+2026-09-23,eu,m_oil,макро,1.1,SHORT,1.0,LONG,0
+2026-09-01,eu,bias_a,,5,LONG,1,LONG,1
+2026-09-01,eu,d1_flow,,5,LONG,1,LONG,1
+2026-09-01,eu,dr_zone,,5,LONG,1,SHORT,0
+2026-09-01,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-01,eu,night_sweep,,5,LONG,1,LONG,1
+2026-09-01,eu,m15_flow,,5,LONG,1,LONG,1
+2026-09-01,eu,room,,5,LONG,1,SHORT,0
+2026-09-01,eu,night_move,,5,LONG,1,LONG,1
+2026-09-01,eu,opens,,5,LONG,1,SHORT,0
+2026-09-01,eu,prev_close,,5,LONG,1,SHORT,0
+2026-09-01,eu,m_verdict,,5,LONG,1,LONG,1
+2026-09-01,eu,m_peers,,5,LONG,1,SHORT,0
+2026-09-01,eu,m_asia,,5,LONG,1,LONG,1
+2026-09-01,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-01,eu,m_yields,,5,LONG,1,SHORT,0
+2026-09-01,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-01,us,bias_a,,5,LONG,1,LONG,1
+2026-09-01,us,h4_flow,,5,LONG,1,SHORT,0
+2026-09-01,us,dr_zone,,5,LONG,1,SHORT,0
+2026-09-01,us,h1_flow,,5,LONG,1,LONG,1
+2026-09-01,us,night_sweep,,5,LONG,1,LONG,1
+2026-09-01,us,m15_flow,,5,LONG,1,LONG,1
+2026-09-01,us,room,,5,LONG,1,SHORT,0
+2026-09-01,us,night_move,,5,LONG,1,LONG,1
+2026-09-01,us,opens,,5,LONG,1,LONG,1
+2026-09-01,us,m_verdict,,5,LONG,1,SHORT,0
+2026-09-01,us,m_peers,,5,LONG,1,SHORT,0
+2026-09-01,us,m_vol,,5,LONG,1,LONG,1
+2026-09-01,us,m_dollar,,5,LONG,1,SHORT,0
+2026-09-01,us,m_oil,,5,LONG,1,SHORT,0
+2026-09-02,eu,bias_a,,5,LONG,1,LONG,1
+2026-09-02,eu,d1_flow,,5,LONG,1,LONG,1
+2026-09-02,eu,h4_flow,,5,LONG,1,SHORT,0
+2026-09-02,eu,h1_flow,,5,LONG,1,SHORT,0
+2026-09-02,eu,night_sweep,,5,LONG,1,SHORT,0
+2026-09-02,eu,m15_flow,,5,LONG,1,LONG,1
+2026-09-02,eu,room,,5,LONG,1,SHORT,0
+2026-09-02,eu,night_move,,5,LONG,1,SHORT,0
+2026-09-02,eu,prev_close,,5,LONG,1,LONG,1
+2026-09-02,eu,m_peers,,5,LONG,1,LONG,1
+2026-09-02,eu,m_asia,,5,LONG,1,LONG,1
+2026-09-02,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-02,eu,m_yields,,5,LONG,1,LONG,1
+2026-09-02,eu,m_dollar,,5,LONG,1,SHORT,0
+2026-09-02,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-02,us,d1_flow,,5,LONG,1,SHORT,0
+2026-09-02,us,h4_flow,,5,LONG,1,SHORT,0
+2026-09-02,us,dr_zone,,5,LONG,1,SHORT,0
+2026-09-02,us,h1_flow,,5,LONG,1,LONG,1
+2026-09-02,us,night_sweep,,5,LONG,1,SHORT,0
+2026-09-02,us,room,,5,LONG,1,SHORT,0
+2026-09-02,us,night_move,,5,LONG,1,SHORT,0
+2026-09-02,us,prev_close,,5,LONG,1,SHORT,0
+2026-09-02,us,m_verdict,,5,LONG,1,LONG,1
+2026-09-02,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-02,us,m_yields,,5,LONG,1,LONG,1
+2026-09-02,us,m_dollar,,5,LONG,1,LONG,1
+2026-09-03,eu,d1_flow,,5,LONG,1,LONG,1
+2026-09-03,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-03,eu,night_sweep,,5,LONG,1,SHORT,0
+2026-09-03,eu,room,,5,LONG,1,SHORT,0
+2026-09-03,eu,night_move,,5,LONG,1,LONG,1
+2026-09-03,eu,prev_close,,5,LONG,1,LONG,1
+2026-09-03,eu,m_verdict,,5,LONG,1,SHORT,0
+2026-09-03,eu,m_peers,,5,LONG,1,LONG,1
+2026-09-03,eu,m_vol,,5,LONG,1,LONG,1
+2026-09-03,eu,m_yields,,5,LONG,1,LONG,1
+2026-09-03,eu,m_dollar,,5,LONG,1,LONG,1
+2026-09-03,eu,m_oil,,5,LONG,1,LONG,1
+2026-09-03,us,bias_a,,5,LONG,1,LONG,1
+2026-09-03,us,d1_flow,,5,LONG,1,LONG,1
+2026-09-03,us,h1_flow,,5,LONG,1,LONG,1
+2026-09-03,us,night_sweep,,5,LONG,1,LONG,1
+2026-09-03,us,m15_flow,,5,LONG,1,SHORT,0
+2026-09-03,us,room,,5,LONG,1,SHORT,0
+2026-09-03,us,prev_close,,5,LONG,1,LONG,1
+2026-09-03,us,m_verdict,,5,LONG,1,LONG,1
+2026-09-03,us,m_peers,,5,LONG,1,SHORT,0
+2026-09-03,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-03,us,m_yields,,5,LONG,1,LONG,1
+2026-09-03,us,m_dollar,,5,LONG,1,SHORT,0
+2026-09-03,us,m_oil,,5,LONG,1,LONG,1
+2026-09-03,us,m_tone,,5,LONG,1,LONG,1
+2026-09-04,eu,bias_a,,5,LONG,1,LONG,1
+2026-09-04,eu,h4_flow,,5,LONG,1,SHORT,0
+2026-09-04,eu,dr_zone,,5,LONG,1,LONG,1
+2026-09-04,eu,opens,,5,LONG,1,LONG,1
+2026-09-04,eu,prev_close,,5,LONG,1,LONG,1
+2026-09-04,eu,m_verdict,,5,LONG,1,LONG,1
+2026-09-04,eu,m_asia,,5,LONG,1,SHORT,0
+2026-09-04,eu,m_vol,,5,LONG,1,LONG,1
+2026-09-04,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-04,us,bias_a,,5,LONG,1,LONG,1
+2026-09-04,us,h4_flow,,5,LONG,1,SHORT,0
+2026-09-04,us,h1_flow,,5,LONG,1,SHORT,0
+2026-09-04,us,night_sweep,,5,LONG,1,SHORT,0
+2026-09-04,us,m15_flow,,5,LONG,1,SHORT,0
+2026-09-04,us,room,,5,LONG,1,LONG,1
+2026-09-04,us,night_move,,5,LONG,1,SHORT,0
+2026-09-04,us,opens,,5,LONG,1,LONG,1
+2026-09-04,us,m_verdict,,5,LONG,1,SHORT,0
+2026-09-04,us,m_peers,,5,LONG,1,LONG,1
+2026-09-04,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-04,us,m_dollar,,5,LONG,1,SHORT,0
+2026-09-04,us,m_oil,,5,LONG,1,LONG,1
+2026-09-04,us,m_tone,,5,LONG,1,LONG,1
+2026-09-05,eu,bias_a,,5,LONG,1,SHORT,0
+2026-09-05,eu,d1_flow,,5,LONG,1,LONG,1
+2026-09-05,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-05,eu,night_sweep,,5,LONG,1,SHORT,0
+2026-09-05,eu,night_move,,5,LONG,1,LONG,1
+2026-09-05,eu,m_verdict,,5,LONG,1,SHORT,0
+2026-09-05,eu,m_peers,,5,LONG,1,LONG,1
+2026-09-05,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-05,eu,m_dollar,,5,LONG,1,LONG,1
+2026-09-05,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-05,us,bias_a,,5,LONG,1,LONG,1
+2026-09-05,us,h4_flow,,5,LONG,1,SHORT,0
+2026-09-05,us,dr_zone,,5,LONG,1,SHORT,0
+2026-09-05,us,m15_flow,,5,LONG,1,LONG,1
+2026-09-05,us,room,,5,LONG,1,LONG,1
+2026-09-05,us,opens,,5,LONG,1,LONG,1
+2026-09-05,us,m_verdict,,5,LONG,1,LONG,1
+2026-09-05,us,m_peers,,5,LONG,1,LONG,1
+2026-09-05,us,m_dollar,,5,LONG,1,SHORT,0
+2026-09-05,us,m_oil,,5,LONG,1,LONG,1
+2026-09-05,us,m_tone,,5,LONG,1,LONG,1
+2026-09-06,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-06,eu,night_sweep,,5,LONG,1,SHORT,0
+2026-09-06,eu,room,,5,LONG,1,SHORT,0
+2026-09-06,eu,night_move,,5,LONG,1,SHORT,0
+2026-09-06,eu,m_asia,,5,LONG,1,SHORT,0
+2026-09-06,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-06,us,bias_a,,5,LONG,1,SHORT,0
+2026-09-06,us,d1_flow,,5,LONG,1,SHORT,0
+2026-09-06,us,dr_zone,,5,LONG,1,SHORT,0
+2026-09-06,us,h1_flow,,5,LONG,1,LONG,1
+2026-09-06,us,m15_flow,,5,LONG,1,LONG,1
+2026-09-06,us,room,,5,LONG,1,LONG,1
+2026-09-06,us,prev_close,,5,LONG,1,SHORT,0
+2026-09-06,us,m_verdict,,5,LONG,1,SHORT,0
+2026-09-06,us,m_peers,,5,LONG,1,SHORT,0
+2026-09-06,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-06,us,m_yields,,5,LONG,1,SHORT,0
+2026-09-06,us,m_dollar,,5,LONG,1,LONG,1
+2026-09-06,us,m_oil,,5,LONG,1,SHORT,0
+2026-09-06,us,m_tone,,5,LONG,1,SHORT,0
+2026-09-07,eu,bias_a,,5,LONG,1,LONG,1
+2026-09-07,eu,d1_flow,,5,LONG,1,LONG,1
+2026-09-07,eu,dr_zone,,5,LONG,1,SHORT,0
+2026-09-07,eu,h1_flow,,5,LONG,1,SHORT,0
+2026-09-07,eu,m15_flow,,5,LONG,1,LONG,1
+2026-09-07,eu,room,,5,LONG,1,SHORT,0
+2026-09-07,eu,night_move,,5,LONG,1,LONG,1
+2026-09-07,eu,m_verdict,,5,LONG,1,LONG,1
+2026-09-07,eu,m_peers,,5,LONG,1,LONG,1
+2026-09-07,eu,m_asia,,5,LONG,1,LONG,1
+2026-09-07,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-07,eu,m_yields,,5,LONG,1,SHORT,0
+2026-09-07,eu,m_dollar,,5,LONG,1,LONG,1
+2026-09-07,eu,m_oil,,5,LONG,1,LONG,1
+2026-09-07,us,bias_a,,5,LONG,1,LONG,1
+2026-09-07,us,d1_flow,,5,LONG,1,SHORT,0
+2026-09-07,us,h4_flow,,5,LONG,1,LONG,1
+2026-09-07,us,dr_zone,,5,LONG,1,SHORT,0
+2026-09-07,us,m15_flow,,5,LONG,1,LONG,1
+2026-09-07,us,room,,5,LONG,1,SHORT,0
+2026-09-07,us,night_move,,5,LONG,1,SHORT,0
+2026-09-07,us,prev_close,,5,LONG,1,LONG,1
+2026-09-07,us,m_verdict,,5,LONG,1,LONG,1
+2026-09-07,us,m_peers,,5,LONG,1,LONG,1
+2026-09-07,us,m_yields,,5,LONG,1,LONG,1
+2026-09-07,us,m_dollar,,5,LONG,1,LONG,1
+2026-09-07,us,m_oil,,5,LONG,1,LONG,1
+2026-09-07,us,m_tone,,5,LONG,1,SHORT,0
+2026-09-08,eu,bias_a,,5,LONG,1,SHORT,0
+2026-09-08,eu,h4_flow,,5,LONG,1,LONG,1
+2026-09-08,eu,dr_zone,,5,LONG,1,SHORT,0
+2026-09-08,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-08,eu,night_sweep,,5,LONG,1,SHORT,0
+2026-09-08,eu,m15_flow,,5,LONG,1,SHORT,0
+2026-09-08,eu,room,,5,LONG,1,SHORT,0
+2026-09-08,eu,night_move,,5,LONG,1,SHORT,0
+2026-09-08,eu,prev_close,,5,LONG,1,SHORT,0
+2026-09-08,eu,m_verdict,,5,LONG,1,SHORT,0
+2026-09-08,eu,m_peers,,5,LONG,1,SHORT,0
+2026-09-08,eu,m_vol,,5,LONG,1,LONG,1
+2026-09-08,eu,m_yields,,5,LONG,1,SHORT,0
+2026-09-08,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-08,us,bias_a,,5,LONG,1,LONG,1
+2026-09-08,us,d1_flow,,5,LONG,1,LONG,1
+2026-09-08,us,h4_flow,,5,LONG,1,SHORT,0
+2026-09-08,us,dr_zone,,5,LONG,1,LONG,1
+2026-09-08,us,h1_flow,,5,LONG,1,SHORT,0
+2026-09-08,us,night_sweep,,5,LONG,1,LONG,1
+2026-09-08,us,m15_flow,,5,LONG,1,LONG,1
+2026-09-08,us,room,,5,LONG,1,SHORT,0
+2026-09-08,us,opens,,5,LONG,1,SHORT,0
+2026-09-08,us,m_peers,,5,LONG,1,LONG,1
+2026-09-08,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-08,us,m_oil,,5,LONG,1,SHORT,0
+2026-09-08,us,m_tone,,5,LONG,1,SHORT,0
+2026-09-09,eu,bias_a,,5,LONG,1,LONG,1
+2026-09-09,eu,d1_flow,,5,LONG,1,LONG,1
+2026-09-09,eu,h4_flow,,5,LONG,1,SHORT,0
+2026-09-09,eu,dr_zone,,5,LONG,1,LONG,1
+2026-09-09,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-09,eu,night_sweep,,5,LONG,1,LONG,1
+2026-09-09,eu,m15_flow,,5,LONG,1,SHORT,0
+2026-09-09,eu,room,,5,LONG,1,SHORT,0
+2026-09-09,eu,night_move,,5,LONG,1,LONG,1
+2026-09-09,eu,opens,,5,LONG,1,LONG,1
+2026-09-09,eu,prev_close,,5,LONG,1,LONG,1
+2026-09-09,eu,m_peers,,5,LONG,1,SHORT,0
+2026-09-09,eu,m_vol,,5,LONG,1,LONG,1
+2026-09-09,eu,m_yields,,5,LONG,1,SHORT,0
+2026-09-09,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-09,us,d1_flow,,5,LONG,1,SHORT,0
+2026-09-09,us,dr_zone,,5,LONG,1,LONG,1
+2026-09-09,us,h1_flow,,5,LONG,1,LONG,1
+2026-09-09,us,night_sweep,,5,LONG,1,LONG,1
+2026-09-09,us,m15_flow,,5,LONG,1,SHORT,0
+2026-09-09,us,night_move,,5,LONG,1,SHORT,0
+2026-09-09,us,prev_close,,5,LONG,1,SHORT,0
+2026-09-09,us,m_peers,,5,LONG,1,LONG,1
+2026-09-09,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-09,us,m_dollar,,5,LONG,1,SHORT,0
+2026-09-09,us,m_oil,,5,LONG,1,SHORT,0
+2026-09-09,us,m_tone,,5,LONG,1,LONG,1
+2026-09-10,eu,h4_flow,,5,LONG,1,LONG,1
+2026-09-10,eu,night_sweep,,5,LONG,1,LONG,1
+2026-09-10,eu,m15_flow,,5,LONG,1,LONG,1
+2026-09-10,eu,room,,5,LONG,1,SHORT,0
+2026-09-10,eu,opens,,5,LONG,1,SHORT,0
+2026-09-10,eu,prev_close,,5,LONG,1,SHORT,0
+2026-09-10,eu,m_peers,,5,LONG,1,SHORT,0
+2026-09-10,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-10,eu,m_yields,,5,LONG,1,LONG,1
+2026-09-10,eu,m_dollar,,5,LONG,1,SHORT,0
+2026-09-10,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-10,us,d1_flow,,5,LONG,1,SHORT,0
+2026-09-10,us,h4_flow,,5,LONG,1,LONG,1
+2026-09-10,us,dr_zone,,5,LONG,1,LONG,1
+2026-09-10,us,h1_flow,,5,LONG,1,SHORT,0
+2026-09-10,us,night_sweep,,5,LONG,1,LONG,1
+2026-09-10,us,room,,5,LONG,1,SHORT,0
+2026-09-10,us,opens,,5,LONG,1,LONG,1
+2026-09-10,us,m_verdict,,5,LONG,1,SHORT,0
+2026-09-10,us,m_peers,,5,LONG,1,SHORT,0
+2026-09-10,us,m_vol,,5,LONG,1,SHORT,0
+2026-09-10,us,m_yields,,5,LONG,1,SHORT,0
+2026-09-10,us,m_dollar,,5,LONG,1,LONG,1
+2026-09-10,us,m_oil,,5,LONG,1,LONG,1
+2026-09-10,us,m_tone,,5,LONG,1,LONG,1
+2026-09-11,eu,bias_a,,5,LONG,1,LONG,1
+2026-09-11,eu,h4_flow,,5,LONG,1,SHORT,0
+2026-09-11,eu,dr_zone,,5,LONG,1,LONG,1
+2026-09-11,eu,h1_flow,,5,LONG,1,LONG,1
+2026-09-11,eu,night_sweep,,5,LONG,1,LONG,1
+2026-09-11,eu,room,,5,LONG,1,LONG,1
+2026-09-11,eu,night_move,,5,LONG,1,SHORT,0
+2026-09-11,eu,prev_close,,5,LONG,1,LONG,1
+2026-09-11,eu,m_verdict,,5,LONG,1,LONG,1
+2026-09-11,eu,m_peers,,5,LONG,1,LONG,1
+2026-09-11,eu,m_asia,,5,LONG,1,SHORT,0
+2026-09-11,eu,m_vol,,5,LONG,1,SHORT,0
+2026-09-11,eu,m_yields,,5,LONG,1,SHORT,0
+2026-09-11,eu,m_dollar,,5,LONG,1,SHORT,0
+2026-09-11,eu,m_oil,,5,LONG,1,SHORT,0
+2026-09-11,us,bias_a,,5,LONG,1,LONG,1
+2026-09-11,us,d1_flow,,5,LONG,1,LONG,1
+2026-09-11,us,h4_flow,,5,LONG,1,SHORT,0
+2026-09-11,us,dr_zone,,5,LONG,1,SHORT,0
+2026-09-11,us,h1_flow,,5,LONG,1,LONG,1
+2026-09-11,us,night_sweep,,5,LONG,1,LONG,1
+2026-09-11,us,m15_flow,,5,LONG,1,SHORT,0
+2026-09-11,us,room,,5,LONG,1,SHORT,0
+2026-09-11,us,night_move,,5,LONG,1,SHORT,0
+2026-09-11,us,opens,,5,LONG,1,SHORT,0
+2026-09-11,us,prev_close,,5,LONG,1,SHORT,0
+2026-09-11,us,m_verdict,,5,LONG,1,LONG,1
+2026-09-11,us,m_yields,,5,LONG,1,SHORT,0
+2026-09-11,us,m_dollar,,5,LONG,1,SHORT,0
+2026-09-11,us,m_tone,,5,LONG,1,LONG,1

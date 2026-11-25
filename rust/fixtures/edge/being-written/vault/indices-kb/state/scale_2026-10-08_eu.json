@@ -1,0 +1,58 @@
+{
+ "region": "eu",
+ "date": "2026-10-08",
+ "asof": "2026-10-08 09:35",
+ "sym": "FDAX",
+ "version": "v3.1",
+ "factors": [
+  {
+   "id": "bias_a",
+   "name": "bias_a",
+   "group": "контекст дня",
+   "share_cfg": 40.0,
+   "on": true,
+   "side": "SHORT",
+   "strength": 1.0,
+   "why": "синтетика",
+   "share": 40.0,
+   "points": 40.0
+  },
+  {
+   "id": "room",
+   "name": "room",
+   "group": "окно открытия",
+   "share_cfg": 10.0,
+   "on": true,
+   "side": "LONG",
+   "strength": 1.0,
+   "why": "синтетика",
+   "share": 10.0,
+   "points": 10.0
+  },
+  {
+   "id": "m_vol",
+   "name": "m_vol",
+   "group": "макро",
+   "share_cfg": 50.0,
+   "on": true,
+   "side": "",
+   "strength": 0.0,
+   "why": "синтетика",
+   "share": 50.0,
+   "points": 0.0
+  }
+ ],
+ "light": {
+  "color": "green",
+  "label": "🟢 торгуем",
+  "red": [],
+  "yellow": [],
+  "risk_pct": 1
+ },
+ "levels": {
+  "price": 25000,
+  "adr": 280
+ },
+ "discussion": [],
+ "history": []
+}

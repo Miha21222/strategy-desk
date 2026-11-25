@@ -1,0 +1,67 @@
+{
+ "about": "Small helpers: fmt(x, digits) (JS toFixed — NOT Rust format! on ties, see 0.25/0.125/1.005), isFriday, humanHit, splitFactors (ids per bucket), traderLines, kyivNow(utc) incl. the hours around both 2026 EU switches.",
+ "source": "Produced by rust/fixtures/tools/capture-helpers.ts from the TS functions named in each table. Do not edit by hand: run rust/fixtures/tools/capture-golden.sh.",
+ "fmt": [
+  {"x":null,"digits":null,"out":"—"},
+  {"x":1.234,"digits":2,"out":"1.23"},
+  {"x":0.25,"digits":1,"out":"0.3"},
+  {"x":0.125,"digits":2,"out":"0.13"},
+  {"x":2.5,"digits":0,"out":"3"},
+  {"x":-0.05,"digits":1,"out":"-0.1"},
+  {"x":1.005,"digits":2,"out":"1.00"},
+  {"x":-58,"digits":1,"out":"-58.0"},
+  {"x":0,"digits":1,"out":"0.0"},
+  {"x":null,"digits":1,"out":"—"},
+  {"x":"5","digits":1,"out":"—"},
+  {"x":"NaN","digits":1,"out":"—"},
+  {"x":1e+21,"digits":1,"out":"1e+21"},
+  {"x":-0.04,"digits":1,"out":"-0.0"},
+  {"x":12.345,"digits":1,"out":"12.3"}
+ ],
+ "is_friday": [
+  {"date":"2026-09-18","out":true},
+  {"date":"2026-10-09","out":true},
+  {"date":"2026-10-30","out":true},
+  {"date":"2027-01-01","out":true},
+  {"date":"2026-09-14","out":false},
+  {"date":"2026-10-12","out":false},
+  {"date":"nope","out":false},
+  {"date":"","out":false},
+  {"date":"2026-02-30","out":false},
+  {"date":"2026-9-18","out":false}
+ ],
+ "human_hit": [
+  {"side":"LONG","dir":"LONG","out":true},
+  {"side":"SHORT","dir":"LONG","out":false},
+  {"side":"SHORT","dir":"SHORT","out":true},
+  {"side":"NEUTRAL","dir":"LONG","out":null},
+  {"side":"NO_TRADE","dir":"SHORT","out":null},
+  {"side":"LONG","dir":"FLAT","out":null},
+  {"side":null,"dir":"LONG","out":null},
+  {"side":"LONG","dir":null,"out":null},
+  {"side":"long","dir":"long","out":null}
+ ],
+ "split_factors": [
+  {"factors":[{"id":"a","name":"a","group":"g","side":"LONG","share":10,"strength":0.5,"points":5,"on":true},{"id":"b","name":"b","group":"g","side":"LONG","share":6,"strength":1,"points":6,"on":true},{"id":"c","name":"c","group":"g","side":"SHORT","share":12,"strength":1,"points":12,"on":true},{"id":"d","name":"d","group":"g","side":"","share":5,"strength":0,"points":0,"on":true},{"id":"e","name":"e","group":"g","side":"SHORT","share":8,"strength":1,"points":8,"on":false}],"out":{"long":["b","a"],"short":["c"],"silent":["d"]}},
+  {"factors":[{"id":"a","name":"a","group":"g","side":"LONG","share":10,"strength":0.5,"points":5,"on":true},{"id":"b","name":"b","group":"g","side":"LONG","share":5,"strength":1,"points":5,"on":true},{"id":"c","name":"c","group":"g","side":"LONG","share":6,"strength":0,"points":0,"on":true},{"id":"d","name":"d","group":"g","side":"SHORT","share":3,"strength":1,"points":-1,"on":true}],"out":{"long":["a","b"],"short":[],"silent":["c","d"]}},
+  {"factors":[],"out":{"long":[],"short":[],"silent":[]}}
+ ],
+ "trader_lines": [
+  {"date":"2026-09-18","week":{"lines":["a"],"trader":["из недели"]},"trader":["из дня"],"out":["из недели"],"note":"week is the RAW week file; it goes through normalizeWeek first"},
+  {"date":"2026-09-17","week":{"lines":["a"],"trader":["из недели"]},"trader":["из дня"],"out":["из дня"],"note":"week is the RAW week file; it goes through normalizeWeek first"},
+  {"date":"2026-09-18","week":{"lines":["a"]},"trader":["из дня"],"out":["из дня"],"note":"week is the RAW week file; it goes through normalizeWeek first"},
+  {"date":"2026-09-18","week":null,"trader":[],"out":[],"note":"week is the RAW week file; it goes through normalizeWeek first"}
+ ],
+ "kyiv_now": [
+  {"utc":"2026-10-25T00:30:00Z","out":{"date":"2026-10-25","minutes":210}},
+  {"utc":"2026-10-25T00:59:00Z","out":{"date":"2026-10-25","minutes":239}},
+  {"utc":"2026-10-25T01:00:00Z","out":{"date":"2026-10-25","minutes":180}},
+  {"utc":"2026-10-25T01:30:00Z","out":{"date":"2026-10-25","minutes":210}},
+  {"utc":"2026-03-29T00:59:00Z","out":{"date":"2026-03-29","minutes":179}},
+  {"utc":"2026-03-29T01:00:00Z","out":{"date":"2026-03-29","minutes":240}},
+  {"utc":"2026-11-25T07:30:00Z","out":{"date":"2026-11-25","minutes":570}},
+  {"utc":"2026-07-01T06:30:00Z","out":{"date":"2026-07-01","minutes":570}},
+  {"utc":"2026-12-31T21:59:00Z","out":{"date":"2026-12-31","minutes":1439}},
+  {"utc":"2026-12-31T22:00:00Z","out":{"date":"2027-01-01","minutes":0}}
+ ]
+}

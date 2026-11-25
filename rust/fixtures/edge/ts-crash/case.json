@@ -1,0 +1,9 @@
+{
+ "dates": [
+  "2026-10-08",
+  "2026-10-09"
+ ],
+ "compare": "no-crash",
+ "why": "Inputs on which the old loadDay() THROWS (the whole day fails to load): a null inside collect.markets, a null inside config regions.*.factors. Rust must not reproduce the crash: the day loads; the expected TS outcome is recorded as {\"$error\": …} only for the record.",
+ "decision": "Proposed Rust behaviour: skip the non-object entry, keep the rest. Needs the lead's OK (rule 4 exception)."
+}

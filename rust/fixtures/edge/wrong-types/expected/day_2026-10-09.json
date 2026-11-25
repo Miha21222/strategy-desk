@@ -1,0 +1,166 @@
+{
+ "date": "2026-10-09",
+ "eu": {
+  "region": "eu",
+  "scale": {
+   "region": "eu",
+   "date": "2026-10-09",
+   "asof": "2026-10-09 09:35",
+   "sym": "FDAX",
+   "version": "v3.1",
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "bias_a",
+     "group": "контекст дня",
+     "share_cfg": 40,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "синтетика",
+     "share": 40,
+     "points": 40
+    },
+    {
+     "id": "room",
+     "name": "room",
+     "group": "окно открытия",
+     "share_cfg": 10,
+     "on": true,
+     "side": "LONG",
+     "strength": 1,
+     "why": "синтетика",
+     "share": 10,
+     "points": 10
+    },
+    {
+     "id": "m_vol",
+     "name": "m_vol",
+     "group": "макро",
+     "share_cfg": 50,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "синтетика",
+     "share": 50,
+     "points": 0
+    }
+   ],
+   "result": {
+    "long": 0,
+    "short": 0,
+    "undecided": 100,
+    "needle": 0
+   },
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   },
+   "levels": {
+    "price": 25000,
+    "adr": 280
+   },
+   "discussion": [],
+   "history": []
+  },
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "us": {
+  "region": "us",
+  "scale": null,
+  "verdict": null,
+  "collect": null,
+  "note": null,
+  "shots": null,
+  "human": null,
+  "remember": null,
+  "drift": null
+ },
+ "review": {
+  "mech": {
+   "date": "2026-10-09",
+   "regions": [],
+   "trader": "одной строкой"
+  },
+  "agent": null,
+  "note": null,
+  "shots": {
+   "eu": null,
+   "us": null
+  }
+ },
+ "answers": null,
+ "lessons": [
+  "2026-10-03: с отступом",
+  "2026-10-02: звёздочка",
+  "2026-10-01: [синтетика] первая строка с BOM"
+ ],
+ "stats": [
+  {
+   "region": "eu",
+   "factor": "room",
+   "hits": 2,
+   "total": 2
+  },
+  {
+   "region": "eu",
+   "factor": "m_vol",
+   "hits": 1,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "m15_flow",
+   "hits": 1,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "q,uoted",
+   "hits": 0,
+   "total": 1
+  },
+  {
+   "region": "eu",
+   "factor": "Room",
+   "hits": 0,
+   "total": 1
+  }
+ ],
+ "names": {
+  "bias_a": 7
+ },
+ "zones": {
+  "neutral": "20",
+  "strong": 40
+ },
+ "week": null,
+ "ideas": {
+  "asof": "5",
+  "items": [
+   {
+    "id": "idea-0",
+    "date": "20261001",
+    "text": "ок",
+    "side": "",
+    "region": "",
+    "source": "",
+    "confirmed": 0,
+    "refuted": 3,
+    "status": "open",
+    "backtest": null,
+    "last_check": ""
+   }
+  ]
+ },
+ "trader": []
+}

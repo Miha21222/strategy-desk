@@ -1,0 +1,12 @@
+{
+ "days": -5,
+ "signals": [
+  {
+   "text": "без вида",
+   "severity": "WARN",
+   "data": [
+    1
+   ]
+  }
+ ]
+}

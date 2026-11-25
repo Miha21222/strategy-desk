@@ -1,0 +1,8 @@
+{
+ "dates": [
+  "2026-10-08",
+  "2026-10-09"
+ ],
+ "compare": "strict",
+ "why": "The verdict file wins over the copy inside the collect file; a verdict file holding `null` falls back to the copy; an empty-string copy is no verdict. Notes are found by exact file name."
+}

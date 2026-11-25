@@ -1,0 +1,22 @@
+{
+ "zones": {
+  "neutral": "20",
+  "strong": null
+ },
+ "regions": {
+  "eu": {
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": 7
+    },
+    {
+     "id": "room"
+    }
+   ]
+  },
+  "us": {
+   "factors": "x"
+  }
+ }
+}

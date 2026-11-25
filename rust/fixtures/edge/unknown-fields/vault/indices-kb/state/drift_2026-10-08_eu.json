@@ -1,0 +1,17 @@
+{
+ "date": "2026-10-08",
+ "region": "eu",
+ "days": 20,
+ "enough_data": true,
+ "signals": [
+  {
+   "kind": "new_kind",
+   "text": "новый вид сигнала",
+   "severity": "critical",
+   "data": {
+    "k": 1
+   },
+   "extra": 1
+  }
+ ]
+}

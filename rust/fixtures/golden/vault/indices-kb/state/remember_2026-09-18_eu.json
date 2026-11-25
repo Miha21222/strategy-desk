@@ -1,0 +1,45 @@
+{
+ "date": "2026-09-18",
+ "region": "eu",
+ "asof": "2026-09-18 09:31",
+ "items": [
+  {
+   "kind": "rule",
+   "text": "[демо] Пятница в Европе — риск ×0.5, выносы у открытия чаще ложные.",
+   "why": "сегодня пятница",
+   "ref": "заметка 20, п. 9",
+   "tags": [
+    "eu",
+    "fri"
+   ]
+  },
+  {
+   "kind": "lesson",
+   "text": "День квартальной экспирации — по умолчанию пропуск в первые 30 минут.",
+   "why": "сегодня экспирация",
+   "ref": "уроки 12.09",
+   "tags": [
+    "eu",
+    "экспирация"
+   ]
+  }
+ ],
+ "conditions": {
+  "region": "eu",
+  "weekday": "fri",
+  "phase": "пила",
+  "night": "wide",
+  "night_adr": 0.85,
+  "light": "yellow",
+  "earnings_giant_prev": false,
+  "tags": [
+   "eu",
+   "пила",
+   "fri",
+   "ночь ≥ 0.8 ADR"
+  ]
+ },
+ "similar": null,
+ "lesson_candidates": 1,
+ "enough_history": true
+}

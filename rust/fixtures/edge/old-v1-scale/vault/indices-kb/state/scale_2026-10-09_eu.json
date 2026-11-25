@@ -1,0 +1,40 @@
+{
+ "region": "eu",
+ "date": "2026-10-09",
+ "asof": "",
+ "sym": "FDAX",
+ "version": "v2",
+ "factors": [
+  {
+   "id": "a",
+   "name": "A",
+   "group": "g",
+   "weight": 1,
+   "side": "LONG",
+   "strength": 1,
+   "points": 1,
+   "share": 50
+  },
+  {
+   "id": "b",
+   "name": "B",
+   "group": "g",
+   "weight": 1,
+   "side": "SHORT",
+   "strength": 1,
+   "points": 1
+  }
+ ],
+ "result": {
+  "long": 1,
+  "short": 1,
+  "max": 2,
+  "needle": 0,
+  "zone": "нейтрально",
+  "side": null
+ },
+ "light": {
+  "color": "yellow",
+  "label": ""
+ }
+}

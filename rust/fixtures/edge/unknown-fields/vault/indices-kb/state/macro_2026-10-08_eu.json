@@ -1,0 +1,60 @@
+{
+ "asof_eet": "2026-10-08 09:31",
+ "open_eet": "10:00",
+ "new_top": 1,
+ "calendar": {
+  "status": "TRADE",
+  "events": [
+   {
+    "title": "Ifo",
+    "impact": "Medium",
+    "time_eet": "11:00",
+    "extra": "x"
+   }
+  ],
+  "future": true
+ },
+ "markets": [
+  {
+   "label": "FDAX",
+   "chg_pct": 0.3,
+   "main": true,
+   "kind": "index",
+   "last": 25000,
+   "extra": "drop me"
+  }
+ ],
+ "headlines": {
+  "count": 10,
+  "relevant": 4,
+  "tone_sum": -1,
+  "tags": {
+   "ставки": 3
+  },
+  "feeds": [
+   "a"
+  ],
+  "items": [
+   {
+    "t": "x"
+   }
+  ]
+ },
+ "tilt": {
+  "score": -1,
+  "hint": "шорт",
+  "more": 1
+ },
+ "regime": {
+  "phase": "пила",
+  "new": 2
+ },
+ "prev_day_check": [
+  {
+   "x": 1
+  }
+ ],
+ "verdict": {
+  "verdict": "LONG"
+ }
+}

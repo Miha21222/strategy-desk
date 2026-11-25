@@ -1,0 +1,13 @@
+{
+ "regions": {
+  "eu": {
+   "factors": [
+    null,
+    {
+     "id": "bias_a",
+     "name": "Точка A"
+    }
+   ]
+  }
+ }
+}

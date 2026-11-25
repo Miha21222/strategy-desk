@@ -1,0 +1,390 @@
+{
+ "date": "2026-09-16",
+ "asof": "2026-09-16 20:01",
+ "regions": {
+  "eu": {
+   "facts": {
+    "sym": "FDAX",
+    "date": "2026-09-16",
+    "dir": "FLAT",
+    "chg_adr": 0.04,
+    "first_break": "down",
+    "ib_adr": 0.36,
+    "partial": false
+   },
+   "score": {
+    "needle_hit": "",
+    "after_hit": "",
+    "plan_hit": "нет пробоя",
+    "manip_swept": false
+   },
+   "factors": [
+    {
+     "factor": "bias_a",
+     "group": "контекст дня",
+     "share": 12.6,
+     "side": "",
+     "strength": 0.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "d1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "h4_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "dr_zone",
+     "group": "контекст дня",
+     "share": 4.2,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "h1_flow",
+     "group": "контекст дня",
+     "share": 5.3,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "night_sweep",
+     "group": "окно открытия",
+     "share": 14.7,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m15_flow",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "room",
+     "group": "окно открытия",
+     "share": 12.6,
+     "side": "",
+     "strength": 0.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "night_move",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "opens",
+     "group": "окно открытия",
+     "share": 5.3,
+     "side": "LONG",
+     "strength": 0.6,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "prev_close",
+     "group": "окно открытия",
+     "share": 4.2,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_verdict",
+     "group": "макро",
+     "share": 7.4,
+     "side": "",
+     "strength": 0.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_peers",
+     "group": "макро",
+     "share": 3.2,
+     "side": "",
+     "strength": 0.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_asia",
+     "group": "макро",
+     "share": 1.1,
+     "side": "",
+     "strength": 0.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_vol",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 0.4,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_yields",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_dollar",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    },
+    {
+     "factor": "m_oil",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "FLAT",
+     "hit": ""
+    }
+   ],
+   "discussion": [],
+   "needle": -10,
+   "after": null,
+   "zone": "нейтрально",
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   }
+  },
+  "us": {
+   "facts": {
+    "sym": "ES",
+    "date": "2026-09-16",
+    "dir": "LONG",
+    "chg_adr": 0.21,
+    "first_break": "up",
+    "ib_adr": 0.36,
+    "partial": false
+   },
+   "score": {
+    "needle_hit": "",
+    "after_hit": "",
+    "plan_hit": null,
+    "manip_swept": null
+   },
+   "factors": [
+    {
+     "factor": "bias_a",
+     "group": "контекст дня",
+     "share": 12.6,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "d1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "h4_flow",
+     "group": "контекст дня",
+     "share": 5.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "dr_zone",
+     "group": "контекст дня",
+     "share": 4.2,
+     "side": "SHORT",
+     "strength": 0.7,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "h1_flow",
+     "group": "контекст дня",
+     "share": 6.3,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "1"
+    },
+    {
+     "factor": "night_sweep",
+     "group": "окно открытия",
+     "share": 11.6,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "1"
+    },
+    {
+     "factor": "m15_flow",
+     "group": "окно открытия",
+     "share": 10.5,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "room",
+     "group": "окно открытия",
+     "share": 12.6,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "night_move",
+     "group": "окно открытия",
+     "share": 6.3,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "opens",
+     "group": "окно открытия",
+     "share": 5.3,
+     "side": "SHORT",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "prev_close",
+     "group": "окно открытия",
+     "share": 3.2,
+     "side": "SHORT",
+     "strength": 0.7,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m_verdict",
+     "group": "макро",
+     "share": 7.4,
+     "side": "SHORT",
+     "strength": 0.4,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m_peers",
+     "group": "макро",
+     "share": 2.1,
+     "side": "SHORT",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "0"
+    },
+    {
+     "factor": "m_vol",
+     "group": "макро",
+     "share": 2.1,
+     "side": "LONG",
+     "strength": 1.0,
+     "dir": "LONG",
+     "hit": "1"
+    },
+    {
+     "factor": "m_yields",
+     "group": "макро",
+     "share": 1.1,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "m_dollar",
+     "group": "макро",
+     "share": 1.1,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    },
+    {
+     "factor": "m_oil",
+     "group": "макро",
+     "share": 1.1,
+     "side": "LONG",
+     "strength": 0.6,
+     "dir": "LONG",
+     "hit": "1"
+    },
+    {
+     "factor": "m_tone",
+     "group": "макро",
+     "share": 1.1,
+     "side": "",
+     "strength": 0.0,
+     "dir": "LONG",
+     "hit": ""
+    }
+   ],
+   "discussion": [],
+   "needle": -9,
+   "after": null,
+   "zone": "нейтрально",
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   }
+  }
+ }
+}
