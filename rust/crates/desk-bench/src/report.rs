@@ -215,6 +215,9 @@ pub struct Metric {
     pub method: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
+    /// Secondary series of the same runs (e.g. `window_ms`, `self_reported_ms`).
+    #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 impl Metric {
@@ -250,6 +253,7 @@ impl Metric {
             status,
             method: method.into(),
             note: String::new(),
+            extra: serde_json::Map::new(),
         }
     }
 

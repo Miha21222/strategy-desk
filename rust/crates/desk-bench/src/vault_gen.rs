@@ -303,8 +303,10 @@ pub fn generate(out: &Path, o: &GenOptions) -> Result<GenSummary> {
         .collect::<Result<_>>()?;
     let week = parse_template(WEEK_TEMPLATE)?;
 
-    let mut lessons = String::from(LESSONS_HEADER);
-    let mut scores = String::from(SCORES_HEADER);
+    let mut lessons = format!("{}\n\n", LESSONS_HEADER.trim_end());
+    // Python's csv module ends rows with \r\n; the template's own ending
+    // depends on git's checkout settings, so it is normalized here.
+    let mut scores = format!("{}\r\n", SCORES_HEADER.trim_end());
     for (i, day) in days.iter().enumerate() {
         let d = day.format("%Y-%m-%d").to_string();
         let full = i + 1 == days.len();
@@ -360,7 +362,7 @@ pub fn generate(out: &Path, o: &GenOptions) -> Result<GenSummary> {
                         }
                         let dir = if rng.chance(0.5) { "LONG" } else { "SHORT" };
                         scores.push_str(&format!(
-                            "{d},{r},{},{},{},{side},{},{dir},{}\n",
+                            "{d},{r},{},{},{},{side},{},{dir},{}\r\n",
                             f["id"].as_str().unwrap_or(""),
                             f["group"].as_str().unwrap_or(""),
                             f["share"],
