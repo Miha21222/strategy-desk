@@ -18,8 +18,10 @@ use crate::geom::Zones;
 use crate::i18n;
 use crate::theme::{self, Palette};
 
+#[cfg(target_os = "linux")] // only the image snapshots use it
 const VALUES: [f32; 4] = [-80.0, 0.0, 30.0, 100.0];
 
+#[cfg(target_os = "linux")] // only the image snapshots use it
 fn theme_name(t: Theme) -> &'static str {
     match t {
         Theme::Dark => "dark",
@@ -161,6 +163,7 @@ fn window_shows_sidebar_and_gauge() {
 
 // ---------------------------------------------------------------- images
 
+#[cfg(target_os = "linux")] // only the image snapshots use it
 fn snapshot_options() -> egui_kittest::SnapshotOptions {
     egui_kittest::SnapshotOptions::new()
         .output_path(concat!(env!("CARGO_MANIFEST_DIR"), "/snapshots"))
