@@ -17,8 +17,8 @@ use crate::i18n_ru::RU_TS;
 
 /// The Rust desk's wording of strings `ru.ts` also has; looked up first.
 pub(crate) static THESIS: &[(&str, &str)] = &[
-    ("macro.yourReadAsk.eu", "Окно Европы, 10:00–12:00: куда пойдёт?"),
-    ("macro.yourReadAsk.us", "Окно США, 16:30–18:30: куда пойдёт?"),
+    ("macro.yourReadAsk.eu", "Окно Европы, {open}–{until}: куда пойдёт?"),
+    ("macro.yourReadAsk.us", "Окно США, {open}–{until}: куда пойдёт?"),
     ("macro.yourReadWhy", "Ответь — откроется обзор · вечером сверим: ты или шкала"),
     ("macro.whyHint", "Нажми на довод — что он значит и почему он сегодня такой"),
     ("macro.noData", "Обзора не было"),
@@ -37,9 +37,9 @@ pub(crate) static THESIS: &[(&str, &str)] = &[
         "От тебя вечером — только это · остальное агент свяжет с правилами и запомнит",
     ),
     ("macro.yourDayQ2", "Что помогло или помешало — одной строкой"),
-    ("macro.agentIdle.eu", "Обзор Европы — сам в 09:30 · можно запустить сейчас"),
-    ("macro.agentIdle.us", "Обзор США — сам в 16:00 · можно запустить сейчас"),
-    ("macro.agentIdle.review", "Итог дня — сам в 20:00 · можно запустить сейчас"),
+    ("macro.agentIdle.eu", "Обзор Европы — сам в {at} · можно запустить сейчас"),
+    ("macro.agentIdle.us", "Обзор США — сам в {at} · можно запустить сейчас"),
+    ("macro.agentIdle.review", "Итог дня — сам в {at} · можно запустить сейчас"),
     ("macro.agentPartial.eu", "Обзор Европы собирается · мнение агента пишется"),
     ("macro.agentPartial.us", "Обзор США собирается · мнение агента пишется"),
     ("macro.agentPartial.review", "Итог дня собирается · разбор агента пишется"),

@@ -15,7 +15,6 @@ use desk_core::zones::{zone_of, ZoneKey, Zones};
 use desk_core::{Day, Region, RegionSnapshot};
 use eframe::egui::{self, CollapsingHeader, Ui};
 
-use super::core_bridge::{args_on, factor_hit_rate, reach_key, side_key};
 use super::gating::{region_layout, RegionLayout, ReviewTop};
 use super::kit::{self, bold, txt, CardKind, Tone};
 use super::shots::{self, ShotTextures};
@@ -252,11 +251,11 @@ pub fn show(
             if i == 0 {
                 news(ui, &mut open_note);
             } else {
-                similar_card(ui, p, similar, &voting);
+                similar_card(ui, p, cx.day, cx.region, similar, &voting);
             }
         }),
         (true, false) => news(ui, &mut open_note),
-        (false, true) => similar_card(ui, p, similar, &voting),
+        (false, true) => similar_card(ui, p, cx.day, cx.region, similar, &voting),
         (false, false) => {}
     }
     if let (true, Some(n)) = (open_note, &snap_r.note) {
@@ -317,11 +316,7 @@ pub fn human_read_ask(
             Region::Eu => desk_core::WindowId::Eu,
             Region::Us => desk_core::WindowId::Us,
         };
-        let q = super::with_real_hours(
-            t(&format!("macro.yourReadAsk.{}", region.as_str())),
-            id,
-            date,
-        );
+        let q = super::window_text(&format!("macro.yourReadAsk.{}", region.as_str()), id, date);
         kit::para(ui, txt(q, text::LG, p.fg));
         let labels: Vec<String> = HUMAN_SIDES
             .iter()
@@ -507,10 +502,46 @@ fn factor_id(f: &ScaleFactor) -> &str {
 
 /// The factor's name as the config calls it now (owner, 25.11: renamed
 /// names show on old days too), else the name the day's file carries.
-fn factor_label<'a>(day: &'a Day, f: &'a ScaleFactor) -> &'a str {
+fn factor_label<'a>(day: &'a Day, region: Region, f: &'a ScaleFactor) -> &'a str {
     f.id.as_deref()
-        .and_then(|id| day.factor_name(id))
+        .and_then(|id| day.factor_name_in(region, id))
         .unwrap_or_else(|| factor_name(f))
+}
+
+/// The badge under an argument: its hit rate over the last 20 reviewed days,
+/// only from 3 verdicts on (fewer say nothing).
+pub fn shown_hit_rate(day: &Day, region: Region, id: &str) -> Option<HitRate> {
+    day.hit_rate(region, id).filter(|h| h.total >= 3)
+}
+
+/// The i18n key of a move's side (`macro.dir.*`).
+fn side_key(s: MoveSide) -> &'static str {
+    match s {
+        MoveSide::Long => "macro.dir.LONG",
+        MoveSide::Short => "macro.dir.SHORT",
+        MoveSide::Flat => "macro.dir.FLAT",
+    }
+}
+
+/// The i18n key of how far the move off the IB went.
+fn reach_key(r: IbReach) -> &'static str {
+    match r {
+        IbReach::Ib1 => "desk.ib.IB1",
+        IbReach::Ib2 => "desk.ib.IB2",
+        IbReach::Ib => "desk.ib.IB",
+        IbReach::NoReach => "desk.ib.none",
+    }
+}
+
+/// Today's voting arguments on one similar day, summed
+/// (`Day::hit_rate_on` per factor on that date).
+fn args_on(day: &Day, region: Region, date: &str, today: &[&str]) -> Option<HitRate> {
+    let d = NaiveDate::parse_from_str(date, "%Y-%m-%d").ok()?;
+    let (hits, total) = today
+        .iter()
+        .filter_map(|id| day.hit_rate_on(region, id, &[d]))
+        .fold((0, 0), |(h, n), r| (h + r.hits, n + r.total));
+    (total > 0).then_some(HitRate { hits, total })
 }
 
 fn factor_name(f: &ScaleFactor) -> &str {
@@ -532,7 +563,11 @@ fn why(ui: &mut Ui, cx: &RegionCtx<'_>, sp: &FactorSplit<'_>, open: &mut Option<
             }
         });
         if !sp.silent.is_empty() {
-            let names: Vec<&str> = sp.silent.iter().map(|f| factor_label(cx.day, f)).collect();
+            let names: Vec<&str> = sp
+                .silent
+                .iter()
+                .map(|f| factor_label(cx.day, cx.region, f))
+                .collect();
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = space::S3;
                 ui.label(bold(t("desk.silent"), text::SM, p.fg_muted));
@@ -617,7 +652,7 @@ fn why_column(
                     .why
                     .as_deref()
                     .filter(|w| !w.trim().is_empty())
-                    .unwrap_or(factor_label(cx.day, f));
+                    .unwrap_or(factor_label(cx.day, cx.region, f));
                 let mut main = txt(thesis, text::BASE, p.fg);
                 if is_open {
                     main = main.underline();
@@ -626,12 +661,14 @@ fn why_column(
                 let tag = ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = space::S3;
                     let name = ui.add(
-                        egui::Label::new(txt(factor_label(cx.day, f), text::SM, p.fg_muted))
-                            .sense(egui::Sense::click()),
+                        egui::Label::new(txt(
+                            factor_label(cx.day, cx.region, f),
+                            text::SM,
+                            p.fg_muted,
+                        ))
+                        .sense(egui::Sense::click()),
                     );
-                    if let Some(h) =
-                        factor_hit_rate(cx.day, cx.region, &id).filter(|h| h.total >= 3)
-                    {
+                    if let Some(h) = shown_hit_rate(cx.day, cx.region, &id) {
                         hit_badge(ui, p, h);
                     }
                     name
@@ -687,7 +724,11 @@ fn factor_dialog(
         };
         let mut close = false;
         ui.horizontal(|ui| {
-            ui.label(bold(factor_label(cx.day, f), text::LG, side_color));
+            ui.label(bold(
+                factor_label(cx.day, cx.region, f),
+                text::LG,
+                side_color,
+            ));
             let side_key = match f.side {
                 Some(Side::Long) => "macro.forLong",
                 Some(Side::Short) => "macro.forShort",
@@ -1186,6 +1227,8 @@ fn news_details(ui: &mut Ui, p: &Palette, v: &MacroVerdict) {
 pub fn similar_card(
     ui: &mut Ui,
     p: &Palette,
+    day: &Day,
+    region: Region,
     days: &[desk_core::vault::SimilarDay],
     today: &[&str],
 ) {
@@ -1203,7 +1246,7 @@ pub fn similar_card(
                     ui.separator();
                 }
                 ui.spacing_mut().item_spacing.y = space::S1;
-                let args = args_on(d, today);
+                let args = args_on(day, region, &d.date, today);
                 let date = NaiveDate::parse_from_str(&d.date, "%Y-%m-%d")
                     .map(super::human_date)
                     .unwrap_or_else(|_| d.date.clone());
@@ -1326,8 +1369,9 @@ fn factor_table(ui: &mut Ui, p: &Palette, sp: &FactorSplit<'_>, day: &Day, regio
                 }
                 ui.end_row();
                 for (f, side) in rows {
-                    let r =
-                        ui.add(egui::Label::new(txt(factor_label(day, f), text::MD, p.fg)).wrap());
+                    let r = ui.add(
+                        egui::Label::new(txt(factor_label(day, region, f), text::MD, p.fg)).wrap(),
+                    );
                     if let Some(w) = &f.why {
                         r.on_hover_text(w);
                     }

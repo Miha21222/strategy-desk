@@ -6,7 +6,6 @@
 //! (‹ date › «Сегодня» and the strip of days with marks) picks the day, the
 //! tiles pick the window.
 
-pub mod core_bridge;
 pub mod gating;
 pub mod kit;
 pub mod memory;
@@ -18,8 +17,8 @@ use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 use desk_app::{ChatCommand, Command, Snapshot};
 use desk_core::prompts::{macro_chat_title, run_command};
 use desk_core::windows::{
-    default_window_at, kyiv_now, standard_times, visibility, window_label_times, window_state_at,
-    window_times, KyivNow, WindowId, WindowState,
+    default_window_at, kyiv_now, visibility, window_label_times, window_state_at, window_times,
+    KyivNow, WindowId, WindowState,
 };
 use desk_core::zones::zone_of;
 use desk_core::{Day, Region};
@@ -100,16 +99,16 @@ fn hhmm(tm: NaiveTime) -> String {
     format!("{:02}:{:02}", tm.hour(), tm.minute())
 }
 
-/// TZ item 21: the TS strings carry the standard hours; the real ones come
-/// from the exchanges' clocks, which move in the weeks Europe and the US
-/// switch to or from summer time on different days.
-pub fn with_real_hours(s: &str, id: WindowId, date: NaiveDate) -> String {
-    let std = standard_times(id);
+/// TZ item 21 / QA Q24: a string with the window's hours as `{open}`,
+/// `{until}` and `{at}`, filled from the exchanges' clocks — they move in the
+/// weeks Europe and the US switch to or from summer time on different days.
+pub fn window_text(key: &str, id: WindowId, date: NaiveDate) -> String {
     let (open, until) = window_label_times(id, date);
-    let from = format!("{}–{}", hhmm(std.open.unwrap_or(std.at)), hhmm(std.until));
-    let to = format!("{}–{}", hhmm(open), hhmm(until));
-    s.replace(&from, &to)
-        .replace(&hhmm(std.at), &hhmm(window_times(id, date).at))
+    let at = hhmm(window_times(id, date).at);
+    tf(
+        key,
+        &[("open", &hhmm(open)), ("until", &hhmm(until)), ("at", &at)],
+    )
 }
 
 fn window_region(id: WindowId) -> Option<Region> {
@@ -649,8 +648,8 @@ fn agent_strip(
     let title = match state {
         WindowState::Partial => t(&format!("macro.agentPartial.{}", active.as_str())).to_owned(),
         _ if has => t("macro.agentDone").to_owned(),
-        _ => with_real_hours(
-            t(&format!("macro.agentIdle.{}", active.as_str())),
+        _ => window_text(
+            &format!("macro.agentIdle.{}", active.as_str()),
             active,
             date,
         ),
@@ -743,22 +742,25 @@ mod tests {
     fn hours_follow_the_exchange_clocks() {
         // 26.10.2026: Europe is on winter time, New York still on summer time.
         let date = d("2026-10-26");
-        let us = with_real_hours(
-            "Куда пойдёт окно открытия США (16:30–18:30)?",
-            WindowId::Us,
-            date,
-        );
-        assert_eq!(us, "Куда пойдёт окно открытия США (15:30–17:30)?");
-        let eu = with_real_hours(
-            "Куда пойдёт окно открытия Европы (10:00–12:00)?",
-            WindowId::Eu,
-            date,
-        );
-        assert_eq!(eu, "Куда пойдёт окно открытия Европы (10:00–12:00)?");
-        assert_eq!(with_real_hours("в 16:00.", WindowId::Us, date), "в 15:00.");
         assert_eq!(
-            with_real_hours("в 16:00.", WindowId::Us, d("2026-09-14")),
-            "в 16:00."
+            window_text("macro.yourReadAsk.us", WindowId::Us, date),
+            "Окно США, 15:30–17:30: куда пойдёт?"
+        );
+        assert_eq!(
+            window_text("macro.yourReadAsk.eu", WindowId::Eu, date),
+            "Окно Европы, 10:00–12:00: куда пойдёт?"
+        );
+        assert_eq!(
+            window_text("macro.agentIdle.us", WindowId::Us, date),
+            "Обзор США — сам в 15:00 · можно запустить сейчас"
+        );
+        assert_eq!(
+            window_text("macro.agentIdle.us", WindowId::Us, d("2026-09-14")),
+            "Обзор США — сам в 16:00 · можно запустить сейчас"
+        );
+        assert_eq!(
+            window_text("macro.agentIdle.review", WindowId::Review, date),
+            "Итог дня — сам в 20:00 · можно запустить сейчас"
         );
     }
 }
