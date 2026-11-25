@@ -349,6 +349,14 @@ fn said_day_shows_read_memory_and_every_factor() {
     if !split.silent.is_empty() {
         assert!(has(&h, "молчат:"));
     }
+    // Silent factors are names only in the folded line: their `why` («… ·
+    // молчит», or the old «сегодня молчит: …») and no «молчит» badge.
+    for f in &split.silent {
+        if let Some(why) = f.why.as_deref().filter(|w| !w.is_empty()) {
+            assert!(!has(&h, why), "silent why shown: {why}");
+        }
+    }
+    assert!(h.query_by_label("молчит").is_none());
     // Owner, 25.11: «Не согласен?» is off until settings turn it on.
     const { assert!(!crate::settings::DISCUSS) };
     assert!(!has(&h, "Не согласен?"));
