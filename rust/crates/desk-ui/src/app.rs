@@ -79,6 +79,11 @@ impl DeskApp {
         }
     }
 
+    /// The snapshot on screen.
+    pub fn snapshot(&self) -> &Snapshot {
+        &self.snap
+    }
+
     /// For tests: draw this snapshot instead of a live one.
     pub fn set_snapshot(&mut self, snap: Snapshot) {
         self.snap = snap;

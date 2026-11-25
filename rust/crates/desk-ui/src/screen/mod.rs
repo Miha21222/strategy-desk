@@ -6,6 +6,7 @@
 //! (‹ date › «Сегодня» and the strip of days with marks) picks the day, the
 //! tiles pick the window.
 
+pub mod core_bridge;
 pub mod gating;
 pub mod kit;
 pub mod memory;

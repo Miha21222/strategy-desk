@@ -10,6 +10,7 @@ pub mod i18n;
 mod i18n_ru;
 pub mod perf;
 pub mod screen;
+pub mod settings;
 pub mod theme;
 
 #[cfg(test)]

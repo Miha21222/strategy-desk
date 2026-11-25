@@ -180,6 +180,16 @@ fn demo_snapshot(date: NaiveDate) -> Snapshot {
 
 /// The window on the demo vault: `date` open, the clock at `now` (Kyiv).
 fn screen(theme: Theme, now: &str, date: &str, win: Option<WindowId>) -> Harness<'static, DeskApp> {
+    screen_sized(theme, now, date, win, 1900.0)
+}
+
+fn screen_sized(
+    theme: Theme,
+    now: &str,
+    date: &str,
+    win: Option<WindowId>,
+    height: f32,
+) -> Harness<'static, DeskApp> {
     let ctx = egui::Context::default();
     let clock = Clock::Fixed(parse_now(now).unwrap());
     let mut app = DeskApp::new(&ctx, clock, None, Some(demo_vault()));
@@ -189,7 +199,7 @@ fn screen(theme: Theme, now: &str, date: &str, win: Option<WindowId>) -> Harness
     s.go(d(date));
     s.win = win;
     Harness::builder()
-        .with_size(egui::vec2(1280.0, 1900.0))
+        .with_size(egui::vec2(1280.0, height))
         .with_theme(theme)
         .with_context_setup(setup)
         .build_ui_state(|ui, app: &mut DeskApp| app.draw(ui), app)
@@ -209,7 +219,7 @@ fn ask_first_shows_only_the_question() {
     h.run();
     for s in [
         "Сначала твой взгляд",
-        "Куда пойдёт окно открытия Европы (10:00–12:00)?",
+        "Окно Европы, 10:00–12:00: куда пойдёт?",
         "вверх",
         "вниз",
         "не знаю",
@@ -252,7 +262,7 @@ fn peek_opens_the_review_and_marks_the_answer() {
     h.run();
     for s in [
         "Сначала твой взгляд",
-        "Куда пойдёт окно открытия США (15:30–17:30)?",
+        "Окно США, 15:30–17:30: куда пойдёт?",
         "Куда смотрит рынок",
         "Что делать",
         "Почему так",
@@ -315,7 +325,7 @@ fn said_day_shows_read_memory_and_every_factor() {
         "Сегодня помни",
         "Куда смотрит рынок",
         "Почему так",
-        "Не согласен?",
+        "Новости и календарь",
     ] {
         assert!(has(&h, s), "missing: {s}");
     }
@@ -324,9 +334,93 @@ fn said_day_shows_read_memory_and_every_factor() {
     let day = demo_snapshot(d("2026-09-14")).day.unwrap();
     let scale = day.eu.scale.as_deref().unwrap();
     let split = desk_core::gauge::split_factors(&scale.factors);
-    for f in split.long.iter().chain(&split.short) {
-        let name = f.name.as_deref().unwrap();
+    for f in split.long.iter().chain(&split.short).chain(&split.silent) {
+        // The tag is the config's current name, else the file's.
+        let id = f.id.as_deref().unwrap();
+        let name = day.factor_name(id).or(f.name.as_deref()).unwrap();
         assert!(has(&h, name), "factor hidden: {name}");
+    }
+    // The argument's line is the observation, not the factor's name.
+    for f in split.long.iter().chain(&split.short) {
+        if let Some(why) = f.why.as_deref().filter(|w| !w.is_empty()) {
+            assert!(has(&h, why), "thesis missing: {why}");
+        }
+    }
+    if !split.silent.is_empty() {
+        assert!(has(&h, "молчат:"));
+    }
+    // Silent factors are names only in the folded line: their `why` («… ·
+    // молчит», or the old «сегодня молчит: …») and no «молчит» badge.
+    for f in &split.silent {
+        if let Some(why) = f.why.as_deref().filter(|w| !w.is_empty()) {
+            assert!(!has(&h, why), "silent why shown: {why}");
+        }
+    }
+    assert!(h.query_by_label("молчит").is_none());
+    // Owner, 25.11: «Не согласен?» is off until settings turn it on.
+    const { assert!(!crate::settings::DISCUSS) };
+    assert!(!has(&h, "Не согласен?"));
+    // News and the calendar are on the main screen, not in «Подробнее».
+    assert!(has(&h, "Подробнее: уровни, все факторы, группы, фон дня"));
+    // No similar days until desk-core writes them: no empty card.
+    assert!(!has(&h, "Похожие дни"));
+}
+
+#[test]
+fn renamed_factor_shows_its_new_name_on_old_days() {
+    // Owner, 25.11: question-like names were renamed in the vault config;
+    // the day file still has the old one.
+    let mut h = screen(Theme::Light, TODAY, "2026-09-14", Some(WindowId::Eu));
+    {
+        let app = h.state_mut();
+        let mut snap = app.snapshot().clone();
+        if let Some(day) = snap.day.as_mut() {
+            let d = Arc::make_mut(day);
+            d.names.insert(
+                "night_sweep".into(),
+                serde_json::Value::String("Снятие PDH / PDL в премаркете".into()),
+            );
+        }
+        app.set_snapshot(snap);
+    }
+    h.run();
+    assert!(has(&h, "Снятие PDH / PDL в премаркете"));
+    assert!(!has(&h, "Что снял премаркет"));
+}
+
+/// Put the hand-written `similar_<D>_eu.json` into the open day.
+fn with_similar(h: &mut Harness<'static, DeskApp>) {
+    let app = h.state_mut();
+    let mut snap = app.snapshot().clone();
+    if let Some(day) = snap.day.as_mut() {
+        let d = Arc::make_mut(day);
+        d.eu.similar = Some(crate::screen::core_bridge::sample_similar(
+            &d.date.to_string(),
+        ));
+    }
+    app.set_snapshot(snap);
+}
+
+#[test]
+fn similar_days_card_from_the_sample() {
+    let mut h = screen(
+        Theme::Light,
+        "2026-09-14T11:00",
+        "2026-09-14",
+        Some(WindowId::Eu),
+    );
+    with_similar(&mut h);
+    h.run();
+    for s in [
+        "Похожие дни",
+        "Вторник, 8 сентября",
+        "совпало: пила · ночь ≥ 0.8 ADR · стрелка −41",
+        "день: вниз 0.62 ADR · от IB: вниз до IB1",
+        "разбор: план дошёл до IB1",
+        "от IB: вверх пробой без IB1",
+        "от IB: вниз до IB2",
+    ] {
+        assert!(has(&h, s), "missing: {s}");
     }
 }
 
@@ -337,7 +431,7 @@ fn past_day_has_no_question() {
     h.run();
     assert!(!has(&h, "Сначала твой взгляд"));
     assert!(has(&h, "Куда смотрит рынок"));
-    assert!(has(&h, "Явного перевеса нет"));
+    assert!(has(&h, "Перевеса нет · по правилам день пропускаем"));
     assert!(has(&h, "до обсуждения было"));
     assert!(
         h.query_by_label("Сегодня").is_some(),
@@ -378,7 +472,7 @@ fn friday_evening_has_the_week() {
         "14.09 – 18.09",
         "О ТЕБЕ",
         "после обсуждения — пропуск",
-        "Обзора не было — оценивать нечего.",
+        "Обзора не было — нечего оценивать",
     ] {
         assert!(has(&h, s), "missing: {s}");
     }
@@ -394,7 +488,7 @@ fn past_day_without_review_says_it_did_not_happen() {
     let mut h = screen(Theme::Light, TODAY, "2026-09-24", Some(WindowId::Review));
     h.run();
     assert!(has(&h, "Четверг, 24 сентября"));
-    assert!(has(&h, "Итога дня не было."));
+    assert!(has(&h, "Итога дня не было"));
     assert!(!has(&h, "появится в 20:00"));
     assert!(!has(&h, "Твой день"));
     assert!(!has(&h, "Сначала твой взгляд"));
@@ -451,6 +545,7 @@ fn gauge_snapshots() {
 #[test]
 fn screen_snapshots() {
     let states = [
+        ("0914_eu_similar", "2026-09-14", Some(WindowId::Eu)),
         ("0915_eu_strong_long", "2026-09-15", Some(WindowId::Eu)),
         ("0916_eu_neutral", "2026-09-16", Some(WindowId::Eu)),
         ("0914_review", "2026-09-14", Some(WindowId::Review)),
@@ -459,7 +554,16 @@ fn screen_snapshots() {
     let mut results = egui_kittest::SnapshotResults::new();
     for theme in [Theme::Dark, Theme::Light] {
         for (name, date, win) in states {
-            let mut h = screen(theme, TODAY, date, win);
+            // The similar-days state is tall: the new cards sit below the factors.
+            let height = if name.ends_with("similar") {
+                2900.0
+            } else {
+                1900.0
+            };
+            let mut h = screen_sized(theme, TODAY, date, win, height);
+            if name.ends_with("similar") {
+                with_similar(&mut h);
+            }
             h.run();
             let name = format!("screen_{}_{name}", theme_name(theme));
             results.add(h.try_snapshot_options(name, &snapshot_options()));
