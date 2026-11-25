@@ -12,3 +12,8 @@ serde_json.workspace = true
 chrono.workspace = true
 chrono-tz.workspace = true
 thiserror.workspace = true
+
+[features]
+# QA's golden tests (rust/crates/desk-core/tests/golden_*.rs) compile only with
+# this on, so they can be written against CONTRACTS.md before the API lands.
+golden = []
