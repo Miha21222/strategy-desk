@@ -26,6 +26,7 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 /// What `loadDay` reads, handed in by whoever did the reading.
 ///
@@ -178,6 +179,55 @@ pub struct Day {
     pub ideas: Option<Ideas>,
     /// «О тебе» from the day's review json; empty when there is none.
     pub trader: Vec<String>,
+    /// Factor id → name per region, from `config/scale.json` (`regions.<r>.factors[].name`).
+    /// `names` above keeps the TS shape (one map, the later region wins); this one is what
+    /// a region's screen should use. Not serialized: the golden dumps have no such field.
+    #[serde(skip)]
+    pub region_names: RegionNames,
+    /// The parsed rows of `journal/scale_factor_scores.csv` (shared, cheap to clone), for
+    /// [`Day::hit_rate`]. Not serialized.
+    #[serde(skip)]
+    pub score_rows: Arc<Vec<stats::CsvRow>>,
+}
+
+/// Factor id → readable name, one map per region.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RegionNames {
+    pub eu: BTreeMap<String, String>,
+    pub us: BTreeMap<String, String>,
+}
+
+impl RegionNames {
+    pub fn get(&self, r: Region) -> &BTreeMap<String, String> {
+        match r {
+            Region::Eu => &self.eu,
+            Region::Us => &self.us,
+        }
+    }
+
+    /// `regions.eu.factors[]` / `regions.us.factors[]` of the config; entries without a
+    /// string id and a string name are skipped, a repeated id keeps the last name.
+    pub fn from_config(cfg: Option<&Value>) -> Self {
+        let read = |r: &str| -> BTreeMap<String, String> {
+            let factors =
+                js::prop(js::prop(cfg, "regions"), r).and_then(|x| js::prop(Some(x), "factors"));
+            factors
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|f| {
+                    Some((
+                        f.get("id")?.as_str()?.to_owned(),
+                        f.get("name")?.as_str()?.to_owned(),
+                    ))
+                })
+                .collect()
+        };
+        RegionNames {
+            eu: read("eu"),
+            us: read("us"),
+        }
+    }
 }
 
 /// `MacroDay`, by its TS name.
@@ -191,9 +241,51 @@ impl Day {
         }
     }
 
-    /// The readable name of a factor id, when the config gives one as a string.
+    /// The readable name of a factor id from the TS-shaped `names` (one map for both regions,
+    /// the US name wins where the ids repeat). A region's screen wants [`Day::factor_name_in`].
     pub fn factor_name(&self, id: &str) -> Option<&str> {
         self.names.get(id).and_then(Value::as_str)
+    }
+
+    /// The name of factor `id` as region `region` calls it: the config's name for that
+    /// region first, then the name written in that region's scale file.
+    pub fn factor_name_in(&self, region: Region, id: &str) -> Option<&str> {
+        self.region_names
+            .get(region)
+            .get(id)
+            .map(String::as_str)
+            .or_else(|| {
+                self.region(region)
+                    .scale
+                    .as_ref()?
+                    .factors
+                    .iter()
+                    .find(|f| f.id.as_deref() == Some(id))?
+                    .name
+                    .as_deref()
+            })
+    }
+
+    /// How often factor `id` called region `region` right over the last
+    /// [`stats::HIT_RATE_DAYS`] trading days before this day ([`stats::factor_hit_rate`]).
+    pub fn hit_rate(&self, region: Region, id: &str) -> Option<stats::HitRate> {
+        stats::factor_hit_rate(
+            &self.score_rows,
+            id,
+            region,
+            self.date,
+            stats::HIT_RATE_DAYS,
+        )
+    }
+
+    /// The same, on the given dates only (the similar days) ([`stats::factor_hit_rate_on`]).
+    pub fn hit_rate_on(
+        &self,
+        region: Region,
+        id: &str,
+        dates: &[NaiveDate],
+    ) -> Option<stats::HitRate> {
+        stats::factor_hit_rate_on(&self.score_rows, id, region, dates)
     }
 
     /// `traderLines`: the lines «О тебе» shows in the evening — the week's on
@@ -323,6 +415,13 @@ pub fn load_day(input: &DayInput, date: NaiveDate) -> Day {
             .collect(),
         _ => Vec::new(),
     };
+    // Parsed once: the 30-day `stats` of the TS and the rows behind `hit_rate`.
+    let score_rows = Arc::new(
+        scores
+            .filter(|s| !s.is_empty())
+            .map(|s| stats::parse_csv(&s))
+            .unwrap_or_default(),
+    );
     Day {
         date,
         eu: region_snapshot(input, date, &ds, Region::Eu),
@@ -341,15 +440,14 @@ pub fn load_day(input: &DayInput, date: NaiveDate) -> Day {
             .filter(|s| !s.is_empty())
             .map(|s| normalize::lessons_tail(&s, LESSONS_TAIL))
             .unwrap_or_default(),
-        stats: scores
-            .filter(|s| !s.is_empty())
-            .map(|s| stats::factor_stats(&s, date))
-            .unwrap_or_default(),
+        stats: stats::factor_stats_rows(&score_rows, date, stats::STATS_DAYS),
         names: factor_names(cfg.as_ref()),
         zones: Zones::from_config(cfg.as_ref()),
         week: normalize::normalize_week(week.as_ref().unwrap_or(&null)),
         ideas: normalize::normalize_ideas(ideas.as_ref().unwrap_or(&null)),
         trader,
+        region_names: RegionNames::from_config(cfg.as_ref()),
+        score_rows,
     }
 }
 
@@ -796,7 +894,14 @@ mod tests {
             let day = load_day(&v, d(date));
             let text = serde_json::to_string(&day).unwrap();
             let back: Day = serde_json::from_str(&text).unwrap();
-            assert_eq!(back, day, "{date}");
+            // The two derived, non-serialized fields come back empty; everything else equal.
+            assert!(back.region_names.eu.is_empty() && back.score_rows.is_empty());
+            let derived = Day {
+                region_names: RegionNames::default(),
+                score_rows: Arc::default(),
+                ..day.clone()
+            };
+            assert_eq!(back, derived, "{date}");
             assert_eq!(serde_json::to_string(&back).unwrap(), text);
         }
     }
@@ -823,6 +928,85 @@ mod tests {
         assert!(
             day_files(date).contains(&"indices-kb/state/similar_2026-10-12_eu.json".to_string())
         );
+    }
+
+    #[test]
+    fn factor_names_are_per_region_where_the_ids_repeat() {
+        // The golden vault's config: the same ids, a Europe and a US name.
+        let mut v = DayInput::new();
+        v.insert(
+            "indices-kb/config/scale.json",
+            include_str!("../../../fixtures/golden/vault/indices-kb/config/scale.json"),
+        );
+        let date = d("2026-09-14");
+        let scale = json!({"factors": [{"id": "only_in_file", "name": "Из файла шкалы"}, {"id": "night_sweep", "name": "Старое имя"}], "result": {"needle": 1}});
+        v.insert(
+            names::state_path(&names::state_file(StateKind::Scale(Region::Eu), date)),
+            scale.to_string(),
+        );
+        let day = load_day(&v, date);
+        assert_eq!(
+            day.factor_name_in(Region::Eu, "night_sweep"),
+            Some("Что снял премаркет")
+        );
+        assert_eq!(
+            day.factor_name_in(Region::Us, "night_sweep"),
+            Some("Что сняла ночь")
+        );
+        assert_eq!(
+            day.factor_name_in(Region::Eu, "prev_close"),
+            Some("Как закрылась вчерашняя Xetra")
+        );
+        assert_eq!(
+            day.factor_name_in(Region::Us, "prev_close"),
+            Some("Как закрылся вчерашний RTH")
+        );
+        // The TS-shaped map keeps its quirk: the later region (US) wins.
+        assert_eq!(day.factor_name("night_sweep"), Some("Что сняла ночь"));
+        // Not in the config: the scale file's own name, for that region only.
+        assert_eq!(
+            day.factor_name_in(Region::Eu, "only_in_file"),
+            Some("Из файла шкалы")
+        );
+        assert_eq!(day.factor_name_in(Region::Us, "only_in_file"), None);
+        assert_eq!(day.factor_name_in(Region::Eu, "nope"), None);
+        // Junk entries are skipped, not fatal.
+        let cfg = json!({"regions": {"eu": {"factors": [{"id": 5, "name": "x"}, {"id": "a"}, null, {"id": "b", "name": "B"}]}, "us": "x"}});
+        let rn = RegionNames::from_config(Some(&cfg));
+        assert_eq!(rn.eu.len(), 1);
+        assert!(rn.us.is_empty());
+    }
+
+    #[test]
+    fn hit_rates_come_from_the_scores_the_day_already_read() {
+        let mut v = DayInput::new();
+        v.insert(
+            "indices-kb/journal/scale_factor_scores.csv",
+            "date,region,factor,hit\n2026-10-01,eu,bias_a,1\n2026-10-02,eu,bias_a,0\n2026-10-05,eu,bias_a,1\n2026-10-06,eu,bias_a,1\n2026-10-05,us,bias_a,0\n",
+        );
+        let day = load_day(&v, d("2026-10-06"));
+        // Before 06.10: 01 ✓, 02 ✗, 05 ✓ (the day itself is not counted).
+        assert_eq!(
+            day.hit_rate(Region::Eu, "bias_a"),
+            Some(stats::HitRate { hits: 2, total: 3 })
+        );
+        assert_eq!(
+            day.hit_rate(Region::Us, "bias_a"),
+            Some(stats::HitRate { hits: 0, total: 1 })
+        );
+        assert_eq!(day.hit_rate(Region::Eu, "room"), None);
+        assert_eq!(
+            day.hit_rate_on(Region::Eu, "bias_a", &[d("2026-10-02"), d("2026-10-06")]),
+            Some(stats::HitRate { hits: 1, total: 2 })
+        );
+        // The rows are shared, not copied, when the day is cloned.
+        let c = day.clone();
+        assert!(Arc::ptr_eq(&c.score_rows, &day.score_rows));
+        // The TS-shaped stats are unchanged (30 days, the day included).
+        assert_eq!(day.stats.iter().map(|s| s.total).sum::<u64>(), 5);
+        assert!(load_day(&DayInput::new(), d("2026-10-06"))
+            .hit_rate(Region::Eu, "bias_a")
+            .is_none());
     }
 
     #[test]
