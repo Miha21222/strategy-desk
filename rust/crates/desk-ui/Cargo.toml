@@ -3,14 +3,34 @@ name = "desk-ui"
 description = "The egui window: macro-review screen, gauge, chat, wizard. Renders snapshots, sends commands."
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# eframe/egui 0.37 need 1.95; the workspace default (1.85) is too old for them.
+rust-version = "1.95"
 publish.workspace = true
 
 [[bin]]
 name = "strategy-desk"
 path = "src/main.rs"
 
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = ["glow"]
+# Exactly one renderer goes into the release binary; see report for sizes.
+glow = ["eframe/glow"]
+wgpu = ["eframe/wgpu"]
+
 [dependencies]
 desk-core.workspace = true
 desk-app.workspace = true
 anyhow.workspace = true
+# No default features: no system_fonts (scans the OS font dir before the first
+# frame), no accesskit/clipboard/links until a screen needs them.
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "x11", "wayland"] }
+
+[dev-dependencies]
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
+
+# Working-set size for `--bench-first-frame` (already in the tree via winit).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
