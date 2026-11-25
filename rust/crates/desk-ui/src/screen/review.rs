@@ -46,6 +46,8 @@ pub struct ReviewCtx<'a> {
     pub day: &'a Day,
     pub date: NaiveDate,
     pub past: bool,
+    /// desk-core's decision for the evening (`ask_day`).
+    pub vis: desk_core::windows::Visibility,
 }
 
 fn trade_key(x: TradeTaken) -> &'static str {
@@ -100,12 +102,20 @@ pub fn show(
     let answers = day.answers.as_ref();
     // The owner's two questions come first (note 23): on the day itself even
     // before the agent's review exists; on a past day only when he answered.
-    let ask_day = !cx.past || answers.is_some();
-    if ask_day {
+    if cx.vis.ask_day {
         answers_card(ui, cx, answers, st, out);
     }
     if mech.is_none() && agent.is_none() {
-        no_data(ui, p, t("macro.noReview"));
+        // QA Q25: on a past day «появится в 20:00» is wrong; say it did not happen.
+        no_data(
+            ui,
+            p,
+            t(if cx.past {
+                "desk.noReviewPast"
+            } else {
+                "macro.noReview"
+            }),
+        );
         return ReviewAction::None;
     }
     let mut action = ReviewAction::None;

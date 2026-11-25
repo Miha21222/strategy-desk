@@ -389,6 +389,18 @@ fn friday_evening_has_the_week() {
 }
 
 #[test]
+fn past_day_without_review_says_it_did_not_happen() {
+    // UI_CHECKLIST §5 (24.09 from 26.10) with QA's Q25: no «появится в 20:00».
+    let mut h = screen(Theme::Light, TODAY, "2026-09-24", Some(WindowId::Review));
+    h.run();
+    assert!(has(&h, "Четверг, 24 сентября"));
+    assert!(has(&h, "Итога дня не было."));
+    assert!(!has(&h, "появится в 20:00"));
+    assert!(!has(&h, "Твой день"));
+    assert!(!has(&h, "Сначала твой взгляд"));
+}
+
+#[test]
 fn shots_decode_once() {
     let mut h = screen(Theme::Light, TODAY, "2026-09-14", Some(WindowId::Eu));
     h.run();

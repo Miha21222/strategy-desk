@@ -15,7 +15,7 @@ use desk_core::zones::{zone_of, ZoneKey, Zones};
 use desk_core::{Day, Region, RegionSnapshot};
 use eframe::egui::{self, CollapsingHeader, Ui};
 
-use super::gating::{before_scale, region_layout, RegionLayout, ReviewTop};
+use super::gating::{region_layout, RegionLayout, ReviewTop};
 use super::kit::{self, bold, txt, CardKind, Tone};
 use super::shots::{self, ShotTextures};
 use crate::fonts;
@@ -64,8 +64,8 @@ pub struct RegionCtx<'a> {
     pub day: &'a Day,
     pub date: NaiveDate,
     pub region: Region,
-    pub past: bool,
-    pub peeked: bool,
+    /// desk-core's «Сначала человек» decision for this window.
+    pub vis: desk_core::windows::Visibility,
     /// Chat buttons off: a turn is running, or this is the demo vault.
     pub busy: bool,
 }
@@ -147,7 +147,6 @@ pub fn show(
     let p = cx.p;
     let snap_r: &RegionSnapshot = cx.day.region(cx.region);
     let human = snap_r.human.as_ref();
-    let has_review = super::gating::has_review(cx.day, cx.region);
     let mut action = RegionAction::None;
     let scale = snap_r.scale.as_deref();
     let res = scale.map(|s| s.after.as_ref().unwrap_or(&s.result));
@@ -157,11 +156,11 @@ pub fn show(
             date: cx.date,
             region: cx.region,
             side,
-            before_scale: before_scale(cx.peeked, has_review),
+            before_scale: cx.vis.before_scale,
         });
     };
 
-    match region_layout(has_review, human.is_some(), cx.past, cx.peeked) {
+    match region_layout(cx.vis, human.is_some()) {
         RegionLayout::NoData { ask } => {
             if ask {
                 if let Some(s) = human_read_ask(ui, p, cx.region, cx.date, false) {

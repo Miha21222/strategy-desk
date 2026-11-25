@@ -17,14 +17,13 @@ use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
 use desk_app::{ChatCommand, Command, Snapshot};
 use desk_core::prompts::{macro_chat_title, run_command};
 use desk_core::windows::{
-    default_window_at, standard_times, window_state_at, window_times, KyivNow, WindowId,
-    WindowState,
+    default_window_at, kyiv_now, standard_times, visibility, window_label_times, window_state_at,
+    window_times, KyivNow, WindowId, WindowState,
 };
 use desk_core::zones::zone_of;
 use desk_core::{Day, Region};
 use eframe::egui::{self, Color32, CornerRadius, Frame, Key, Margin, Sense, Stroke, Ui};
 
-use self::gating::{unread, Facts};
 use self::kit::{bold, txt, CardKind, Tone};
 use self::region::{RegionAction, RegionCtx, RegionUi};
 use self::review::{AnswersUi, ReviewAction, ReviewCtx};
@@ -104,14 +103,12 @@ fn hhmm(tm: NaiveTime) -> String {
 /// from the exchanges' clocks, which move in the weeks Europe and the US
 /// switch to or from summer time on different days.
 pub fn with_real_hours(s: &str, id: WindowId, date: NaiveDate) -> String {
-    let (std, real) = (standard_times(id), window_times(id, date));
-    let mut out = s.to_owned();
-    if let (Some(so), Some(ro)) = (std.open, real.open) {
-        let from = format!("{}–{}", hhmm(so), hhmm(std.until));
-        let to = format!("{}–{}", hhmm(ro), hhmm(real.until));
-        out = out.replace(&from, &to);
-    }
-    out.replace(&hhmm(std.at), &hhmm(real.at))
+    let std = standard_times(id);
+    let (open, until) = window_label_times(id, date);
+    let from = format!("{}–{}", hhmm(std.open.unwrap_or(std.at)), hhmm(std.until));
+    let to = format!("{}–{}", hhmm(open), hhmm(until));
+    s.replace(&from, &to)
+        .replace(&hhmm(std.at), &hhmm(window_times(id, date).at))
 }
 
 fn window_region(id: WindowId) -> Option<Region> {
@@ -153,12 +150,13 @@ pub fn show(
     ui: &mut Ui,
     st: &mut ScreenState,
     snap: &Snapshot,
-    now: KyivNow,
+    clock_now: chrono::DateTime<chrono::Utc>,
     tex: &mut ShotTextures,
     out: &mut Vec<Command>,
 ) -> Vec<ScreenEvent> {
     let p = Palette::of(ui);
     let mut events = Vec::new();
+    let now = kyiv_now(clock_now);
     let today = now.date;
     let date = *st.date.get_or_insert(today);
     if st.requested != Some(date) {
@@ -205,10 +203,9 @@ pub fn show(
     }
     errors(ui, &p, st, snap);
 
-    let facts = Facts::of(day, date, today);
     let active = st.win.unwrap_or_else(|| default_window_at(day, date, now));
     let busy = snap.index.demo == Some(true);
-    tiles(ui, &p, st, day, date, now, facts, active);
+    tiles(ui, &p, st, day, date, now, clock_now, active);
     agent_strip(ui, &p, st, day, date, now, active, busy, out);
 
     let Some(day) = day else {
@@ -224,8 +221,7 @@ pub fn show(
                 day,
                 date,
                 region,
-                past,
-                peeked: st.peek == Some(active),
+                vis: visibility(active, day, clock_now, st.peek),
                 busy,
             };
             match region::show(ui, &cx, &mut st.region, tex, snap, out) {
@@ -241,6 +237,7 @@ pub fn show(
                 day,
                 date,
                 past,
+                vis: visibility(active, day, clock_now, st.peek),
             };
             match review::show(ui, &cx, &mut st.answers, tex, snap, out) {
                 ReviewAction::OpenShot(r, i) => {
@@ -471,14 +468,14 @@ fn tiles(
     day: Option<&Day>,
     date: NaiveDate,
     now: KyivNow,
-    facts: Option<Facts>,
+    clock_now: chrono::DateTime<chrono::Utc>,
     active: WindowId,
 ) {
     let peek = st.peek;
     kit::columns(ui, 3, |k, ui| {
         if let Some(&id) = WindowId::ALL.get(k) {
             let state = window_state_at(id, day, date, now);
-            let hidden = unread(id, facts, peek);
+            let hidden = day.is_some_and(|d| visibility(id, d, clock_now, peek).withheld);
             if tile(ui, p, id, day, date, state, hidden, active == id).clicked() {
                 st.win = Some(id);
             }

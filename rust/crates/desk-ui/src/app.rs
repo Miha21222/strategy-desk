@@ -133,7 +133,7 @@ impl DeskApp {
                         ui,
                         &mut self.screen,
                         &self.snap,
-                        self.clock.kyiv(),
+                        self.clock.now(),
                         &mut self.tex,
                         &mut out,
                     );

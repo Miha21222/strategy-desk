@@ -18,6 +18,7 @@ pub(crate) static DESK: &[(&str, &str)] = &[
     ("desk.theme.light", "Светлая"),
     ("desk.theme.dark", "Тёмная"),
     ("desk.loading", "Загружаю день…"),
+    ("desk.noReviewPast", "Итога дня не было."),
     (
         "desk.noVaultHint",
         "Пока папка задаётся при запуске: strategy-desk --vault <папка> или переменная DESK_VAULT. Выбор папки появится в настройках.",
