@@ -15,6 +15,7 @@ use desk_core::zones::{zone_of, ZoneKey, Zones};
 use desk_core::{Day, Region, RegionSnapshot};
 use eframe::egui::{self, CollapsingHeader, Ui};
 
+use super::core_bridge::{factor_hit_rate, HitRate, SimilarDay};
 use super::gating::{region_layout, RegionLayout, ReviewTop};
 use super::kit::{self, bold, txt, CardKind, Tone};
 use super::shots::{self, ShotTextures};
@@ -68,6 +69,8 @@ pub struct RegionCtx<'a> {
     pub vis: desk_core::windows::Visibility,
     /// Chat buttons off: a turn is running, or this is the demo vault.
     pub busy: bool,
+    /// «Похожие дни» for this window (empty = the card is silent).
+    pub similar: &'a [SimilarDay],
 }
 
 pub const HUMAN_SIDES: [HumanSide; 4] = [
@@ -219,22 +222,39 @@ pub fn show(
             }
         },
     );
-    kit::grid2(
-        ui,
-        |ui| {
-            if let Some(sp) = split
-                .as_ref()
-                .filter(|s| !s.long.is_empty() || !s.short.is_empty())
-            {
-                why(ui, p, sp, &mut st.factor);
+    if let Some(sp) = split
+        .as_ref()
+        .filter(|s| !s.long.is_empty() || !s.short.is_empty())
+    {
+        why(ui, cx, sp, &mut st.factor);
+    }
+    // «Новости и календарь» and «Похожие дни»: side by side when both speak.
+    let mut open_note = false;
+    let news = |ui: &mut Ui, open_note: &mut bool| {
+        if news_cal_card(ui, p, snap_r) {
+            *open_note = true;
+        }
+    };
+    match (has_news(snap_r), !cx.similar.is_empty()) {
+        (true, true) => kit::grid2_cells(ui, |ui, i| {
+            if i == 0 {
+                news(ui, &mut open_note);
+            } else {
+                similar_card(ui, p, cx.similar);
             }
-        },
-        |ui| {
-            if let Some(s) = scale {
-                discussion(ui, p, &s.discussion, cx, &mut st.talk, out);
-            }
-        },
-    );
+        }),
+        (true, false) => news(ui, &mut open_note),
+        (false, true) => similar_card(ui, p, cx.similar),
+        (false, false) => {}
+    }
+    if let (true, Some(n)) = (open_note, &snap_r.note) {
+        action = RegionAction::OpenNote(n.clone());
+    }
+    if crate::settings::DISCUSS {
+        if let Some(s) = scale {
+            discussion(ui, p, &s.discussion, cx, &mut st.talk, out);
+        }
+    }
     if let Some(sp) = split.as_ref() {
         factor_dialog(ui.ctx(), p, sp, cx, &mut st.factor);
     }
@@ -243,7 +263,6 @@ pub fn show(
         ui,
         cx,
         scale,
-        verdict,
         split.as_ref(),
         snap_r,
         tex,
@@ -464,28 +483,6 @@ fn todo(
             });
         }
         open = shots::inline(ui, p, tex, snap, snap_r.shots.as_ref(), out);
-        if let Some(v) = verdict {
-            ui.separator();
-            let key = v.verdict.clone().unwrap_or_default();
-            let tone = match key.as_str() {
-                "LONG" => Tone::Good,
-                "SHORT" => Tone::Bad,
-                "NO_TRADE" => Tone::Warn,
-                _ => Tone::Neutral,
-            };
-            ui.horizontal(|ui| {
-                kit::chip(
-                    ui,
-                    p,
-                    t(&format!("macro.newsVerdict.{key}")),
-                    tone,
-                    text::SM,
-                )
-            });
-            if let Some(sum) = &v.summary {
-                kit::para(ui, txt(sum, text::BASE, p.fg_muted));
-            }
-        }
     });
     open
 }
@@ -500,26 +497,59 @@ fn factor_name(f: &ScaleFactor) -> &str {
     f.name.as_deref().or(f.id.as_deref()).unwrap_or("—")
 }
 
-fn why(ui: &mut Ui, p: &Palette, sp: &FactorSplit<'_>, open: &mut Option<String>) {
+/// «Почему так»: every argument for long and for short. The line is the
+/// observation (`why`) — the thesis; the factor's name is a small topic tag
+/// under it, with its hit rate. Factors that are silent today close the card
+/// in one folded line: never hidden (owner rule), never in the way.
+fn why(ui: &mut Ui, cx: &RegionCtx<'_>, sp: &FactorSplit<'_>, open: &mut Option<String>) {
+    let p = cx.p;
     kit::card(ui, p, Some(t("macro.whyTitle")), CardKind::Plain, |ui| {
         kit::columns(ui, 2, |i, ui| {
             if i == 0 {
-                why_column(ui, p, true, &sp.long, open);
+                why_column(ui, cx, true, &sp.long, open);
             } else {
-                why_column(ui, p, false, &sp.short, open);
+                why_column(ui, cx, false, &sp.short, open);
             }
         });
+        if !sp.silent.is_empty() {
+            let names: Vec<&str> = sp.silent.iter().map(|f| factor_name(f)).collect();
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = space::S3;
+                ui.label(bold(t("desk.silent"), text::SM, p.fg_muted));
+                ui.add(egui::Label::new(txt(names.join(", "), text::SM, p.fg_muted)).wrap());
+            });
+        }
         kit::para(ui, txt(t("macro.whyHint"), text::SM, p.fg_muted));
     });
 }
 
+/// The hit-rate badge: green from 60 %, red under 45 %, as the stats card.
+fn hit_badge(ui: &mut Ui, p: &Palette, h: HitRate) {
+    let tone = if h.rate() >= 0.6 {
+        Tone::Good
+    } else if h.rate() < 0.45 {
+        Tone::Bad
+    } else {
+        Tone::Neutral
+    };
+    kit::chip(
+        ui,
+        p,
+        &tf("desk.hitShort", &[("h", &h.hits), ("n", &h.total)]),
+        tone,
+        text::XS,
+    )
+    .on_hover_text(tf("desk.hitTip", &[("h", &h.hits), ("n", &h.total)]));
+}
+
 fn why_column(
     ui: &mut Ui,
-    p: &Palette,
+    cx: &RegionCtx<'_>,
     long: bool,
     list: &[&ScaleFactor],
     open: &mut Option<String>,
 ) {
+    let p = cx.p;
     let color = if long { p.ok } else { p.err };
     // `+ 0.0`: an empty f64 sum is −0.0, which would print as «-0 %».
     let sum: f64 = list.iter().map(|f| f.points()).sum::<f64>() + 0.0;
@@ -530,15 +560,12 @@ fn why_column(
                 20.0,
                 color,
             ));
-            ui.label(bold(
-                t(if long {
-                    "macro.forLongTitle"
-                } else {
-                    "macro.forShortTitle"
-                }),
-                text::BASE,
-                color,
-            ));
+            let k = if long {
+                "macro.forLongTitle"
+            } else {
+                "macro.forShortTitle"
+            };
+            ui.label(bold(t(k), text::BASE, color));
         })
         .response;
     ui.painter().hline(
@@ -554,28 +581,51 @@ fn why_column(
     for f in list {
         let id = factor_id(f).to_owned();
         let is_open = open.as_deref() == Some(id.as_str());
-        let r = ui
-            .horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing.x = space::S3;
-                ui.add_sized(
-                    [48.0, 18.0],
-                    egui::Label::new(bold(
-                        format!("{} %", fmt(Some(f.points()), 1)),
-                        text::MD,
-                        color,
-                    )),
-                );
-                let mut name = txt(factor_name(f), text::MD, p.fg);
+        let row = ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = space::S4;
+            ui.add_sized(
+                [44.0, 18.0],
+                egui::Label::new(bold(
+                    format!("{} %", fmt(Some(f.points()), 1)),
+                    text::MD,
+                    color,
+                )),
+            );
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = space::S1;
+                let thesis = f
+                    .why
+                    .as_deref()
+                    .filter(|w| !w.trim().is_empty())
+                    .unwrap_or(factor_name(f));
+                let mut main = txt(thesis, text::BASE, p.fg);
                 if is_open {
-                    name = name.underline();
+                    main = main.underline();
                 }
-                ui.add(egui::Label::new(name).wrap().sense(egui::Sense::click()))
+                let r = ui.add(egui::Label::new(main).wrap().sense(egui::Sense::click()));
+                let tag = ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = space::S3;
+                    let name = ui.add(
+                        egui::Label::new(txt(factor_name(f), text::SM, p.fg_muted))
+                            .sense(egui::Sense::click()),
+                    );
+                    if let Some(h) =
+                        factor_hit_rate(cx.day, cx.region, &id).filter(|h| h.total >= 3)
+                    {
+                        hit_badge(ui, p, h);
+                    }
+                    name
+                });
+                r.clicked() || tag.inner.clicked()
             })
-            .inner;
-        let r = r.on_hover_cursor(egui::CursorIcon::PointingHand);
-        if r.clicked() {
+            .inner
+        });
+        let clicked = row.inner;
+        row.response.on_hover_cursor(egui::CursorIcon::PointingHand);
+        if clicked {
             *open = if is_open { None } else { Some(id) };
         }
+        ui.add_space(space::S2);
     }
 }
 
@@ -804,7 +854,6 @@ fn more(
     ui: &mut Ui,
     cx: &RegionCtx<'_>,
     scale: Option<&ScaleFile>,
-    verdict: Option<&MacroVerdict>,
     split: Option<&FactorSplit<'_>>,
     snap_r: &RegionSnapshot,
     tex: &mut ShotTextures,
@@ -822,23 +871,9 @@ fn more(
             if let Some(i) = shots::card(ui, p, tex, snap, snap_r.shots.as_ref(), out) {
                 *action = RegionAction::OpenShot(i);
             }
-            kit::grid2(
-                ui,
-                |ui| {
-                    if let Some(pl) = scale.and_then(|s| s.plan.as_ref()) {
-                        plan_card(ui, p, pl);
-                    }
-                },
-                |ui| {
-                    if let Some(v) = verdict {
-                        if news_card(ui, p, v, snap_r.note.is_some()) {
-                            if let Some(n) = &snap_r.note {
-                                *action = RegionAction::OpenNote(n.clone());
-                            }
-                        }
-                    }
-                },
-            );
+            if let Some(pl) = scale.and_then(|s| s.plan.as_ref()) {
+                plan_card(ui, p, pl);
+            }
             if let Some(g) = scale.and_then(|s| s.result.groups.as_ref()) {
                 groups_card(ui, p, g);
             }
@@ -959,9 +994,35 @@ fn list(ui: &mut Ui, p: &Palette, title: &str, items: &[String]) {
     kit::bullets(ui, p, items, text::MD);
 }
 
-/// Returns `true` when «Открыть заметку» was pressed.
-fn news_card(ui: &mut Ui, p: &Palette, v: &MacroVerdict, has_note: bool) -> bool {
+/// Something for «Новости и календарь»: a verdict, events or headlines.
+fn has_news(snap_r: &RegionSnapshot) -> bool {
+    let c = snap_r.collect.as_deref();
+    snap_r.verdict.as_ref().is_some_and(|v| v.is_truthy())
+        || c.and_then(|c| c.calendar.as_ref())
+            .is_some_and(|cal| !cal.events.is_empty())
+        || c.and_then(|c| c.headlines.as_ref()).is_some()
+}
+
+/// `+12` / `−5` / `0`.
+fn signed_num(x: f64) -> String {
+    let r = desk_core::js::round(x) + 0.0;
+    if r > 0.0 {
+        format!("+{r}")
+    } else if r < 0.0 {
+        format!("\u{2212}{}", -r)
+    } else {
+        "0".into()
+    }
+}
+
+/// «Новости и календарь», after «Что делать»: the agent's news verdict, the
+/// day's events by time with their importance, the headlines' tone; reasons,
+/// risks and sources folded. Returns `true` when «Открыть заметку» was pressed.
+fn news_cal_card(ui: &mut Ui, p: &Palette, snap_r: &RegionSnapshot) -> bool {
+    let v = snap_r.verdict.as_deref();
+    let c = snap_r.collect.as_deref();
     let mut open = false;
+    let has_note = snap_r.note.is_some();
     let extra = |ui: &mut Ui| {
         if has_note && kit::link(ui, p, t("macro.openNote")).clicked() {
             open = true;
@@ -970,48 +1031,213 @@ fn news_card(ui: &mut Ui, p: &Palette, v: &MacroVerdict, has_note: bool) -> bool
     kit::card_ex(
         ui,
         p,
-        Some(t("macro.newsTitle")),
+        Some(t("desk.newsCal")),
         CardKind::Plain,
         extra,
         |ui| {
-            list(ui, p, t("macro.reasons"), &v.reasons);
-            list(ui, p, t("macro.risks"), &v.risks);
-            list(ui, p, t("macro.watch"), &v.watch);
-            let judgment: Vec<String> = v
-                .scale_judgment
-                .iter()
-                .map(|j| {
-                    let side = if j.side == Some(Side::Long) {
-                        "macro.forLong"
-                    } else {
-                        "macro.forShort"
-                    };
-                    format!("{}: {}", t(side), j.text.clone().unwrap_or_default())
-                })
-                .collect();
-            list(ui, p, t("macro.judgment"), &judgment);
-            if !v.sources.is_empty() {
-                kit::sub(ui, p, t("macro.sources"));
-                for s in &v.sources {
+            if let Some(v) = v {
+                let key = v.verdict.clone().unwrap_or_default();
+                let tone = match key.as_str() {
+                    "LONG" => Tone::Good,
+                    "SHORT" => Tone::Bad,
+                    "NO_TRADE" => Tone::Warn,
+                    _ => Tone::Neutral,
+                };
+                ui.horizontal(|ui| {
+                    kit::chip(
+                        ui,
+                        p,
+                        t(&format!("macro.newsVerdict.{key}")),
+                        tone,
+                        text::SM,
+                    )
+                });
+                if let Some(sum) = &v.summary {
+                    kit::para(ui, txt(sum, text::BASE, p.fg));
+                }
+            }
+            let events: Vec<_> = c
+                .and_then(|c| c.calendar.as_ref())
+                .map(|cal| cal.events.iter().take(10).collect())
+                .unwrap_or_default();
+            if !events.is_empty() {
+                kit::sub(ui, p, t("macro.calendar"));
+                for e in &events {
                     ui.horizontal_wrapped(|ui| {
-                        let title = s.title.clone().unwrap_or_default();
-                        match &s.url {
-                            Some(url) => {
-                                ui.hyperlink_to(txt(title, text::MD, p.accent), url);
-                            }
-                            None => {
-                                ui.label(txt(title, text::MD, p.fg));
-                            }
-                        }
-                        if let Some(src) = &s.source {
-                            ui.label(txt(format!("— {src}"), text::MD, p.fg_muted));
+                        ui.label(
+                            egui::RichText::new(e.time_eet.clone().unwrap_or_default())
+                                .monospace()
+                                .color(p.fg_muted),
+                        );
+                        ui.add(
+                            egui::Label::new(txt(
+                                e.title.clone().unwrap_or_default(),
+                                text::MD,
+                                p.fg,
+                            ))
+                            .wrap(),
+                        );
+                        if e.impact.as_deref() == Some("High") {
+                            kit::chip(ui, p, t("macro.important"), Tone::Bad, text::XS);
                         }
                     });
                 }
             }
+            if let Some(h) = c.and_then(|c| c.headlines.as_ref()) {
+                let n = |x: Option<f64>| {
+                    x.map_or_else(|| "—".to_owned(), desk_core::js::number_to_string)
+                };
+                let tone = h.tone_sum.map_or_else(|| "—".to_owned(), signed_num);
+                let mut line = tf(
+                    "desk.headlines",
+                    &[("n", &n(h.count)), ("r", &n(h.relevant)), ("tone", &tone)],
+                );
+                let tags: Vec<String> = h
+                    .tags
+                    .iter()
+                    .take(5)
+                    .map(|(k, v)| format!("{k} {}", desk_core::js::number_to_string(*v)))
+                    .collect();
+                if !tags.is_empty() {
+                    line.push_str(&format!(" · {}", tags.join(", ")));
+                }
+                kit::para(ui, txt(line, text::SM, p.fg_muted));
+            }
+            let more = v.filter(|v| {
+                !v.reasons.is_empty()
+                    || !v.risks.is_empty()
+                    || !v.watch.is_empty()
+                    || !v.sources.is_empty()
+                    || !v.scale_judgment.is_empty()
+            });
+            if let Some(v) = more {
+                CollapsingHeader::new(txt(t("desk.newsMore"), text::MD, p.fg_muted))
+                    .id_salt("news-more")
+                    .default_open(false)
+                    .show_unindented(ui, |ui| news_details(ui, p, v));
+            }
         },
     );
     open
+}
+
+fn news_details(ui: &mut Ui, p: &Palette, v: &MacroVerdict) {
+    list(ui, p, t("macro.reasons"), &v.reasons);
+    list(ui, p, t("macro.risks"), &v.risks);
+    list(ui, p, t("macro.watch"), &v.watch);
+    let judgment: Vec<String> = v
+        .scale_judgment
+        .iter()
+        .map(|j| {
+            let side = if j.side == Some(Side::Long) {
+                "macro.forLong"
+            } else {
+                "macro.forShort"
+            };
+            format!("{}: {}", t(side), j.text.clone().unwrap_or_default())
+        })
+        .collect();
+    list(ui, p, t("macro.judgment"), &judgment);
+    if v.sources.is_empty() {
+        return;
+    }
+    kit::sub(ui, p, t("macro.sources"));
+    for s in &v.sources {
+        ui.horizontal_wrapped(|ui| {
+            let title = s.title.clone().unwrap_or_default();
+            match &s.url {
+                Some(url) => {
+                    ui.hyperlink_to(txt(title, text::MD, p.accent), url);
+                }
+                None => {
+                    ui.label(txt(title, text::MD, p.fg));
+                }
+            }
+            if let Some(src) = &s.source {
+                ui.label(txt(format!("— {src}"), text::MD, p.fg_muted));
+            }
+        });
+    }
+}
+
+/// «Похожие дни» (TZ «Синхрон»): up to three days — what matched, how the
+/// day and the move off the IB ended, how today's arguments did on that day.
+pub fn similar_card(ui: &mut Ui, p: &Palette, days: &[SimilarDay]) {
+    if days.is_empty() {
+        return;
+    }
+    kit::card(
+        ui,
+        p,
+        Some(t("desk.similar.title")),
+        CardKind::Plain,
+        |ui| {
+            for (k, d) in days.iter().take(3).enumerate() {
+                if k > 0 {
+                    ui.separator();
+                }
+                ui.spacing_mut().item_spacing.y = space::S1;
+                let date = NaiveDate::parse_from_str(&d.date, "%Y-%m-%d")
+                    .map(super::human_date)
+                    .unwrap_or_else(|_| d.date.clone());
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(bold(date, text::BASE, p.fg));
+                    if let Some(h) = d.args {
+                        hit_badge(ui, p, h);
+                    }
+                });
+                if !d.matched.is_empty() {
+                    kit::para(
+                        ui,
+                        txt(
+                            tf("desk.similar.matched", &[("x", &d.matched)]),
+                            text::MD,
+                            p.fg_muted,
+                        ),
+                    );
+                }
+                let mut moves = Vec::new();
+                if let Some(dir) = &d.day_dir {
+                    let mut x = t(&format!("macro.dir.{dir}")).to_owned();
+                    if let Some(a) = d.day_adr {
+                        x.push_str(&format!(" {} ADR", fmt(Some(a), 1)));
+                    }
+                    moves.push(tf("desk.similar.day", &[("x", &x)]));
+                }
+                if let Some(ib) = &d.ib {
+                    moves.push(tf("desk.similar.ib", &[("x", ib)]));
+                }
+                if !moves.is_empty() {
+                    let c = match d.day_dir.as_deref() {
+                        Some("LONG") => p.ok,
+                        Some("SHORT") => p.err,
+                        _ => p.fg,
+                    };
+                    kit::para(ui, txt(moves.join(" · "), text::MD, c));
+                }
+                if let Some(h) = d.args {
+                    kit::para(
+                        ui,
+                        txt(
+                            tf("desk.similar.args", &[("h", &h.hits), ("n", &h.total)]),
+                            text::SM,
+                            p.fg_muted,
+                        ),
+                    );
+                }
+                if let Some(v) = &d.verdict {
+                    kit::para(
+                        ui,
+                        txt(
+                            tf("desk.similar.verdict", &[("x", v)]),
+                            text::SM,
+                            p.fg_muted,
+                        ),
+                    );
+                }
+            }
+        },
+    );
 }
 
 fn groups_card(ui: &mut Ui, p: &Palette, groups: &desk_core::vault::indexed::Groups) {
@@ -1113,10 +1339,6 @@ fn context_card(ui: &mut Ui, p: &Palette, snap_r: &RegionSnapshot) {
     if c.is_none() && shape.is_none() {
         return;
     }
-    let events: Vec<_> = c
-        .and_then(|c| c.calendar.as_ref())
-        .map(|cal| cal.events.iter().take(10).collect())
-        .unwrap_or_default();
     let markets: Vec<_> = c
         .map(|c| {
             c.markets
@@ -1127,7 +1349,7 @@ fn context_card(ui: &mut Ui, p: &Palette, snap_r: &RegionSnapshot) {
         })
         .unwrap_or_default();
     kit::card(ui, p, Some(t("macro.context")), CardKind::Plain, |ui| {
-        kit::columns(ui, 3, |col, ui| {
+        kit::columns(ui, 2, |col, ui| {
             if let (0, Some(sh)) = (col, shape) {
                 kit::sub(ui, p, t("macro.dayShape"));
                 if let Some(s) = &sh.summary {
@@ -1151,30 +1373,7 @@ fn context_card(ui: &mut Ui, p: &Palette, snap_r: &RegionSnapshot) {
                     });
                 }
             }
-            if col == 1 && !events.is_empty() {
-                kit::sub(ui, p, t("macro.calendar"));
-                for e in &events {
-                    ui.horizontal_wrapped(|ui| {
-                        ui.label(
-                            egui::RichText::new(e.time_eet.clone().unwrap_or_default())
-                                .monospace()
-                                .color(p.fg),
-                        );
-                        ui.add(
-                            egui::Label::new(txt(
-                                e.title.clone().unwrap_or_default(),
-                                text::MD,
-                                p.fg,
-                            ))
-                            .wrap(),
-                        );
-                        if e.impact.as_deref() == Some("High") {
-                            ui.label(bold(t("macro.important"), text::XS, p.err));
-                        }
-                    });
-                }
-            }
-            if col == 2 && !markets.is_empty() {
+            if col == 1 && !markets.is_empty() {
                 kit::sub(ui, p, t("macro.markets"));
                 for m in &markets {
                     let ch = m.chg_pct.unwrap_or(0.0);
