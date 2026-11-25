@@ -374,7 +374,7 @@ fn sample_similar(date: &str) -> desk_core::vault::Similar {
             {"date": "2026-09-08", "score": 0.84, "match": ["пила", "ночь ≥ 0.8 ADR", "стрелка −41"],
              "day_move": {"side": "SHORT", "pct_adr": -0.62}, "ib_move": {"side": "SHORT", "reach": "IB1"},
              "verdict": "план дошёл до IB1"},
-            {"date": "2026-09-14", "score": 0.71, "match": ["сняли максимум ночи", "новости за шорт"],
+            {"date": "2026-08-27", "score": 0.71, "match": ["сняли максимум ночи", "новости за шорт"],
              "day_move": {"side": "FLAT", "pct_adr": 0.18}, "ib_move": {"side": "LONG", "reach": "IB"}},
             {"date": "2026-08-13", "score": 0.66, "match": ["понедельник после тренда", "VIX растёт"],
              "day_move": {"side": "SHORT", "pct_adr": -0.91}, "ib_move": {"side": "SHORT", "reach": "IB2"}}
