@@ -87,6 +87,7 @@ pub fn day_files(date: NaiveDate) -> Vec<String> {
             StateKind::HumanRead(r),
             StateKind::Remember(r),
             StateKind::Drift(r),
+            StateKind::Similar(r),
             StateKind::ShotsReview(r),
         ] {
             v.push(names::state_path(&names::state_file(k, date)));
@@ -129,6 +130,10 @@ pub struct RegionSnapshot {
     pub remember: Option<Remember>,
     /// «Что изменилось» — `None` when the skill wrote nothing; drawn only with signals.
     pub drift: Option<Drift>,
+    /// «Похожие дни» — `None` when the skill wrote nothing. Not in the TS day:
+    /// left out of the JSON when absent, so the golden dumps stay identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub similar: Option<Similar>,
 }
 
 /// The 20:00 pictures of each window: IB, IB1/IB2, the first break, the morning levels.
@@ -225,6 +230,7 @@ fn region_snapshot(input: &DayInput, date: NaiveDate, ds: &str, region: Region) 
     let human = input.state_json(StateKind::HumanRead(region), date);
     let remember = input.state_json(StateKind::Remember(region), date);
     let drift = input.state_json(StateKind::Drift(region), date);
+    let similar = input.state_json(StateKind::Similar(region), date);
     // `note` copies the verdict into the collect file too; the verdict file is
     // the one the agent writes, so it wins when both exist.
     let verdict = match verdict_file.filter(|v| !v.is_null()) {
@@ -246,6 +252,7 @@ fn region_snapshot(input: &DayInput, date: NaiveDate, ds: &str, region: Region) 
         // Note 23 §2–3: what the skill picked out of its memory for this window. Read-only here.
         remember: normalize::normalize_remember(remember.as_ref().unwrap_or(&null), ds, region),
         drift: normalize::normalize_drift(drift.as_ref().unwrap_or(&null), ds, region),
+        similar: normalize::normalize_similar(similar.as_ref().unwrap_or(&null), ds, region),
     }
 }
 
@@ -772,7 +779,7 @@ mod tests {
     fn day_files_cover_what_load_day_reads() {
         let date = d("2026-10-08");
         let files = day_files(date);
-        assert_eq!(files.len(), 27);
+        assert_eq!(files.len(), 29);
         let mut v = vault();
         // Drop everything day_files does not name: the day must not change.
         v.files.retain(|k, _| files.contains(k));
@@ -792,6 +799,30 @@ mod tests {
             assert_eq!(back, day, "{date}");
             assert_eq!(serde_json::to_string(&back).unwrap(), text);
         }
+    }
+
+    #[test]
+    fn similar_days_join_the_day_only_when_written() {
+        let date = d("2026-10-12");
+        let mut v = DayInput::new();
+        v.insert(
+            names::state_path(&names::state_file(StateKind::Similar(Region::Us), date)),
+            json!({"days": [{"date": "2026-09-14", "score": 0.8}]}).to_string(),
+        );
+        let day = load_day(&v, date);
+        assert!(day.eu.similar.is_none());
+        assert_eq!(day.us.similar.as_ref().unwrap().days[0].date, "2026-09-14");
+        let j = serde_json::to_value(&day).unwrap();
+        assert!(
+            j["eu"].get("similar").is_none(),
+            "absent stays out of the JSON"
+        );
+        assert_eq!(j["us"]["similar"]["days"][0]["score"], json!(0.8));
+        let back: Day = serde_json::from_value(j).unwrap();
+        assert_eq!(back, day);
+        assert!(
+            day_files(date).contains(&"indices-kb/state/similar_2026-10-12_eu.json".to_string())
+        );
     }
 
     #[test]

@@ -2,9 +2,11 @@
 //! `journal/scale_factor_scores.csv`, plus `fmt` for numbers on screen.
 
 use crate::js;
+use crate::names::parse_date;
 use crate::vault::{FactorStat, Region};
 use chrono::NaiveDate;
-use std::collections::BTreeMap;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// One CSV row: header → cell (a missing trailing cell is `""`).
 pub type CsvRow = BTreeMap<String, String>;
@@ -128,6 +130,94 @@ fn epoch() -> NaiveDate {
     NaiveDate::default() // 1970-01-01
 }
 
+/// The default look-back of [`factor_hit_rate`], in trading days.
+pub const HIT_RATE_DAYS: usize = 20;
+
+/// How often one argument (factor) called the window right.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HitRate {
+    pub hits: u64,
+    pub total: u64,
+}
+
+impl HitRate {
+    /// hits / total (never NaN: a `HitRate` always has `total > 0`).
+    pub fn rate(&self) -> f64 {
+        self.hits as f64 / self.total as f64
+    }
+}
+
+/// The calendar date of a row, when it is a real `YYYY-MM-DD`.
+fn row_date(r: &CsvRow) -> Option<NaiveDate> {
+    r.get("date").and_then(|d| parse_date(d).ok())
+}
+
+fn row_is(r: &CsvRow, id: &str, region: Region) -> bool {
+    r.get("factor").map(String::as_str) == Some(id)
+        && r.get("region").map(String::as_str) == Some(region.as_str())
+}
+
+/// Count verdict rows the way `factorStats` does: `hit` is `1` or `0`; an
+/// empty `hit` (the factor was silent, or the window stayed flat) is no verdict.
+fn count<'a>(rows: impl Iterator<Item = &'a CsvRow>) -> Option<HitRate> {
+    let mut h = HitRate { hits: 0, total: 0 };
+    for r in rows {
+        match r.get("hit").map(String::as_str) {
+            Some("1") => {
+                h.hits += 1;
+                h.total += 1;
+            }
+            Some("0") => h.total += 1,
+            _ => {}
+        }
+    }
+    (h.total > 0).then_some(h)
+}
+
+/// The hit rate of factor `id` in `region` over the last `n` trading days
+/// strictly before `before` — for the morning screen, where today has no
+/// verdict yet. A trading day is a date the CSV has any row for in that
+/// region (a day the factor was silent still counts as a day), so «20 days»
+/// means the last 20 reviewed days, not 20 verdicts. Rows whose date is not a
+/// real ISO date are skipped: they cannot be placed in time (`factorStats`,
+/// which only asks «within 30 days», counts them). `None` when the factor
+/// gave no verdict in that span.
+pub fn factor_hit_rate(
+    rows: &[CsvRow],
+    id: &str,
+    region: Region,
+    before: NaiveDate,
+    n: usize,
+) -> Option<HitRate> {
+    let days: BTreeSet<NaiveDate> = rows
+        .iter()
+        .filter(|r| r.get("region").map(String::as_str) == Some(region.as_str()))
+        .filter_map(row_date)
+        .filter(|d| *d < before)
+        .collect();
+    let span: BTreeSet<NaiveDate> = days.into_iter().rev().take(n).collect();
+    count(
+        rows.iter()
+            .filter(|r| row_is(r, id, region) && row_date(r).is_some_and(|d| span.contains(&d))),
+    )
+}
+
+/// The hit rate of factor `id` in `region` on the given dates only (the
+/// similar days of «Похожие дни»). Same counting as [`factor_hit_rate`];
+/// `None` when the factor gave no verdict on any of them.
+pub fn factor_hit_rate_on(
+    rows: &[CsvRow],
+    id: &str,
+    region: Region,
+    dates: &[NaiveDate],
+) -> Option<HitRate> {
+    let set: BTreeSet<NaiveDate> = dates.iter().copied().collect();
+    count(
+        rows.iter()
+            .filter(|r| row_is(r, id, region) && row_date(r).is_some_and(|d| set.contains(&d))),
+    )
+}
+
 /// `fmt`: a number for the screen, `—` for a missing one; never panics.
 pub fn fmt(x: Option<f64>, digits: usize) -> String {
     match x {
@@ -245,5 +335,83 @@ mod tests {
         assert_eq!(fmt(Some(1.234), 2), "1.23");
         assert_eq!(fmt(Some(f64::NAN), 1), "—");
         assert_eq!(fmt(Some(-0.05), 1), "-0.1");
+    }
+
+    const SCORES: &str = "date,region,factor,group,share,side,strength,dir,hit
+2026-10-01,eu,bias_a,g,12,SHORT,1,SHORT,1
+2026-10-02,eu,bias_a,g,12,LONG,1,SHORT,0
+2026-10-02,eu,room,g,12,LONG,1,SHORT,1
+2026-10-05,eu,room,g,12,,0,SHORT,
+2026-10-06,eu,bias_a,g,12,,0,FLAT,
+2026-10-07,eu,bias_a,g,12,SHORT,1,SHORT,1
+2026-10-08,eu,bias_a,g,12,SHORT,1,SHORT,1
+2026-10-08,us,bias_a,g,12,SHORT,1,LONG,0
+nope,eu,bias_a,g,12,SHORT,1,SHORT,0
+2026-10-12,eu,bias_a,g,12,SHORT,1,SHORT,0
+";
+
+    #[test]
+    fn hit_rate_looks_back_n_trading_days_before_the_date() {
+        let rows = parse_csv(SCORES);
+        let h = |n| factor_hit_rate(&rows, "bias_a", Region::Eu, d("2026-10-12"), n);
+        // Before 12.10 (the 12th itself excluded): 01 ✓, 02 ✗, 06 silent, 07 ✓, 08 ✓.
+        assert_eq!(h(20), Some(HitRate { hits: 3, total: 4 }));
+        // The last 3 trading days of Europe are 06, 07, 08 (05 has only a silent room row, still a day).
+        assert_eq!(h(3), Some(HitRate { hits: 2, total: 2 }));
+        // 4 days: 05, 06, 07, 08.
+        assert_eq!(h(4), Some(HitRate { hits: 2, total: 2 }));
+        assert_eq!(h(5), Some(HitRate { hits: 2, total: 3 }));
+        assert_eq!(h(0), None);
+        assert!((h(20).unwrap().rate() - 0.75).abs() < 1e-12);
+        // The US has its own days and verdicts.
+        assert_eq!(
+            factor_hit_rate(&rows, "bias_a", Region::Us, d("2026-10-12"), 20),
+            Some(HitRate { hits: 0, total: 1 })
+        );
+        // Silent only → no verdict at all.
+        assert_eq!(
+            factor_hit_rate(&rows, "room", Region::Eu, d("2026-10-03"), 20),
+            Some(HitRate { hits: 1, total: 1 })
+        );
+        assert_eq!(
+            factor_hit_rate(&rows, "room", Region::Eu, d("2026-10-06"), 1),
+            None
+        );
+        assert_eq!(
+            factor_hit_rate(&rows, "nope", Region::Eu, d("2026-10-12"), 20),
+            None
+        );
+        assert_eq!(
+            factor_hit_rate(&rows, "bias_a", Region::Eu, d("2026-10-01"), 20),
+            None
+        );
+        assert_eq!(
+            factor_hit_rate(&[], "bias_a", Region::Eu, d("2026-10-12"), HIT_RATE_DAYS),
+            None
+        );
+    }
+
+    #[test]
+    fn hit_rate_on_the_similar_days_only() {
+        let rows = parse_csv(SCORES);
+        let on = |ds: &[&str]| {
+            let dates: Vec<NaiveDate> = ds.iter().map(|x| d(x)).collect();
+            factor_hit_rate_on(&rows, "bias_a", Region::Eu, &dates)
+        };
+        assert_eq!(
+            on(&["2026-10-01", "2026-10-02", "2026-10-08"]),
+            Some(HitRate { hits: 2, total: 3 })
+        );
+        assert_eq!(on(&["2026-10-06"]), None, "silent that day");
+        assert_eq!(
+            on(&["2026-10-12", "2026-10-12"]),
+            Some(HitRate { hits: 0, total: 1 }),
+            "a date listed twice counts once"
+        );
+        assert_eq!(on(&[]), None);
+        assert_eq!(
+            serde_json::to_value(on(&["2026-10-01"])).unwrap(),
+            serde_json::json!({"hits": 1, "total": 1})
+        );
     }
 }

@@ -14,6 +14,8 @@ use serde_json::{Map, Value};
 pub const REMEMBER_MAX: usize = 3;
 /// «Идеи на проверке» shows at most this many ideas.
 pub const IDEAS_MAX: usize = 5;
+/// «Похожие дни» keeps at most this many days.
+pub const SIMILAR_MAX: usize = 5;
 /// `lessons.md` lines kept for the day, newest first.
 pub const LESSONS_TAIL: usize = 15;
 
@@ -270,6 +272,59 @@ pub fn visible_ideas(ideas: Option<&Ideas>) -> Vec<&Idea> {
     v.sort_by(|a, b| js::locale_compare(&b.date, &a.date));
     v.truncate(IDEAS_MAX);
     v
+}
+
+/// `similar_<D>_<region>.json` (no TS twin: a new skill file, read with the
+/// same tolerance). `None` without a `days` array. A day without a string
+/// `date` is dropped; unknown sides / reaches are `None`; a score is clamped
+/// to 0..1; `factors_hit` keeps only boolean entries; at most [`SIMILAR_MAX`].
+pub fn normalize_similar(raw: &Value, date: &str, region: Region) -> Option<Similar> {
+    let r = raw.as_object()?;
+    let days = r.get("days")?.as_array()?;
+    let side = |v: Option<&Value>| as_str(v).and_then(MoveSide::parse);
+    let days = days
+        .iter()
+        .filter_map(Value::as_object)
+        .filter_map(|x| {
+            let d = as_str(x.get("date"))
+                .map(js::trim)
+                .filter(|d| !d.is_empty())?;
+            let day_move = rec(x.get("day_move")).map(|m| DayMove {
+                side: side(m.get("side")),
+                pct_adr: num_or_null(m.get("pct_adr")),
+            });
+            let ib_move = rec(x.get("ib_move")).map(|m| IbMove {
+                side: side(m.get("side")),
+                reach: as_str(m.get("reach")).and_then(IbReach::parse),
+            });
+            let factors_hit = rec(x.get("factors_hit"))
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, v)| v.as_bool().map(|b| (k.clone(), b)))
+                        .collect()
+                })
+                .unwrap_or_default();
+            Some(SimilarDay {
+                date: d.to_owned(),
+                score: num_or_null(x.get("score")).map(|s| s.clamp(0.0, 1.0)),
+                matched: strs(x.get("match")),
+                day_move,
+                ib_move,
+                verdict: as_str(x.get("verdict"))
+                    .map(js::trim)
+                    .filter(|v| !v.is_empty())
+                    .map(str::to_owned),
+                factors_hit,
+            })
+        })
+        .take(SIMILAR_MAX)
+        .collect();
+    Some(Similar {
+        date: string_or(r.get("date"), date),
+        region: region_or(r.get("region"), region),
+        asof: str_of(r.get("asof")),
+        days,
+    })
 }
 
 // ---------------------------------------------------------------- chart screenshots
@@ -1064,5 +1119,87 @@ mod tests {
         );
         assert!(lessons_tail("", 15).is_empty());
         assert_eq!(lessons_tail("- x\n- y\n", 0), ["y", "x"]);
+    }
+
+    // ---- «Похожие дни» (new file, no TS twin)
+
+    #[test]
+    fn similar_days_are_read_with_the_usual_tolerance() {
+        let s = normalize_similar(
+            &json!({
+                "date": D, "region": "us", "asof": "2026-10-12 08:30",
+                "days": [
+                    {"date": "2026-09-14", "score": 0.82, "match": ["гэп вниз 0.3 ADR", "", 5, " пила "],
+                     "day_move": {"side": "SHORT", "pct_adr": -0.42}, "ib_move": {"side": "SHORT", "reach": "IB1"},
+                     "verdict": "  план сработал ", "factors_hit": {"bias_a": true, "room": false, "odd": "yes"}},
+                    {"date": "2026-09-01", "score": 1.7, "day_move": {"side": "UP"}, "ib_move": {"reach": "none"}, "verdict": "  "},
+                    {"score": 0.5},
+                    {"date": 20260901},
+                    "junk",
+                    {"date": "2026-08-01", "score": "x", "day_move": 3},
+                    {"date": "a"}, {"date": "b"}, {"date": "c"}
+                ]
+            }),
+            D,
+            Region::Eu,
+        )
+        .unwrap();
+        assert_eq!(s.region, Region::Us);
+        assert_eq!(
+            s.days.iter().map(|d| d.date.as_str()).collect::<Vec<_>>(),
+            ["2026-09-14", "2026-09-01", "2026-08-01", "a", "b"]
+        );
+        let first = &s.days[0];
+        assert_eq!(first.matched, ["гэп вниз 0.3 ADR", "пила"]);
+        assert_eq!(
+            first.day_move,
+            Some(DayMove {
+                side: Some(MoveSide::Short),
+                pct_adr: Some(-0.42)
+            })
+        );
+        assert_eq!(
+            first.ib_move,
+            Some(IbMove {
+                side: Some(MoveSide::Short),
+                reach: Some(IbReach::Ib1)
+            })
+        );
+        assert_eq!(first.verdict.as_deref(), Some("план сработал"));
+        assert_eq!(first.factors_hit.len(), 2);
+        assert_eq!(first.factors_hit.get("room"), Some(&false));
+        let second = &s.days[1];
+        assert_eq!(second.score, Some(1.0));
+        assert_eq!(second.day_move.as_ref().unwrap().side, None);
+        assert_eq!(
+            second.ib_move.as_ref().unwrap().reach,
+            Some(IbReach::NoReach)
+        );
+        assert_eq!(second.verdict, None);
+        assert_eq!((s.days[2].score, &s.days[2].day_move), (None, &None));
+        assert_eq!(
+            serde_json::to_value(first).unwrap(),
+            json!({"date": "2026-09-14", "score": 0.82, "match": ["гэп вниз 0.3 ADR", "пила"],
+                   "day_move": {"side": "SHORT", "pct_adr": -0.42}, "ib_move": {"side": "SHORT", "reach": "IB1"},
+                   "verdict": "план сработал", "factors_hit": {"bias_a": true, "room": false}})
+        );
+        let back: Similar = serde_json::from_value(serde_json::to_value(&s).unwrap()).unwrap();
+        assert_eq!(back, s);
+    }
+
+    #[test]
+    fn similar_without_days_is_not_a_file() {
+        assert_eq!(normalize_similar(&json!({"date": D}), D, Region::Eu), None);
+        assert_eq!(
+            normalize_similar(&json!({"days": "x"}), D, Region::Eu),
+            None
+        );
+        assert_eq!(normalize_similar(&json!([]), D, Region::Eu), None);
+        assert_eq!(normalize_similar(&Value::Null, D, Region::Eu), None);
+        let e = normalize_similar(&json!({"days": []}), D, Region::Us).unwrap();
+        assert_eq!(
+            (e.date.as_str(), e.region, e.asof.as_str(), e.days.len()),
+            (D, Region::Us, "", 0)
+        );
     }
 }
