@@ -9,3 +9,6 @@ pub mod i18n;
 pub mod mock;
 pub mod perf;
 pub mod theme;
+
+#[cfg(test)]
+mod snapshots;
