@@ -6,8 +6,48 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[lib]
+# `cargo bench -- <criterion flags>` would hand them to libtest too.
+bench = false
+
 [dependencies]
 desk-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+# No rayon, no plotters: the benches must build fast on a laptop and in CI,
+# and the HTML reports are not what we read (docs/rust/PERF.md is).
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+[features]
+# Flip on once desk-core exposes `day` (docs/rust/CONTRACTS.md): the day-load
+# bench and perf-sample then time the real parser instead of the serde_json
+# lower bound. See src/day.rs → `HOOK(desk-core)`.
+core-day = []
+
+[[bin]]
+name = "gen-vault"
+bench = false
+
+[[bin]]
+name = "fake-claude"
+bench = false
+
+[[bin]]
+name = "slow-writer"
+bench = false
+
+[[bin]]
+name = "perf-sample"
+bench = false
+
+[[bench]]
+name = "day_load"
+harness = false
+
+[[bench]]
+name = "stream_parse"
+harness = false
