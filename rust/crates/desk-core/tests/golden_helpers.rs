@@ -59,7 +59,7 @@ mod api {
     // ------------------------------------------------ A. CONTRACTS.md
 
     fn zones_cfg(neutral: f64, strong: f64) -> desk_core::zones::Zones {
-        desk_core::zones::Zones { neutral, strong }
+        desk_core::zones::Zones::new(neutral, strong)
     }
 
     pub fn zone_of(needle: f64, neutral: f64, strong: f64) -> String {
@@ -70,7 +70,7 @@ mod api {
     }
 
     pub fn clamp_needle(n: f64) -> f64 {
-        desk_core::gauge::clamp_needle(n)
+        desk_core::zones::clamp_needle(n)
     }
 
     /// (key, from, to) per segment, left to right.
@@ -110,40 +110,55 @@ mod api {
 
     /// Rows of the day's factor statistics, serialized like `Day.stats`.
     pub fn factor_stats(csv: &str, d: &str, days: u32) -> Value {
-        json(desk_core::stats::factor_stats(csv, date(d), days))
+        let rows = desk_core::stats::parse_csv(csv);
+        json(desk_core::stats::factor_stats_rows(
+            &rows,
+            date(d),
+            i64::from(days),
+        ))
     }
 
     /// kind: scale, macro, macro_verdict, shots, shots_review, review, review_agent,
     /// human_read, day_answers, remember, drift, week, ideas, note, review_note.
+    /// desk-core carries the region inside `StateKind`; the dateless `ideas.json`
+    /// and the two notes (vault-relative paths) have functions of their own.
     pub fn state_file(kind: &str, d: Option<&str>, r: Option<&str>) -> String {
-        use desk_core::names::StateKind as K;
+        use desk_core::names::{self as n, StateKind as K};
+        let day = || date(d.expect("date for a dated file"));
+        let reg = || region(r.expect("region for a per-window file"));
         let k = match kind {
-            "scale" => K::Scale,
-            "macro" => K::Macro,
-            "macro_verdict" => K::MacroVerdict,
-            "shots" => K::Shots,
-            "shots_review" => K::ShotsReview,
+            "ideas" => return n::IDEAS_FILE.to_owned(),
+            "note" => return n::region_note(day(), reg()),
+            "review_note" => return n::review_note(day()),
+            "scale" => K::Scale(reg()),
+            "macro" => K::Macro(reg()),
+            "macro_verdict" => K::Verdict(reg()),
+            "shots" => K::Shots(reg()),
+            "shots_review" => K::ShotsReview(reg()),
+            "human_read" => K::HumanRead(reg()),
+            "remember" => K::Remember(reg()),
+            "drift" => K::Drift(reg()),
             "review" => K::Review,
             "review_agent" => K::ReviewAgent,
-            "human_read" => K::HumanRead,
             "day_answers" => K::DayAnswers,
-            "remember" => K::Remember,
-            "drift" => K::Drift,
             "week" => K::Week,
-            "ideas" => K::Ideas,
-            "note" => K::Note,
-            "review_note" => K::ReviewNote,
             other => panic!("kind {other}"),
         };
-        desk_core::names::state_file(k, d.map(date), r.map(region))
+        n::state_file(k, day())
     }
 
+    /// desk-core answers with the date as written (as TS does); the NaiveDate
+    /// view of it — what a caller can open — keeps only real calendar dates.
     pub fn date_of_state_file(name: &str) -> Option<String> {
-        desk_core::names::date_of_state_file(name).map(|d| d.format("%Y-%m-%d").to_string())
+        desk_core::names::date_of_state_file(name)
+            .and_then(|d| desk_core::names::parse_date(d).ok())
+            .map(|d| d.format("%Y-%m-%d").to_string())
     }
 
+    /// Same NaiveDate view: `MacroIndex::dates()` over the listed names.
     pub fn list_days(names: &[&str]) -> Vec<String> {
-        desk_core::day::list_days(names)
+        desk_core::day::MacroIndex::new("vault", Some(names.iter().copied()))
+            .dates()
             .into_iter()
             .map(|d| d.format("%Y-%m-%d").to_string())
             .collect()
@@ -152,38 +167,38 @@ mod api {
     /// `normalize*` by its TS name, TS argument order; the answer as JSON (`null` = not this kind of file).
     pub fn normalize(f: &str, args: &[Value]) -> Value {
         use desk_core::normalize as n;
-        let raw = args[0].clone();
+        let raw = &args[0];
         let s = |i: usize| args[i].as_str().expect("string arg");
         match f {
-            "normalizeHumanRead" => json(n::normalize_human_read(raw, date(s(1)), region(s(2)))),
-            "normalizeDayAnswers" => json(n::normalize_day_answers(raw, date(s(1)))),
-            "normalizeRemember" => json(n::normalize_remember(raw, date(s(1)), region(s(2)))),
-            "normalizeDrift" => json(n::normalize_drift(raw, date(s(1)), region(s(2)))),
+            "normalizeHumanRead" => json(n::normalize_human_read(raw, s(1), region(s(2)))),
+            "normalizeDayAnswers" => json(n::normalize_day_answers(raw, s(1))),
+            "normalizeRemember" => json(n::normalize_remember(raw, s(1), region(s(2)))),
+            "normalizeDrift" => json(n::normalize_drift(raw, s(1), region(s(2)))),
             "normalizeWeek" => json(n::normalize_week(raw)),
             "normalizeIdeas" => json(n::normalize_ideas(raw)),
             "normalizeShots" => json(n::normalize_shots(raw, region(s(1)))),
-            "normalizeScale" => json(n::normalize_scale(raw)),
+            // The TS function itself (no «has a result» gate, which sits in regionSnapshot).
+            "normalizeScale" => n::normalize_scale_value(raw),
             // B: visibleIdeas(normalizeIdeas(raw)) → ids
-            "visibleIdeas" => json(
-                n::normalize_ideas(raw)
-                    .map(|i| {
-                        i.visible()
-                            .into_iter()
-                            .map(|x| x.id.clone())
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default(),
-            ),
+            "visibleIdeas" => {
+                let ideas = n::normalize_ideas(raw);
+                json(
+                    n::visible_ideas(ideas.as_ref())
+                        .into_iter()
+                        .map(|x| x.id.clone())
+                        .collect::<Vec<_>>(),
+                )
+            }
             other => panic!("normalize fn {other}"),
         }
     }
 
-    // ------------------------------------------------ B. not placed by CONTRACTS.md yet (guessed)
+    // ------------------------------------------------ B. not placed by CONTRACTS.md yet
 
     /// Kyiv wall clock of an instant: (date, minutes since midnight).
     pub fn kyiv_now(now: DateTime<Utc>) -> (String, u32) {
-        let (d, m) = desk_core::windows::kyiv_now(now);
-        (d.format("%Y-%m-%d").to_string(), m)
+        let k = desk_core::windows::kyiv_now(now);
+        (k.date.format("%Y-%m-%d").to_string(), k.minutes)
     }
 
     pub fn default_window(day: &desk_core::day::Day, now: DateTime<Utc>) -> String {
@@ -196,7 +211,7 @@ mod api {
     }
 
     pub fn lessons_tail(md: &str, n: usize) -> Vec<String> {
-        desk_core::stats::lessons_tail(md, n)
+        desk_core::normalize::lessons_tail(md, n)
     }
 
     pub fn is_shot_path(rel: &str) -> bool {

@@ -554,7 +554,8 @@ pub fn trim_collect(raw: &Value) -> Option<Raw<MacroFile>> {
 }
 
 /// `lessonsTail`: bullet lines of `journal/lessons.md`, newest last in the
-/// file → newest first here, at most `n`.
+/// file → newest first here, at most `n`. Like `slice(-n)` in JS, `n = 0`
+/// means all of them (`slice(-0)` is `slice(0)`).
 pub fn lessons_tail(md: &str, n: usize) -> Vec<String> {
     let bullets: Vec<String> = md
         .split('\n')
@@ -567,7 +568,11 @@ pub fn lessons_tail(md: &str, n: usize) -> Vec<String> {
             (text.len() < rest.len()).then(|| text.to_owned())
         })
         .collect();
-    let skip = bullets.len().saturating_sub(n);
+    let skip = if n == 0 {
+        0
+    } else {
+        bullets.len().saturating_sub(n)
+    };
     bullets.into_iter().skip(skip).rev().collect()
 }
 
@@ -1058,5 +1063,6 @@ mod tests {
             ["второй", "первый"]
         );
         assert!(lessons_tail("", 15).is_empty());
+        assert_eq!(lessons_tail("- x\n- y\n", 0), ["y", "x"]);
     }
 }

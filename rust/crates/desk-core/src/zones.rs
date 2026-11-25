@@ -2,7 +2,7 @@
 //! as `zoneOf` / `zoneSegments` / `clampNeedle` in `src/shared/macro.ts`.
 
 use crate::js;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 
 /// `DEFAULT_ZONES`.
@@ -72,6 +72,16 @@ impl Serialize for Zones {
         m.serialize_field("neutral", &n)?;
         m.serialize_field("strong", &st)?;
         m.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Zones {
+    /// Reads `{"neutral": …, "strong": …}` the way `loadDay` reads the config's `zones`.
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = Value::deserialize(d)?;
+        let mut cfg = serde_json::Map::new();
+        cfg.insert("zones".into(), v);
+        Ok(Zones::from_config(Some(&Value::Object(cfg))))
     }
 }
 
