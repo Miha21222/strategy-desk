@@ -19,9 +19,14 @@
 //! | [`owner`] | `writeHumanRead` / `writeDayAnswers` (pure half: the record and its text) |
 //! | [`js`] | the JavaScript semantics the TS relied on (`String()`, `trim`, `Math.round`, …) |
 
+pub mod gauge;
 pub mod js;
+pub mod names;
 pub mod normalize;
+pub mod shots;
+pub mod stats;
 pub mod vault;
+pub mod zones;
 pub use vault::{HumanSide, Raw, Region, Side};
 
 /// The errors desk-core can report. Reading a day never fails (a broken
