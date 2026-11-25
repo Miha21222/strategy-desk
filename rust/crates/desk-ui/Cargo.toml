@@ -16,7 +16,9 @@ path = "src/lib.rs"
 
 [features]
 default = ["glow"]
-# Exactly one renderer goes into the release binary; see report for sizes.
+# Exactly one renderer goes into the release binary. Measured 2026-11-25
+# (Linux x86_64, release, stripped): glow 7.1 MiB, wgpu 11.3 MiB -> glow.
+# Build the other with `--no-default-features --features wgpu`.
 glow = ["eframe/glow"]
 wgpu = ["eframe/wgpu"]
 
@@ -33,4 +35,4 @@ egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 
 # Working-set size for `--bench-first-frame` (already in the tree via winit).
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_System_ProcessStatus", "Win32_System_Threading"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
