@@ -27,8 +27,9 @@ UI не ждёт ничего на кадре. Он отправляет `Comman
 pub enum Command {
     OpenDay(NaiveDate),
     Today,
-    WriteHumanRead { date: NaiveDate, region: Region, read: HumanRead },
-    WriteDayAnswers { date: NaiveDate, answers: DayAnswers },
+    WriteHumanRead { date: NaiveDate, region: Region, side: HumanSide, before_scale: bool },
+    WriteDayAnswers { date: NaiveDate, regions: RegionAnswers, note: String },
+    LoadShot(String),            // vault-relative; bytes land in Snapshot.shots
     Chat(ChatCommand),          // Send { chat_id, text } | Stop { chat_id } | New { kind }
     CheckStatus,
     LaunchTradingView,
@@ -38,6 +39,8 @@ pub enum Command {
 pub struct Snapshot {           // cheap to clone: Arc inside
     pub day: Option<Arc<desk_core::day::Day>>,
     pub days_index: Arc<Vec<DayMark>>,
+    pub index: Arc<desk_core::day::MacroIndex>,   // carries no-vault / no-state-dir
+    pub shots: Arc<HashMap<String, ShotState>>,   // Ready(LoadedShot) | Refused(reason)
     pub chats: Arc<ChatsView>,
     pub status: Arc<StatusLights>,
     pub tasks: Arc<TasksView>,
@@ -71,3 +74,20 @@ pub enum DriverEvent {
 ## Запись в vault
 
 Ровно два файла владельца (`human_read_<D>_<region>.json`, `day_answers_<D>.json`): временный файл рядом + rename. Больше Desk в vault ничего не пишет.
+
+## Хуки для замеров (QA · перформанс, docs/rust/PERF.md)
+
+| Хук | Где | Что делает |
+| --- | --- | --- |
+| `--bench-first-frame` | desk-ui | одна строка JSON `{"first_frame_ms", "rss_mb"}` после первого кадра, выход 0 |
+| `DESK_FRAME_STATS=1` | desk-ui | p50/p95/p99/max времени кадра в stderr каждые 10 с |
+| `--bench-switch N` | desk-ui | N переключений дня/экрана, `{"switch_ms":[…]}`, выход 0 |
+| `DESK_BENCH_AUTOCHAT=1` | desk-ui | после первого кадра сам отправляет одно сообщение в чат |
+| `DESK_CLAUDE_BIN=<exe>` | desk-app | запускать этот exe вместо `claude` (для `fake-claude`) |
+| `DESK_BENCH_WATCH=1` | desk-app | строка в stderr с `t_unix_ms` на каждый новый `rev` |
+
+## Решения тимлида (25.11)
+
+- Проверка года 1000–9999 для имён файлов владельца переезжает в `desk_core::names`; в desk-app второй копии нет.
+- Метки полосы дней (`DayMark`) пока строит desk-app из `MacroIndex`.
+- Точный отрезок окна США в недели рассинхрона часов: 15:00 / 15:30 / 17:30 по Киеву (как в golden `windows.json`, ответ `tz`).
