@@ -19,15 +19,22 @@
 //! | [`owner`] | `writeHumanRead` / `writeDayAnswers` (pure half: the record and its text) |
 //! | [`js`] | the JavaScript semantics the TS relied on (`String()`, `trim`, `Math.round`, …) |
 
+pub mod day;
 pub mod gauge;
 pub mod js;
 pub mod names;
 pub mod normalize;
+pub mod owner;
+pub mod prompts;
 pub mod shots;
 pub mod stats;
 pub mod vault;
+pub mod windows;
 pub mod zones;
+
+pub use day::{list_days, load_day, Day, DayInput, MacroIndex, RegionSnapshot};
 pub use vault::{HumanSide, Raw, Region, Side};
+pub use windows::{window_state, WindowId, WindowState};
 
 /// The errors desk-core can report. Reading a day never fails (a broken
 /// file is a missing file, as in the TS); these are for the callers that
