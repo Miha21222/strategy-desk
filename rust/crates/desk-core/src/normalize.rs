@@ -275,20 +275,26 @@ pub fn visible_ideas(ideas: Option<&Ideas>) -> Vec<&Idea> {
 }
 
 /// `similar_<D>_<region>.json` (no TS twin: a new skill file, read with the
-/// same tolerance). `None` without a `days` array. A day without a string
-/// `date` is dropped; unknown sides / reaches are `None`; a score is clamped
+/// same tolerance). `None` without a `days` array. A similar day must lie
+/// strictly before the file's date (its `date`, else the day being loaded):
+/// a day without a real ISO date, or on / after that date, is dropped; unknown sides / reaches are `None`; a score is clamped
 /// to 0..1; `factors_hit` keeps only boolean entries; at most [`SIMILAR_MAX`].
 pub fn normalize_similar(raw: &Value, date: &str, region: Region) -> Option<Similar> {
     let r = raw.as_object()?;
     let days = r.get("days")?.as_array()?;
     let side = |v: Option<&Value>| as_str(v).and_then(MoveSide::parse);
+    let file_date = string_or(r.get("date"), date);
+    // No checkable date for the file itself → no day can be shown as «before» it.
+    let before = crate::names::parse_date(&file_date)
+        .or_else(|_| crate::names::parse_date(date))
+        .ok();
     let days = days
         .iter()
         .filter_map(Value::as_object)
         .filter_map(|x| {
-            let d = as_str(x.get("date"))
-                .map(js::trim)
-                .filter(|d| !d.is_empty())?;
+            let d = as_str(x.get("date")).map(js::trim).filter(|d| {
+                crate::names::parse_date(d).is_ok_and(|d| before.is_some_and(|b| d < b))
+            })?;
             let day_move = rec(x.get("day_move")).map(|m| DayMove {
                 side: side(m.get("side")),
                 pct_adr: num_or_null(m.get("pct_adr")),
@@ -320,7 +326,7 @@ pub fn normalize_similar(raw: &Value, date: &str, region: Region) -> Option<Simi
         .take(SIMILAR_MAX)
         .collect();
     Some(Similar {
-        date: string_or(r.get("date"), date),
+        date: file_date,
         region: region_or(r.get("region"), region),
         asof: str_of(r.get("asof")),
         days,
@@ -1137,7 +1143,7 @@ mod tests {
                     {"date": 20260901},
                     "junk",
                     {"date": "2026-08-01", "score": "x", "day_move": 3},
-                    {"date": "a"}, {"date": "b"}, {"date": "c"}
+                    {"date": "2026-07-01"}, {"date": "2026-06-01"}, {"date": "2026-05-01"}
                 ]
             }),
             D,
@@ -1147,7 +1153,13 @@ mod tests {
         assert_eq!(s.region, Region::Us);
         assert_eq!(
             s.days.iter().map(|d| d.date.as_str()).collect::<Vec<_>>(),
-            ["2026-09-14", "2026-09-01", "2026-08-01", "a", "b"]
+            [
+                "2026-09-14",
+                "2026-09-01",
+                "2026-08-01",
+                "2026-07-01",
+                "2026-06-01"
+            ]
         );
         let first = &s.days[0];
         assert_eq!(first.matched, ["гэп вниз 0.3 ADR", "пила"]);
@@ -1185,6 +1197,71 @@ mod tests {
         );
         let back: Similar = serde_json::from_value(serde_json::to_value(&s).unwrap()).unwrap();
         assert_eq!(back, s);
+    }
+
+    #[test]
+    fn similar_days_lie_strictly_before_the_file_date() {
+        let mk = |file: Value, days: &[&str]| {
+            let ds: Vec<Value> = days.iter().map(|d| json!({"date": d})).collect();
+            let mut raw = json!({"days": ds});
+            if !file.is_null() {
+                raw["date"] = file;
+            }
+            normalize_similar(&raw, "2026-09-14", Region::Eu)
+                .unwrap()
+                .days
+                .into_iter()
+                .map(|d| d.date)
+                .collect::<Vec<_>>()
+        };
+        let days = [
+            "2026-09-14",
+            "2026-09-15",
+            "2026-09-13",
+            "14.09.2026",
+            "2026-02-30",
+            "",
+            "2026-09-01",
+            "2026-08-31",
+            "2026-08-30",
+            "2026-08-29",
+            "2026-08-28",
+            "2026-08-27",
+        ];
+        // The same date and later ones go, so do unparsable ones; then the cap of 5.
+        assert_eq!(
+            mk(json!("2026-09-14"), &days),
+            [
+                "2026-09-13",
+                "2026-09-01",
+                "2026-08-31",
+                "2026-08-30",
+                "2026-08-29"
+            ]
+        );
+        // No date in the file: the day being loaded is the bound.
+        assert_eq!(
+            mk(Value::Null, &["2026-09-14", "2026-09-10"]),
+            ["2026-09-10"]
+        );
+        // A junk file date falls back to the day being loaded too.
+        assert_eq!(
+            mk(json!("сегодня"), &["2026-09-14", "2026-09-10"]),
+            ["2026-09-10"]
+        );
+        // The file's own date wins over the day being loaded when both are real.
+        assert_eq!(
+            mk(json!("2026-09-11"), &["2026-09-12", "2026-09-10"]),
+            ["2026-09-10"]
+        );
+        // Nothing to compare against at all → nothing shown.
+        let none = normalize_similar(
+            &json!({"date": "x", "days": [{"date": "2026-01-01"}]}),
+            "y",
+            Region::Eu,
+        )
+        .unwrap();
+        assert!(none.days.is_empty());
     }
 
     #[test]
