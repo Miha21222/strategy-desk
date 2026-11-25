@@ -173,7 +173,7 @@ impl Loop {
                 }
                 Err(RecvTimeoutError::Timeout) => {}
             }
-            self.flush_if_due();
+            self.flush_at(Instant::now());
         }
     }
 
@@ -245,7 +245,7 @@ impl Loop {
             .filter(|n| interesting(n))
             .collect();
         for n in names {
-            self.add(n);
+            self.add(n, Instant::now());
         }
     }
 
@@ -279,24 +279,23 @@ impl Loop {
             let in_dir = p.parent().is_some_and(|d| self.is_state_dir(d));
             if let (true, Some(name)) = (in_dir, p.file_name().and_then(|n| n.to_str())) {
                 if interesting(name) {
-                    self.add(name.to_string());
+                    self.add(name.to_string(), Instant::now());
                 }
             }
         }
     }
 
-    fn add(&mut self, name: String) {
-        let now = Instant::now();
+    /// `now` is passed in so the debounce rule is testable without a clock.
+    fn add(&mut self, name: String, now: Instant) {
         self.pending.insert(name);
         self.first.get_or_insert(now);
         self.last = Some(now);
     }
 
-    fn flush_if_due(&mut self) {
+    fn flush_at(&mut self, now: Instant) {
         let (Some(first), Some(last)) = (self.first, self.last) else {
             return;
         };
-        let now = Instant::now();
         if now >= last + self.opts.debounce || now >= first + self.opts.max_wait {
             self.first = None;
             self.last = None;
@@ -351,28 +350,83 @@ mod tests {
         seen
     }
 
+    /// The debounce rule itself, on a fake clock: a burst is one set, the
+    /// quiet period restarts on every event, and `max_wait` caps a burst.
     #[test]
-    fn a_burst_becomes_one_set_without_temp_files() {
-        let vault = tempfile::tempdir().unwrap();
-        let dir = state_dir(vault.path());
-        fs::create_dir_all(&dir).unwrap();
-        let (_w, rx) = start(vault.path());
-        std::thread::sleep(Duration::from_millis(300)); // armed
-        fs::write(dir.join("scale_2026-11-25_eu.json"), b"{}").unwrap();
-        std::thread::sleep(Duration::from_millis(30));
-        crate::vault_write::atomic_write(&dir, "macro_2026-11-25_eu.json", b"{}").unwrap();
-        fs::write(dir.join("junk.tmp"), b"x").unwrap();
-        let first = rx.recv_timeout(T).unwrap();
+    fn debounce_coalesces_a_burst_and_caps_a_long_one() {
+        let (events, _) = mpsc::channel();
+        let (tx, rx) = mpsc::channel();
+        let opts = WatchOptions {
+            debounce: Duration::from_millis(300),
+            max_wait: Duration::from_secs(1),
+            recheck: Duration::from_secs(2),
+        };
+        let mut lp = Loop::new(
+            PathBuf::from("unused"),
+            opts,
+            events,
+            Box::new(move |c| {
+                let _ = tx.send(c);
+            }),
+        );
+        let t0 = Instant::now();
+        let ms = |n: u64| t0 + Duration::from_millis(n);
+        lp.add("a.json".into(), ms(0));
+        lp.add("b.json".into(), ms(200));
+        lp.flush_at(ms(400)); // 200 ms after the last event: not yet
+        assert!(rx.try_recv().is_err());
+        lp.flush_at(ms(500));
         assert_eq!(
-            first,
-            ["macro_2026-11-25_eu.json", "scale_2026-11-25_eu.json"]
+            rx.try_recv().unwrap(),
+            ["a.json", "b.json"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect::<Changed>()
         );
-        // Reading a file must not wake the watcher.
-        let _ = fs::read(dir.join("scale_2026-11-25_eu.json")).unwrap();
-        assert!(rx.recv_timeout(Duration::from_millis(600)).is_err());
+        lp.flush_at(ms(900)); // nothing pending: nothing sent
+        assert!(rx.try_recv().is_err());
+        // An event every 200 ms never goes quiet; max_wait sends it anyway.
+        for i in 0..6u64 {
+            lp.add(format!("c{i}.json"), ms(1000 + i * 200));
+            lp.flush_at(ms(1000 + i * 200));
+        }
+        let capped = rx.try_recv().expect("sent at max_wait");
+        assert_eq!(capped.len(), 6, "{capped:?}");
+    }
+
+    #[test]
+    fn a_burst_is_reported_without_temp_files() {
+        let vault = tempfile::tempdir().unwrap();
+        let dir = state_dir(vault.path());
+        fs::create_dir_all(&dir).unwrap();
+        let (_w, rx) = start(vault.path());
+        fs::write(dir.join("scale_2026-11-25_eu.json"), b"{}").unwrap();
+        crate::vault_write::atomic_write(&dir, "macro_2026-11-25_eu.json", b"{}").unwrap();
+        fs::write(dir.join("junk.tmp"), b"x").unwrap();
+        // How many sets the burst becomes depends on scheduling; that the
+        // rule coalesces is the fake-clock test above.
+        let seen = wait_for(
+            &rx,
+            &["macro_2026-11-25_eu.json", "scale_2026-11-25_eu.json"],
+        );
+        assert!(seen.iter().all(|n| interesting(n)), "{seen:?}");
+    }
+
+    #[test]
+    fn reading_a_file_does_not_wake_the_watcher() {
+        let vault = tempfile::tempdir().unwrap();
+        let dir = state_dir(vault.path());
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("quiet.json"), b"{}").unwrap();
+        let (_w, rx) = start(vault.path());
+        for _ in 0..20 {
+            let _ = fs::read(dir.join("quiet.json")).unwrap();
+        }
+        // An absence: this window can only fail when reads ARE reported.
+        let deadline = Instant::now() + Duration::from_millis(600);
+        while let Ok(set) = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
+            assert!(!set.contains("quiet.json"), "a read was reported: {set:?}");
+        }
     }
 
     #[test]
@@ -381,16 +435,15 @@ mod tests {
         let dir = state_dir(vault.path());
         fs::create_dir_all(&dir).unwrap();
         let (_w, rx) = start(vault.path());
-        std::thread::sleep(Duration::from_millis(300));
         fs::write(dir.join("a.json"), b"1").unwrap();
         wait_for(&rx, &["a.json"]);
         fs::remove_dir_all(&dir).unwrap();
+        // The folder stays away for a while (part of the scenario, not a sync).
         std::thread::sleep(Duration::from_millis(400));
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("b.json"), b"2").unwrap();
         wait_for(&rx, &["b.json"]);
         // And it keeps watching the new directory.
-        std::thread::sleep(Duration::from_millis(300));
         fs::write(dir.join("c.json"), b"3").unwrap();
         wait_for(&rx, &["c.json"]);
     }
@@ -399,7 +452,6 @@ mod tests {
     fn starts_before_the_directory_exists() {
         let vault = tempfile::tempdir().unwrap();
         let (_w, rx) = start(vault.path());
-        std::thread::sleep(Duration::from_millis(300));
         let dir = state_dir(vault.path());
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("ideas.json"), b"[]").unwrap();

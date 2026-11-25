@@ -654,25 +654,49 @@ mod tests {
     const READ_LONG: &str = r#"{"date":"2026-11-25","region":"eu","side":"LONG","at":"2026-11-25 09:31","before_scale":true}"#;
     const READ_SHORT: &str = r#"{"date":"2026-11-25","region":"eu","side":"SHORT","at":"2026-11-25 09:32","before_scale":true}"#;
 
+    /// The repaint guarantee lives in `Shared::publish`: every rev bump calls
+    /// the callback once, and nothing else bumps the rev. Tested on `Shared`
+    /// itself, because counting callbacks against snapshots taken from
+    /// another thread races the callback that runs just after the bump.
     #[test]
-    fn opens_a_day_follows_the_watcher_and_repaints_per_rev() {
+    fn one_repaint_per_rev() {
+        let shared = Shared {
+            snap: RwLock::new(Snapshot::default()),
+            repaint: RwLock::new(None),
+            bench_watch: false,
+        };
+        shared.publish(|_| {}); // before a callback is set: rev moves, nothing to call
+        let calls = Arc::new(AtomicU64::new(0));
+        let c = Arc::clone(&calls);
+        *shared.repaint.write().unwrap() = Some(Arc::new(move || {
+            c.fetch_add(1, Ordering::SeqCst);
+        }));
+        for _ in 0..5 {
+            shared.publish(|s| s.errors = Arc::new(vec![UserError::new("x")]));
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 5);
+        assert_eq!(shared.read(|s| s.rev), 6);
+    }
+
+    #[test]
+    fn opens_a_day_and_follows_the_watcher() {
         let vault = tempfile::tempdir().unwrap();
         let sd = state_dir(vault.path());
         fs::create_dir_all(&sd).unwrap();
         fs::write(sd.join("scale_2026-11-25_eu.json"), "{}").unwrap();
         fs::write(sd.join("human_read_2026-11-25_eu.json"), READ_LONG).unwrap();
         fs::write(sd.join("review_2026-11-24.json"), "{}").unwrap();
+        // Writes into the watched folder are atomic, as the skill's and the
+        // owner's are: a plain fs::write can be seen half-done (truncated).
+        let put = |name: &str, text: &str| {
+            crate::vault_write::atomic_write(&sd, name, text.as_bytes()).unwrap();
+        };
 
         let app = AppHandle::start(AppConfig {
             vault: Some(vault.path().into()),
             watch: fast(),
         })
         .unwrap();
-        let repaints = Arc::new(AtomicU64::new(0));
-        let r = Arc::clone(&repaints);
-        app.set_repaint(Box::new(move || {
-            r.fetch_add(1, Ordering::SeqCst);
-        }));
         let s0 = wait_until(&app, "the index", |s| s.days_index.len() == 2);
         assert_eq!(
             s0.days_index[0],
@@ -684,28 +708,21 @@ mod tests {
         );
         assert!(s0.index.ok);
 
-        let before = app.snapshot().rev;
-        let repaints_before = repaints.load(Ordering::SeqCst);
         app.send(Command::OpenDay(d("2026-11-25")));
         let s1 = wait_until(&app, "the day", |s| s.day.is_some());
         assert_eq!(s1.day.as_ref().unwrap().date, d("2026-11-25"));
         assert_eq!(side(&s1), Some(HumanSide::Long));
 
         // The skill (or the owner) rewrites a file: only that file is read again.
-        fs::write(sd.join("human_read_2026-11-25_eu.json"), READ_SHORT).unwrap();
+        put("human_read_2026-11-25_eu.json", READ_SHORT);
         let s2 = wait_until(&app, "the change", |s| side(s) == Some(HumanSide::Short));
 
-        // A touch with the same bytes and another day's file: no new rev.
-        fs::write(sd.join("human_read_2026-11-25_eu.json"), READ_SHORT).unwrap();
-        fs::write(sd.join("drift_2026-11-20_eu.json"), "{}").unwrap();
+        // A rewrite with the same bytes and another day's file: no new rev.
+        put("human_read_2026-11-25_eu.json", READ_SHORT);
+        put("drift_2026-11-20_eu.json", "{}");
+        // An absence: this window can only fail when a no-op IS published.
         std::thread::sleep(Duration::from_millis(800));
-        let s3 = app.snapshot();
-        assert_eq!(s3.rev, s2.rev, "no change, no rev");
-        assert_eq!(
-            repaints.load(Ordering::SeqCst) - repaints_before,
-            s3.rev - before,
-            "one repaint per rev"
-        );
+        assert_eq!(app.snapshot().rev, s2.rev, "no change, no rev");
         drop(app);
     }
 
@@ -813,7 +830,9 @@ mod tests {
         for _ in 0..10_000 {
             let _ = app.snapshot();
         }
-        assert!(t0.elapsed() < Duration::from_secs(2), "{:?}", t0.elapsed());
+        // A smoke bound, not a benchmark (desk-bench measures): generous so a
+        // loaded 2-core runner cannot trip it, still far below «blocks».
+        assert!(t0.elapsed() < Duration::from_secs(10), "{:?}", t0.elapsed());
     }
 
     #[test]
