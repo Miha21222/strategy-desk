@@ -29,8 +29,11 @@ use super::{keys, ClaudeConfig, DriverEvent, StopReason};
 
 /// How much of stderr is kept to explain a death.
 const STDERR_TAIL: usize = 8 * 1024;
-/// After the process exited, how long to wait for its last stdout bytes.
-const DRAIN_AFTER_EXIT: Duration = Duration::from_millis(500);
+/// After the process exited, its pipes are read to EOF: everything it wrote
+/// is already in the pipe, so EOF comes as soon as the bytes are read. The
+/// cap only matters when a grandchild inherited the pipe and keeps it open;
+/// it is not a timing assumption about the normal path.
+const DRAIN_CAP: Duration = Duration::from_secs(5);
 
 /// Bench hook (CONTRACTS «Хуки для замеров»): run this executable instead of
 /// the configured one, e.g. desk-bench's `fake-claude`.
@@ -307,8 +310,9 @@ async fn supervise(
         }
     };
 
-    // The exit can overtake the last stdout lines (the final `result`).
-    let drain_until = Instant::now() + DRAIN_AFTER_EXIT;
+    // The exit can overtake the last stdout lines (the final `result`) and
+    // the stderr tail: read both to EOF before judging the death.
+    let drain_until = Instant::now() + DRAIN_CAP;
     while stdout_open {
         match tokio::time::timeout_at(drain_until, reader.read_until(b'\n', &mut buf)).await {
             Ok(Ok(n)) if n > 0 => {
@@ -318,7 +322,6 @@ async fn supervise(
             _ => stdout_open = false,
         }
     }
-    // stderr closes with the process; give it the same short window.
     let _ = tokio::time::timeout_at(drain_until, tail_task).await;
 
     let requested = s.stop_requested || s.shutting_down;
@@ -450,7 +453,12 @@ mod tests {
                     exit(0);
                 }
                 lines.iter().skip(4).for_each(|l| emit(l));
-                let _ = read("\u{0}never");
+                // Still alive: every further turn gets a plain answer.
+                while read(r#""type":"user""#).is_some() {
+                    emit(
+                        r#"{"type":"result","subtype":"success","is_error":false,"usage":{"input_tokens":1,"output_tokens":1},"session_id":"5f0c2a8e-3333-4c1e-9a55-000000000003"}"#,
+                    );
+                }
                 exit(0)
             }
             "deaf" => {
@@ -620,8 +628,11 @@ mod tests {
 
     #[tokio::test]
     async fn stop_interrupts_and_keeps_the_process() {
-        let (s, mut rx) =
-            ClaudeSession::spawn(&fake("interrupt", Some(testdata("interrupted.jsonl")))).unwrap();
+        let mut cfg = fake("interrupt", Some(testdata("interrupted.jsonl")));
+        // The kill must not race the fake's answer: whether an answered
+        // interrupt cancels the kill is `an_answered_interrupt_cancels_the_kill`.
+        cfg.stop_grace = T;
+        let (s, mut rx) = ClaudeSession::spawn(&cfg).unwrap();
         s.send("long review").unwrap();
         // Wait for the first delta, then press «Стоп».
         loop {
@@ -642,9 +653,14 @@ mod tests {
             !ev.iter().any(|e| matches!(e, DriverEvent::Error { .. })),
             "{ev:?}"
         );
-        // Longer than the grace: the process was not killed.
-        tokio::time::sleep(Duration::from_millis(600)).await;
-        assert!(s.is_alive());
+        // The same process answers the next turn, and it is not «interrupted».
+        s.send("next").unwrap();
+        assert_eq!(
+            turn(&mut rx).await.last(),
+            Some(&DriverEvent::Done {
+                stop: StopReason::EndTurn
+            })
+        );
         s.shutdown();
         assert_eq!(rest(&mut rx).await, vec![]);
     }
@@ -741,6 +757,44 @@ mod tests {
             matches!(ev.as_slice(), [DriverEvent::Error { key, .. }] if key == keys::PROCESS_EXITED),
             "{ev:?}"
         );
+    }
+
+    fn state(pending: u32, stop_requested: bool, shutting_down: bool) -> State {
+        let (ev, _rx) = mpsc::unbounded_channel();
+        State {
+            tr: Translator::new(),
+            ev,
+            writer: None,
+            pending,
+            stop_requested,
+            shutting_down,
+            killed: false,
+            kill_at: Some(Instant::now()),
+            stop_seq: 1,
+            scratch: Vec::new(),
+        }
+    }
+
+    const RESULT_LINE: &[u8] =
+        br#"{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"s"}"#;
+
+    #[test]
+    fn an_answered_interrupt_cancels_the_kill() {
+        let mut s = state(1, true, false);
+        s.tr.mark_interrupted();
+        s.line(RESULT_LINE);
+        assert_eq!(s.kill_at, None, "the turn ended in time: keep the process");
+        assert!(!s.stop_requested);
+        assert_eq!(s.pending, 0);
+        // Shutting down: the answer does not save the process.
+        let mut s = state(1, true, true);
+        s.line(RESULT_LINE);
+        assert!(s.kill_at.is_some());
+        // A result without a stop leaves an armed kill alone (shutdown's).
+        let mut s = state(2, false, true);
+        s.line(RESULT_LINE);
+        assert!(s.kill_at.is_some());
+        assert_eq!(s.pending, 1);
     }
 
     #[test]

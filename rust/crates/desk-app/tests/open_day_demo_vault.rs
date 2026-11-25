@@ -116,8 +116,8 @@ fn a_state_file_written_into_the_open_day_is_on_screen_within_a_second() {
         s.day.as_ref().is_some_and(|x| x.eu.human.is_none()),
         "fixture: no read on 2026-10-26"
     );
-    // Let the watcher's first pass settle (it arms at start, this is margin).
-    std::thread::sleep(Duration::from_millis(300));
+    // No settling wait: the watcher is armed before AppHandle::start's actor
+    // handles its first command, and the day above was such a command.
 
     let rev = app.snapshot().rev;
     let t0 = Instant::now();
