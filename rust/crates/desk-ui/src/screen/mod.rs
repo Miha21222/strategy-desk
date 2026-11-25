@@ -51,9 +51,6 @@ pub struct ScreenState {
     pub errors_seen: usize,
     /// The last day asked of desk-app.
     requested: Option<NaiveDate>,
-    /// «Похожие дни» to show instead of desk-core's, for the screen tests
-    /// and snapshots until desk-core writes them (see `core_bridge`).
-    pub similar_sample: Option<Vec<core_bridge::SimilarDay>>,
 }
 
 impl ScreenState {
@@ -220,10 +217,6 @@ pub fn show(
     let past = date < today;
     match window_region(active) {
         Some(region) => {
-            let similar = st
-                .similar_sample
-                .clone()
-                .unwrap_or_else(|| core_bridge::similar_days(day, region));
             let cx = RegionCtx {
                 p: &p,
                 day,
@@ -231,7 +224,6 @@ pub fn show(
                 region,
                 vis: visibility(active, day, clock_now, st.peek),
                 busy,
-                similar: &similar,
             };
             match region::show(ui, &cx, &mut st.region, tex, snap, out) {
                 RegionAction::Peek => st.peek = Some(active),

@@ -15,7 +15,7 @@ use desk_core::zones::{zone_of, ZoneKey, Zones};
 use desk_core::{Day, Region, RegionSnapshot};
 use eframe::egui::{self, CollapsingHeader, Ui};
 
-use super::core_bridge::{factor_hit_rate, HitRate, SimilarDay};
+use super::core_bridge::{args_on, factor_hit_rate, reach_key, side_key};
 use super::gating::{region_layout, RegionLayout, ReviewTop};
 use super::kit::{self, bold, txt, CardKind, Tone};
 use super::shots::{self, ShotTextures};
@@ -23,6 +23,8 @@ use crate::fonts;
 use crate::gauge::{group_bar, split_bar, Gauge};
 use crate::i18n::{t, tf};
 use crate::theme::{space, text, Palette};
+use desk_core::stats::HitRate;
+use desk_core::vault::{IbReach, MoveSide};
 
 /// What the owner is typing into «Не согласен?».
 #[derive(Clone, Debug, PartialEq)]
@@ -69,8 +71,6 @@ pub struct RegionCtx<'a> {
     pub vis: desk_core::windows::Visibility,
     /// Chat buttons off: a turn is running, or this is the demo vault.
     pub busy: bool,
-    /// «Похожие дни» for this window (empty = the card is silent).
-    pub similar: &'a [SimilarDay],
 }
 
 pub const HUMAN_SIDES: [HumanSide; 4] = [
@@ -235,16 +235,28 @@ pub fn show(
             *open_note = true;
         }
     };
-    match (has_news(snap_r), !cx.similar.is_empty()) {
+    let similar: &[desk_core::vault::SimilarDay] = snap_r.similar.as_ref().map_or(&[], |s| &s.days);
+    // Today's voting factors, for «сегодняшние доводы в тот день».
+    let voting: Vec<&str> = split
+        .as_ref()
+        .map(|sp| {
+            sp.long
+                .iter()
+                .chain(&sp.short)
+                .filter_map(|f| f.id.as_deref())
+                .collect()
+        })
+        .unwrap_or_default();
+    match (has_news(snap_r), !similar.is_empty()) {
         (true, true) => kit::grid2_cells(ui, |ui, i| {
             if i == 0 {
                 news(ui, &mut open_note);
             } else {
-                similar_card(ui, p, cx.similar);
+                similar_card(ui, p, similar, &voting);
             }
         }),
         (true, false) => news(ui, &mut open_note),
-        (false, true) => similar_card(ui, p, cx.similar),
+        (false, true) => similar_card(ui, p, similar, &voting),
         (false, false) => {}
     }
     if let (true, Some(n)) = (open_note, &snap_r.note) {
@@ -493,6 +505,14 @@ fn factor_id(f: &ScaleFactor) -> &str {
     f.id.as_deref().unwrap_or("")
 }
 
+/// The factor's name as the config calls it now (owner, 25.11: renamed
+/// names show on old days too), else the name the day's file carries.
+fn factor_label<'a>(day: &'a Day, f: &'a ScaleFactor) -> &'a str {
+    f.id.as_deref()
+        .and_then(|id| day.factor_name(id))
+        .unwrap_or_else(|| factor_name(f))
+}
+
 fn factor_name(f: &ScaleFactor) -> &str {
     f.name.as_deref().or(f.id.as_deref()).unwrap_or("—")
 }
@@ -512,7 +532,7 @@ fn why(ui: &mut Ui, cx: &RegionCtx<'_>, sp: &FactorSplit<'_>, open: &mut Option<
             }
         });
         if !sp.silent.is_empty() {
-            let names: Vec<&str> = sp.silent.iter().map(|f| factor_name(f)).collect();
+            let names: Vec<&str> = sp.silent.iter().map(|f| factor_label(cx.day, f)).collect();
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = space::S3;
                 ui.label(bold(t("desk.silent"), text::SM, p.fg_muted));
@@ -597,7 +617,7 @@ fn why_column(
                     .why
                     .as_deref()
                     .filter(|w| !w.trim().is_empty())
-                    .unwrap_or(factor_name(f));
+                    .unwrap_or(factor_label(cx.day, f));
                 let mut main = txt(thesis, text::BASE, p.fg);
                 if is_open {
                     main = main.underline();
@@ -606,7 +626,7 @@ fn why_column(
                 let tag = ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing.x = space::S3;
                     let name = ui.add(
-                        egui::Label::new(txt(factor_name(f), text::SM, p.fg_muted))
+                        egui::Label::new(txt(factor_label(cx.day, f), text::SM, p.fg_muted))
                             .sense(egui::Sense::click()),
                     );
                     if let Some(h) =
@@ -667,7 +687,7 @@ fn factor_dialog(
         };
         let mut close = false;
         ui.horizontal(|ui| {
-            ui.label(bold(factor_name(f), text::LG, side_color));
+            ui.label(bold(factor_label(cx.day, f), text::LG, side_color));
             let side_key = match f.side {
                 Some(Side::Long) => "macro.forLong",
                 Some(Side::Short) => "macro.forShort",
@@ -1161,8 +1181,14 @@ fn news_details(ui: &mut Ui, p: &Palette, v: &MacroVerdict) {
 }
 
 /// «Похожие дни» (TZ «Синхрон»): up to three days — what matched, how the
-/// day and the move off the IB ended, how today's arguments did on that day.
-pub fn similar_card(ui: &mut Ui, p: &Palette, days: &[SimilarDay]) {
+/// day and the move off the IB ended, how today's arguments did on that day,
+/// the plan review's verdict. Silent without `similar_<D>_<region>.json`.
+pub fn similar_card(
+    ui: &mut Ui,
+    p: &Palette,
+    days: &[desk_core::vault::SimilarDay],
+    today: &[&str],
+) {
     if days.is_empty() {
         return;
     }
@@ -1177,45 +1203,56 @@ pub fn similar_card(ui: &mut Ui, p: &Palette, days: &[SimilarDay]) {
                     ui.separator();
                 }
                 ui.spacing_mut().item_spacing.y = space::S1;
+                let args = args_on(d, today);
                 let date = NaiveDate::parse_from_str(&d.date, "%Y-%m-%d")
                     .map(super::human_date)
                     .unwrap_or_else(|_| d.date.clone());
                 ui.horizontal_wrapped(|ui| {
                     ui.label(bold(date, text::BASE, p.fg));
-                    if let Some(h) = d.args {
+                    if let Some(h) = args {
                         hit_badge(ui, p, h);
                     }
                 });
                 if !d.matched.is_empty() {
+                    let m = d.matched.join(" · ");
                     kit::para(
                         ui,
                         txt(
-                            tf("desk.similar.matched", &[("x", &d.matched)]),
+                            tf("desk.similar.matched", &[("x", &m)]),
                             text::MD,
                             p.fg_muted,
                         ),
                     );
                 }
                 let mut moves = Vec::new();
-                if let Some(dir) = &d.day_dir {
-                    let mut x = t(&format!("macro.dir.{dir}")).to_owned();
-                    if let Some(a) = d.day_adr {
-                        x.push_str(&format!(" {} ADR", fmt(Some(a), 1)));
+                if let Some(m) = &d.day_move {
+                    let mut x = m.side.map_or("—", |s| t(side_key(s))).to_owned();
+                    if let Some(a) = m.pct_adr {
+                        x.push_str(&format!(" {} ADR", fmt(Some(a.abs()), 2)));
                     }
                     moves.push(tf("desk.similar.day", &[("x", &x)]));
                 }
-                if let Some(ib) = &d.ib {
-                    moves.push(tf("desk.similar.ib", &[("x", ib)]));
+                if let Some(ib) = &d.ib_move {
+                    let x = match (ib.side, ib.reach) {
+                        (_, Some(IbReach::NoReach)) => t(reach_key(IbReach::NoReach)).to_owned(),
+                        (Some(s), Some(r)) => format!("{} {}", t(side_key(s)), t(reach_key(r))),
+                        (Some(s), None) => t(side_key(s)).to_owned(),
+                        (None, Some(r)) => t(reach_key(r)).to_owned(),
+                        (None, None) => String::new(),
+                    };
+                    if !x.is_empty() {
+                        moves.push(tf("desk.similar.ib", &[("x", &x)]));
+                    }
                 }
                 if !moves.is_empty() {
-                    let c = match d.day_dir.as_deref() {
-                        Some("LONG") => p.ok,
-                        Some("SHORT") => p.err,
+                    let c = match d.day_move.as_ref().and_then(|m| m.side) {
+                        Some(MoveSide::Long) => p.ok,
+                        Some(MoveSide::Short) => p.err,
                         _ => p.fg,
                     };
                     kit::para(ui, txt(moves.join(" · "), text::MD, c));
                 }
-                if let Some(h) = d.args {
+                if let Some(h) = args {
                     kit::para(
                         ui,
                         txt(
@@ -1289,7 +1326,8 @@ fn factor_table(ui: &mut Ui, p: &Palette, sp: &FactorSplit<'_>, day: &Day, regio
                 }
                 ui.end_row();
                 for (f, side) in rows {
-                    let r = ui.add(egui::Label::new(txt(factor_name(f), text::MD, p.fg)).wrap());
+                    let r =
+                        ui.add(egui::Label::new(txt(factor_label(day, f), text::MD, p.fg)).wrap());
                     if let Some(w) = &f.why {
                         r.on_hover_text(w);
                     }

@@ -335,7 +335,9 @@ fn said_day_shows_read_memory_and_every_factor() {
     let scale = day.eu.scale.as_deref().unwrap();
     let split = desk_core::gauge::split_factors(&scale.factors);
     for f in split.long.iter().chain(&split.short).chain(&split.silent) {
-        let name = f.name.as_deref().unwrap();
+        // The tag is the config's current name, else the file's.
+        let id = f.id.as_deref().unwrap();
+        let name = day.factor_name(id).or(f.name.as_deref()).unwrap();
         assert!(has(&h, name), "factor hidden: {name}");
     }
     // The argument's line is the observation, not the factor's name.
@@ -357,6 +359,41 @@ fn said_day_shows_read_memory_and_every_factor() {
 }
 
 #[test]
+fn renamed_factor_shows_its_new_name_on_old_days() {
+    // Owner, 25.11: question-like names were renamed in the vault config;
+    // the day file still has the old one.
+    let mut h = screen(Theme::Light, TODAY, "2026-09-14", Some(WindowId::Eu));
+    {
+        let app = h.state_mut();
+        let mut snap = app.snapshot().clone();
+        if let Some(day) = snap.day.as_mut() {
+            let d = Arc::make_mut(day);
+            d.names.insert(
+                "night_sweep".into(),
+                serde_json::Value::String("Снятие PDH / PDL в премаркете".into()),
+            );
+        }
+        app.set_snapshot(snap);
+    }
+    h.run();
+    assert!(has(&h, "Снятие PDH / PDL в премаркете"));
+    assert!(!has(&h, "Что снял премаркет"));
+}
+
+/// Put the hand-written `similar_<D>_eu.json` into the open day.
+fn with_similar(h: &mut Harness<'static, DeskApp>) {
+    let app = h.state_mut();
+    let mut snap = app.snapshot().clone();
+    if let Some(day) = snap.day.as_mut() {
+        let d = Arc::make_mut(day);
+        d.eu.similar = Some(crate::screen::core_bridge::sample_similar(
+            &d.date.to_string(),
+        ));
+    }
+    app.set_snapshot(snap);
+}
+
+#[test]
 fn similar_days_card_from_the_sample() {
     let mut h = screen(
         Theme::Light,
@@ -364,15 +401,16 @@ fn similar_days_card_from_the_sample() {
         "2026-09-14",
         Some(WindowId::Eu),
     );
-    h.state_mut().screen_mut().similar_sample = Some(crate::screen::core_bridge::sample_similar());
+    with_similar(&mut h);
     h.run();
     for s in [
         "Похожие дни",
         "Вторник, 8 сентября",
-        "совпало: пила, ночь ≥ 0.8 ADR, стрелка −41",
-        "день: вниз 0.6 ADR · от IB: вниз, IB1 за 40 минут",
-        "сегодняшние доводы в тот день: 7 из 9",
+        "совпало: пила · ночь ≥ 0.8 ADR · стрелка −41",
+        "день: вниз 0.62 ADR · от IB: вниз до IB1",
         "разбор: план дошёл до IB1",
+        "от IB: вверх пробой без IB1",
+        "от IB: вниз до IB2",
     ] {
         assert!(has(&h, s), "missing: {s}");
     }
@@ -516,8 +554,7 @@ fn screen_snapshots() {
             };
             let mut h = screen_sized(theme, TODAY, date, win, height);
             if name.ends_with("similar") {
-                h.state_mut().screen_mut().similar_sample =
-                    Some(crate::screen::core_bridge::sample_similar());
+                with_similar(&mut h);
             }
             h.run();
             let name = format!("screen_{}_{name}", theme_name(theme));
