@@ -3,20 +3,26 @@
 //! The UI never waits on anything: `send()` pushes onto an unbounded channel,
 //! `snapshot()` clones a handful of `Arc`s under a read lock that is only ever
 //! held for a field assignment. All work happens on a tokio runtime in one
-//! background thread; disk reads go to the blocking pool.
+//! background thread; disk reads and `load_day` run on the blocking pool.
 //!
-//! Only `OpenDay` / `Today` and the watcher are wired in this slice; every
-//! other command answers with a `UserError` (`error.not_implemented`).
+//! Wired in this slice: `OpenDay` / `Today` (desk-core's `load_day` over the
+//! files of `day_files`), the watcher (only the changed file is read again),
+//! the day strip (`MacroIndex`) and `LoadShot`. Every other command answers
+//! with a `UserError` (`error.not_implemented`).
 
+use std::collections::{BTreeMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
 
 use chrono::{NaiveDate, Utc};
+use desk_core::day::load_day;
+use desk_core::vault::{DayAnswers, HumanRead};
+use desk_core::{Day, DayInput, MacroIndex, Region};
 use tokio::sync::mpsc;
 
-use crate::core_stub::{DayAnswers, DayData, HumanRead, Region};
-use crate::day::{self, DayInput};
+use crate::day::{self, DayMark};
+use crate::shots::{self, LoadedShot, ShotRefused};
 use crate::watch::{Changed, StateWatcher, WatchOptions};
 
 /// How many errors the snapshot keeps (oldest dropped first).
@@ -56,20 +62,21 @@ pub enum Command {
         date: NaiveDate,
         answers: DayAnswers,
     },
+    /// Read a screenshot the open day names (vault-relative, a `MacroShot.path`)
+    /// into `Snapshot::shots`, off the UI thread.
+    LoadShot(String),
     Chat(ChatCommand),
     CheckStatus,
     LaunchTradingView,
     RunTask(TaskId),
 }
 
-/// One day in the day strip.
+/// A screenshot as the UI may find it in the snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DayMark {
-    pub date: NaiveDate,
-    /// A window review exists (`scale_` / `macro_` file).
-    pub window_review: bool,
-    /// The 20:00 day review exists (`review_` file).
-    pub day_review: bool,
+pub enum ShotEntry {
+    Ready(Arc<LoadedShot>),
+    /// Not shown (missing, not a PNG, outside `indices-kb/shots/`); the tile stays empty.
+    Refused(ShotRefused),
 }
 
 /// TODO(stage 5): chats list, messages, the live turn.
@@ -108,8 +115,14 @@ impl UserError {
 /// The picture the UI draws. Cheap to clone: `Arc`s and a counter.
 #[derive(Debug, Clone, Default)]
 pub struct Snapshot {
-    pub day: Option<Arc<DayData>>,
+    pub day: Option<Arc<Day>>,
     pub days_index: Arc<Vec<DayMark>>,
+    /// The `MacroIndex` behind `days_index`: `ok` / `error` (`no-vault`,
+    /// `no-state-dir`) for the empty-strip message.
+    pub index: Option<Arc<MacroIndex>>,
+    /// Screenshots asked for with `LoadShot`, by vault-relative path. Only
+    /// the open day's are kept.
+    pub shots: Arc<BTreeMap<String, ShotEntry>>,
     pub chats: Arc<ChatsView>,
     pub status: Arc<StatusLights>,
     pub tasks: Arc<TasksView>,
@@ -160,6 +173,10 @@ impl Shared {
             cb();
         }
     }
+
+    fn read<T>(&self, f: impl FnOnce(&Snapshot) -> T) -> T {
+        f(&self.snap.read().unwrap_or_else(|e| e.into_inner()))
+    }
 }
 
 enum Msg {
@@ -195,6 +212,7 @@ impl AppHandle {
             watcher: None,
             open: None,
             input: DayInput::new(),
+            keys: HashSet::new(),
             errors: Vec::new(),
         };
         let thread = std::thread::Builder::new()
@@ -222,11 +240,7 @@ impl AppHandle {
 
     /// The latest picture.
     pub fn snapshot(&self) -> Snapshot {
-        self.shared
-            .snap
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        self.shared.read(Snapshot::clone)
     }
 
     /// Called (from the background thread) after every `rev` change.
@@ -241,8 +255,8 @@ impl AppHandle {
 
 impl Drop for AppHandle {
     fn drop(&mut self) {
-        // Closing the channel ends the actor; the watcher's own sender is
-        // dropped with it, so nothing else keeps the loop alive.
+        // Closing the channel ends the actor (the watcher only holds a weak
+        // sender), then the thread is joined.
         self.tx = None;
         if let Some(t) = self.thread.take() {
             let _ = t.join();
@@ -259,7 +273,10 @@ struct Actor {
     tx: Option<mpsc::UnboundedSender<Msg>>,
     watcher: Option<StateWatcher>,
     open: Option<NaiveDate>,
+    /// The open day's files, kept so a change re-reads one file only.
     input: DayInput,
+    /// `day_files(open)` as a set.
+    keys: HashSet<String>,
     errors: Vec<UserError>,
 }
 
@@ -301,6 +318,7 @@ impl Actor {
                     .date_naive();
                 self.open_day(today).await;
             }
+            Command::LoadShot(rel) => self.load_shot(rel).await,
             // TODO(stage 4): vault_write::write_human_read / write_day_answers
             // in spawn_blocking; the watcher then redraws.
             Command::WriteHumanRead { .. } => self.todo("write_human_read"),
@@ -330,64 +348,89 @@ impl Actor {
         self.shared.publish(|s| s.errors = errors);
     }
 
+    fn read_failed(&mut self, e: impl std::fmt::Display) {
+        self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()));
+    }
+
+    /// Publish a day, keeping only the screenshots it still names.
+    fn publish_day(&self, day: Day) {
+        let paths: HashSet<String> = day.shot_paths().into_iter().map(str::to_owned).collect();
+        let shots = self.shared.read(|s| Arc::clone(&s.shots));
+        let kept: BTreeMap<String, ShotEntry> = shots
+            .iter()
+            .filter(|(k, _)| paths.contains(*k))
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        let shots = (kept.len() != shots.len()).then(|| Arc::new(kept));
+        let day = Arc::new(day);
+        self.shared.publish(|s| {
+            s.day = Some(day);
+            if let Some(shots) = shots {
+                s.shots = shots;
+            }
+        });
+    }
+
     async fn open_day(&mut self, date: NaiveDate) {
         let Some(vault) = self.vault.clone() else {
             self.error(UserError::new(keys::VAULT_NOT_SET));
             return;
         };
-        let res = tokio::task::spawn_blocking(move || day::read_day(&vault, date)).await;
+        let res = tokio::task::spawn_blocking(move || {
+            let input = day::read_day(&vault, date);
+            let built = load_day(&input, date);
+            (input, built)
+        })
+        .await;
         match res {
-            Ok(Ok(input)) => {
+            Ok((input, built)) => {
                 self.open = Some(date);
                 self.input = input;
-                let data = Arc::new(day::build(date, &self.input));
-                self.shared.publish(|s| s.day = Some(data));
+                self.keys = day::day_keys(date);
+                self.publish_day(built);
             }
-            Ok(Err(e)) => {
-                self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()))
-            }
-            Err(e) => {
-                self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()))
-            }
+            Err(e) => self.read_failed(e),
         }
     }
 
     async fn changed(&mut self, names: Changed) {
-        let (Some(vault), Some(date)) = (self.vault.clone(), self.open) else {
-            self.refresh_index().await;
-            return;
-        };
-        let wanted: Vec<String> = names
-            .iter()
-            .filter(|n| day::concerns(n, date))
-            .cloned()
-            .collect();
         let index_moved = names.iter().any(|n| {
             n.starts_with("scale_") || n.starts_with("macro_") || n.starts_with("review_")
         });
-        if !wanted.is_empty() {
-            // Only the changed files are read again (TZ item 12).
-            let mut input = std::mem::take(&mut self.input);
-            let res = tokio::task::spawn_blocking(move || {
-                let mut moved = false;
-                for n in &wanted {
-                    moved |= day::reread_state_file(&vault, n, &mut input);
-                }
-                (input, moved)
-            })
-            .await;
-            match res {
-                Ok((input, moved)) => {
-                    self.input = input;
-                    // The day may have changed while the read ran: only a
-                    // still-open day is published.
-                    if moved && self.open == Some(date) {
-                        let data = Arc::new(day::build(date, &self.input));
-                        self.shared.publish(|s| s.day = Some(data));
+        if let (Some(vault), Some(date)) = (self.vault.clone(), self.open) {
+            let wanted: Vec<String> = names
+                .iter()
+                .map(|n| day::state_key(n))
+                .filter(|k| self.keys.contains(k))
+                .collect();
+            if !wanted.is_empty() {
+                // Only the changed files are read again (TZ item 12); the
+                // day is rebuilt from the stored input.
+                let mut input = std::mem::take(&mut self.input);
+                let res = tokio::task::spawn_blocking(move || {
+                    let mut moved = false;
+                    for k in &wanted {
+                        moved |= day::reread(&vault, k, &mut input);
                     }
-                }
-                Err(e) => {
-                    self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()))
+                    let built = moved.then(|| load_day(&input, date));
+                    (input, built)
+                })
+                .await;
+                match res {
+                    Ok((input, built)) => {
+                        self.input = input;
+                        // Only the day still open is published (commands are
+                        // handled in order, so this always holds today; kept
+                        // for when reads stop blocking the loop).
+                        if let (Some(built), true) = (built, self.open == Some(date)) {
+                            self.publish_day(built);
+                        }
+                    }
+                    Err(e) => {
+                        // The input went with the failed task: read the day again.
+                        self.read_failed(e);
+                        self.open_day(date).await;
+                    }
                 }
             }
         }
@@ -400,35 +443,43 @@ impl Actor {
         let Some(vault) = self.vault.clone() else {
             return;
         };
-        match tokio::task::spawn_blocking(move || day::list_days(&vault)).await {
-            Ok(Ok(days)) => {
-                let marks: Vec<DayMark> = days
-                    .into_iter()
-                    .map(|(date, window_review, day_review)| DayMark {
-                        date,
-                        window_review,
-                        day_review,
-                    })
-                    .collect();
-                let unchanged = *self
+        match tokio::task::spawn_blocking(move || day::read_index(&vault)).await {
+            Ok((index, marks)) => {
+                let unchanged = self
                     .shared
-                    .snap
-                    .read()
-                    .unwrap_or_else(|e| e.into_inner())
-                    .days_index
-                    == marks;
+                    .read(|s| *s.days_index == marks && s.index.as_deref() == Some(&index));
                 if !unchanged {
-                    let marks = Arc::new(marks);
-                    self.shared.publish(|s| s.days_index = marks);
+                    let (marks, index) = (Arc::new(marks), Arc::new(index));
+                    self.shared.publish(|s| {
+                        s.days_index = marks;
+                        s.index = Some(index);
+                    });
                 }
             }
-            Ok(Err(e)) => {
-                self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()))
-            }
-            Err(e) => {
-                self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()))
-            }
+            Err(e) => self.read_failed(e),
         }
+    }
+
+    async fn load_shot(&mut self, rel: String) {
+        let Some(vault) = self.vault.clone() else {
+            self.error(UserError::new(keys::VAULT_NOT_SET));
+            return;
+        };
+        let key = rel.replace('\\', "/");
+        let res = tokio::task::spawn_blocking(move || shots::load_shot(&vault, &rel)).await;
+        let entry = match res {
+            Ok(Ok(s)) => ShotEntry::Ready(Arc::new(s)),
+            Ok(Err(why)) => ShotEntry::Refused(why),
+            Err(e) => return self.read_failed(e),
+        };
+        let current = self.shared.read(|s| Arc::clone(&s.shots));
+        if current.get(&key) == Some(&entry) {
+            return;
+        }
+        let mut next = (*current).clone();
+        next.insert(key, entry);
+        let next = Arc::new(next);
+        self.shared.publish(|s| s.shots = next);
     }
 }
 
@@ -436,6 +487,7 @@ impl Actor {
 mod tests {
     use super::*;
     use crate::vault_write::state_dir;
+    use desk_core::HumanSide;
     use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{Duration, Instant};
@@ -468,16 +520,20 @@ mod tests {
         NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
     }
 
-    fn file<'a>(s: &'a Snapshot, key: &str) -> Option<&'a serde_json::Value> {
-        s.day.as_ref()?.get("files")?.get(key)
+    fn side(s: &Snapshot) -> Option<HumanSide> {
+        s.day.as_ref()?.eu.human.as_ref().map(|h| h.side)
     }
+
+    const READ_LONG: &str = r#"{"date":"2026-11-25","region":"eu","side":"LONG","at":"2026-11-25 09:31","before_scale":true}"#;
+    const READ_SHORT: &str = r#"{"date":"2026-11-25","region":"eu","side":"SHORT","at":"2026-11-25 09:32","before_scale":true}"#;
 
     #[test]
     fn opens_a_day_follows_the_watcher_and_repaints_per_rev() {
         let vault = tempfile::tempdir().unwrap();
         let sd = state_dir(vault.path());
         fs::create_dir_all(&sd).unwrap();
-        fs::write(sd.join("scale_2026-11-25_eu.json"), r#"{"v":1}"#).unwrap();
+        fs::write(sd.join("scale_2026-11-25_eu.json"), "{}").unwrap();
+        fs::write(sd.join("human_read_2026-11-25_eu.json"), READ_LONG).unwrap();
         fs::write(sd.join("review_2026-11-24.json"), "{}").unwrap();
 
         let app = AppHandle::start(AppConfig {
@@ -499,31 +555,21 @@ mod tests {
                 day_review: false
             }
         );
+        assert!(s0.index.as_ref().is_some_and(|i| i.ok));
 
         let before = app.snapshot().rev;
         let repaints_before = repaints.load(Ordering::SeqCst);
         app.send(Command::OpenDay(d("2026-11-25")));
         let s1 = wait_until(&app, "the day", |s| s.day.is_some());
-        assert_eq!(s1.day.as_ref().unwrap()["date"], "2026-11-25");
-        assert_eq!(
-            file(&s1, "indices-kb/state/scale_2026-11-25_eu.json").unwrap()["v"],
-            1
-        );
+        assert_eq!(s1.day.as_ref().unwrap().date, d("2026-11-25"));
+        assert_eq!(side(&s1), Some(HumanSide::Long));
 
-        // The skill rewrites a file: only that file is read again.
-        fs::write(sd.join("scale_2026-11-25_eu.json"), r#"{"v":2}"#).unwrap();
-        fs::write(
-            sd.join("human_read_2026-11-25_eu.json"),
-            r#"{"side":"LONG"}"#,
-        )
-        .unwrap();
-        let s2 = wait_until(&app, "the change", |s| {
-            file(s, "indices-kb/state/scale_2026-11-25_eu.json").is_some_and(|v| v["v"] == 2)
-                && file(s, "indices-kb/state/human_read_2026-11-25_eu.json").is_some()
-        });
+        // The skill (or the owner) rewrites a file: only that file is read again.
+        fs::write(sd.join("human_read_2026-11-25_eu.json"), READ_SHORT).unwrap();
+        let s2 = wait_until(&app, "the change", |s| side(s) == Some(HumanSide::Short));
 
         // A touch with the same bytes and another day's file: no new rev.
-        fs::write(sd.join("scale_2026-11-25_eu.json"), r#"{"v":2}"#).unwrap();
+        fs::write(sd.join("human_read_2026-11-25_eu.json"), READ_SHORT).unwrap();
         fs::write(sd.join("drift_2026-11-20_eu.json"), "{}").unwrap();
         std::thread::sleep(Duration::from_millis(800));
         let s3 = app.snapshot();
@@ -534,6 +580,49 @@ mod tests {
             "one repaint per rev"
         );
         drop(app);
+    }
+
+    #[test]
+    fn loads_shots_off_the_ui_thread_and_refuses_bad_ones() {
+        let vault = tempfile::tempdir().unwrap();
+        let shots = vault.path().join("indices-kb/shots/2026-11-25");
+        fs::create_dir_all(&shots).unwrap();
+        fs::write(
+            shots.join("eu_h1.png"),
+            [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2],
+        )
+        .unwrap();
+        let app = AppHandle::start(AppConfig {
+            vault: Some(vault.path().into()),
+            watch: fast(),
+        })
+        .unwrap();
+        app.send(Command::LoadShot(
+            "indices-kb/shots/2026-11-25/eu_h1.png".into(),
+        ));
+        app.send(Command::LoadShot(
+            "indices-kb/shots/2026-11-25/none.png".into(),
+        ));
+        let s = wait_until(&app, "two shots", |s| s.shots.len() == 2);
+        match &s.shots["indices-kb/shots/2026-11-25/eu_h1.png"] {
+            ShotEntry::Ready(shot) => assert_eq!(shot.png.len(), 10),
+            other => panic!("{other:?}"),
+        }
+        assert_eq!(
+            s.shots["indices-kb/shots/2026-11-25/none.png"],
+            ShotEntry::Refused(ShotRefused::Missing)
+        );
+        // Asking again for the same bytes changes nothing.
+        let rev = s.rev;
+        app.send(Command::LoadShot(
+            "indices-kb/shots/2026-11-25/eu_h1.png".into(),
+        ));
+        app.send(Command::CheckStatus); // a marker: one more rev, from the error
+        let s = wait_until(&app, "the marker", |s| !s.errors.is_empty());
+        assert_eq!(s.rev, rev + 1);
+        // Opening a day that names none of them drops them.
+        app.send(Command::OpenDay(d("2026-11-25")));
+        wait_until(&app, "eviction", |s| s.day.is_some() && s.shots.is_empty());
     }
 
     #[test]
@@ -556,9 +645,12 @@ mod tests {
             .with_timezone(&chrono_tz::Europe::Kyiv)
             .date_naive();
         // Midnight in Kyiv between the two lines would flake; compare loosely.
-        let shown = d(s.day.as_ref().unwrap()["date"].as_str().unwrap());
-        assert!((shown - today).num_days().abs() <= 1);
+        assert!((s.day.as_ref().unwrap().date - today).num_days().abs() <= 1);
         assert!(s.errors.is_empty());
+        assert_eq!(
+            s.index.as_ref().and_then(|i| i.error.as_deref()),
+            Some("no-state-dir")
+        );
     }
 
     #[test]
