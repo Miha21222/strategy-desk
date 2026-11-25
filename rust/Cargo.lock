@@ -610,6 +610,7 @@ dependencies = [
  "eframe",
  "egui_kittest",
  "png",
+ "serde_json",
  "windows-sys 0.61.2",
 ]
 
