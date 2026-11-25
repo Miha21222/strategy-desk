@@ -3,30 +3,35 @@
 //! The UI never waits on anything: `send()` pushes onto an unbounded channel,
 //! `snapshot()` clones a handful of `Arc`s under a read lock that is only ever
 //! held for a field assignment. All work happens on a tokio runtime in one
-//! background thread; disk reads and `load_day` run on the blocking pool.
+//! background thread; disk reads, writes and `load_day` run on the blocking pool.
 //!
-//! Wired in this slice: `OpenDay` / `Today` (desk-core's `load_day` over the
-//! files of `day_files`), the watcher (only the changed file is read again),
-//! the day strip (`MacroIndex`) and `LoadShot`. Every other command answers
-//! with a `UserError` (`error.not_implemented`).
+//! Wired: `OpenDay` / `Today` (desk-core's `load_day` over `day_files`), the
+//! watcher (only the changed file is read again), the day strip
+//! (`MacroIndex`), `LoadShot`, the owner's two writes and `SetVault`. Chat,
+//! status, TradingView and tasks answer `error.not_implemented`.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{NaiveDate, Utc};
 use desk_core::day::load_day;
-use desk_core::vault::{DayAnswers, HumanRead};
-use desk_core::{Day, DayInput, MacroIndex, Region};
+use desk_core::vault::DayAnswerRegions;
+use desk_core::{Day, DayInput, HumanSide, MacroIndex, Region};
 use tokio::sync::mpsc;
 
 use crate::day::{self, DayMark};
 use crate::shots::{self, LoadedShot, ShotRefused};
+use crate::vault_write::{self, WriteError};
 use crate::watch::{Changed, StateWatcher, WatchOptions};
 
 /// How many errors the snapshot keeps (oldest dropped first).
 pub const ERRORS_KEPT: usize = 20;
+
+/// Bench hook (CONTRACTS «Хуки для замеров»): one stderr JSON line per new rev.
+pub const BENCH_WATCH_ENV: &str = "DESK_BENCH_WATCH";
 
 pub type ChatId = String;
 
@@ -53,18 +58,24 @@ pub struct TaskId(pub String);
 pub enum Command {
     OpenDay(NaiveDate),
     Today,
+    /// «Твой взгляд» → `state/human_read_<D>_<region>.json`.
     WriteHumanRead {
         date: NaiveDate,
         region: Region,
-        read: HumanRead,
+        side: HumanSide,
+        before_scale: bool,
     },
+    /// «Твой день» → `state/day_answers_<D>.json`.
     WriteDayAnswers {
         date: NaiveDate,
-        answers: DayAnswers,
+        regions: DayAnswerRegions,
+        note: String,
     },
     /// Read a screenshot the open day names (vault-relative, a `MacroShot.path`)
     /// into `Snapshot::shots`, off the UI thread.
     LoadShot(String),
+    /// Read another vault: watcher, day strip and the open day follow.
+    SetVault(PathBuf),
     Chat(ChatCommand),
     CheckStatus,
     LaunchTradingView,
@@ -73,7 +84,7 @@ pub enum Command {
 
 /// A screenshot as the UI may find it in the snapshot.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ShotEntry {
+pub enum ShotState {
     Ready(Arc<LoadedShot>),
     /// Not shown (missing, not a PNG, outside `indices-kb/shots/`); the tile stays empty.
     Refused(ShotRefused),
@@ -113,16 +124,15 @@ impl UserError {
 }
 
 /// The picture the UI draws. Cheap to clone: `Arc`s and a counter.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct Snapshot {
     pub day: Option<Arc<Day>>,
     pub days_index: Arc<Vec<DayMark>>,
-    /// The `MacroIndex` behind `days_index`: `ok` / `error` (`no-vault`,
-    /// `no-state-dir`) for the empty-strip message.
-    pub index: Option<Arc<MacroIndex>>,
+    /// The `MacroIndex` behind `days_index`; carries `no-vault` / `no-state-dir`.
+    pub index: Arc<MacroIndex>,
     /// Screenshots asked for with `LoadShot`, by vault-relative path. Only
     /// the open day's are kept.
-    pub shots: Arc<BTreeMap<String, ShotEntry>>,
+    pub shots: Arc<HashMap<String, ShotState>>,
     pub chats: Arc<ChatsView>,
     pub status: Arc<StatusLights>,
     pub tasks: Arc<TasksView>,
@@ -131,11 +141,32 @@ pub struct Snapshot {
     pub rev: u64,
 }
 
-/// i18n keys this module produces.
+impl Default for Snapshot {
+    fn default() -> Self {
+        Self {
+            day: None,
+            days_index: Arc::default(),
+            index: Arc::new(no_vault_index()),
+            shots: Arc::default(),
+            chats: Arc::default(),
+            status: Arc::default(),
+            tasks: Arc::default(),
+            errors: Arc::default(),
+            rev: 0,
+        }
+    }
+}
+
+fn no_vault_index() -> MacroIndex {
+    MacroIndex::new("", None::<std::iter::Empty<&str>>)
+}
+
+/// i18n keys this module produces (plus `WriteError::key`).
 pub mod keys {
     pub const NOT_IMPLEMENTED: &str = "error.not_implemented";
     pub const VAULT_NOT_SET: &str = "error.vault.not_set";
     pub const VAULT_READ_FAILED: &str = "error.vault.read_failed";
+    pub const VAULT_WRITE_FAILED: &str = "error.vault.write_failed";
     pub const WATCH_FAILED: &str = "error.vault.watch_failed";
 }
 
@@ -151,18 +182,26 @@ type Repaint = Arc<dyn Fn() + Send + Sync>;
 struct Shared {
     snap: RwLock<Snapshot>,
     repaint: RwLock<Option<Repaint>>,
+    bench_watch: bool,
 }
 
 impl Shared {
     /// Apply a change and wake the UI. Callers only call this with a real
     /// change, so `rev` and the repaint move together.
     fn publish(&self, f: impl FnOnce(&mut Snapshot)) {
-        {
+        let rev = {
             // A poisoned lock means a panic mid-assignment of Arcs; the
             // snapshot is still a valid value, keep serving it.
             let mut s = self.snap.write().unwrap_or_else(|e| e.into_inner());
             f(&mut s);
             s.rev += 1;
+            s.rev
+        };
+        if self.bench_watch {
+            let ms = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| d.as_millis());
+            eprintln!("{}", bench_line(rev, ms));
         }
         let cb = self
             .repaint
@@ -179,9 +218,15 @@ impl Shared {
     }
 }
 
+/// `{"bench":"watch","rev":N,"t_unix_ms":…}` (docs/rust/PERF.md).
+fn bench_line(rev: u64, t_unix_ms: u128) -> String {
+    format!(r#"{{"bench":"watch","rev":{rev},"t_unix_ms":{t_unix_ms}}}"#)
+}
+
 enum Msg {
     Cmd(Command),
-    Changed(Changed),
+    /// A watcher's report; `gen` names the vault it watched.
+    Changed(u64, Changed),
 }
 
 /// The UI's only door into desk-app.
@@ -192,15 +237,25 @@ pub struct AppHandle {
 }
 
 impl AppHandle {
+    /// The desk on one vault (desk-ui passes `--vault` / `DESK_VAULT`).
+    pub fn new(vault: PathBuf) -> std::io::Result<Self> {
+        Self::start(AppConfig {
+            vault: Some(vault),
+            watch: WatchOptions::default(),
+        })
+    }
+
     /// Start the background thread and its runtime.
     pub fn start(cfg: AppConfig) -> std::io::Result<Self> {
+        let bench_watch = std::env::var_os(BENCH_WATCH_ENV).is_some_and(|v| v == "1");
         let shared = Arc::new(Shared {
             snap: RwLock::new(Snapshot::default()),
             repaint: RwLock::new(None),
+            bench_watch,
         });
         let (tx, rx) = mpsc::unbounded_channel();
         // current_thread: the app's own work is small and mostly waiting;
-        // blocking file reads go to tokio's blocking pool.
+        // blocking file I/O goes to tokio's blocking pool.
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()?;
@@ -208,8 +263,10 @@ impl AppHandle {
             shared: Arc::clone(&shared),
             vault: cfg.vault,
             watch_opts: cfg.watch,
-            tx: Some(tx.clone()),
+            // Weak: the loop must end when the UI drops its handle.
+            weak: tx.downgrade(),
             watcher: None,
+            watch_gen: 0,
             open: None,
             input: DayInput::new(),
             keys: HashSet::new(),
@@ -255,8 +312,8 @@ impl AppHandle {
 
 impl Drop for AppHandle {
     fn drop(&mut self) {
-        // Closing the channel ends the actor (the watcher only holds a weak
-        // sender), then the thread is joined.
+        // Closing the channel ends the actor (everything else holds only a
+        // weak sender), then the thread is joined.
         self.tx = None;
         if let Some(t) = self.thread.take() {
             let _ = t.join();
@@ -268,10 +325,10 @@ struct Actor {
     shared: Arc<Shared>,
     vault: Option<PathBuf>,
     watch_opts: WatchOptions,
-    /// Only until the watcher has its weak copy: a strong sender here
-    /// would keep the loop alive after the UI dropped its handle.
-    tx: Option<mpsc::UnboundedSender<Msg>>,
+    weak: mpsc::WeakUnboundedSender<Msg>,
     watcher: Option<StateWatcher>,
+    /// Bumped per watcher, so a late report about the previous vault is dropped.
+    watch_gen: u64,
     open: Option<NaiveDate>,
     /// The open day's files, kept so a change re-reads one file only.
     input: DayInput,
@@ -283,25 +340,28 @@ struct Actor {
 impl Actor {
     async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Msg>) {
         self.start_watcher();
-        self.tx = None;
         self.refresh_index().await;
         while let Some(msg) = rx.recv().await {
             match msg {
                 Msg::Cmd(c) => self.command(c).await,
-                Msg::Changed(names) => self.changed(names).await,
+                Msg::Changed(g, names) if g == self.watch_gen => self.changed(names).await,
+                Msg::Changed(..) => {}
             }
         }
         self.watcher = None;
     }
 
     fn start_watcher(&mut self) {
-        let (Some(vault), Some(tx)) = (self.vault.clone(), self.tx.as_ref()) else {
+        // Stop the old one first: its thread is joined on drop.
+        self.watcher = None;
+        self.watch_gen += 1;
+        let Some(vault) = self.vault.clone() else {
             return;
         };
-        let tx = tx.downgrade();
+        let (tx, gen) = (self.weak.clone(), self.watch_gen);
         match StateWatcher::start_with(&vault, self.watch_opts, move |names| {
             if let Some(tx) = tx.upgrade() {
-                let _ = tx.send(Msg::Changed(names));
+                let _ = tx.send(Msg::Changed(gen, names));
             }
         }) {
             Ok(w) => self.watcher = Some(w),
@@ -319,10 +379,37 @@ impl Actor {
                 self.open_day(today).await;
             }
             Command::LoadShot(rel) => self.load_shot(rel).await,
-            // TODO(stage 4): vault_write::write_human_read / write_day_answers
-            // in spawn_blocking; the watcher then redraws.
-            Command::WriteHumanRead { .. } => self.todo("write_human_read"),
-            Command::WriteDayAnswers { .. } => self.todo("write_day_answers"),
+            Command::SetVault(v) => self.set_vault(v).await,
+            Command::WriteHumanRead {
+                date,
+                region,
+                side,
+                before_scale,
+            } => {
+                self.write(move |vault| {
+                    vault_write::write_human_read(
+                        vault,
+                        date,
+                        region,
+                        side,
+                        before_scale,
+                        Utc::now(),
+                    )
+                    .map(drop)
+                })
+                .await
+            }
+            Command::WriteDayAnswers {
+                date,
+                regions,
+                note,
+            } => {
+                self.write(move |vault| {
+                    vault_write::write_day_answers(vault, date, regions, &note, Utc::now())
+                        .map(drop)
+                })
+                .await
+            }
             // TODO(stage 5): claude::ClaudeSession per chat, events folded into ChatsView.
             Command::Chat(_) => self.todo("chat"),
             // TODO(stage 6): status probes (sysinfo, CDP with a 1.5 s timeout).
@@ -352,13 +439,57 @@ impl Actor {
         self.error(UserError::new(keys::VAULT_READ_FAILED).var("detail", e.to_string()));
     }
 
+    /// One of the owner's two writes. The screen follows through the watcher,
+    /// the same way it follows the skill's writes.
+    async fn write(
+        &mut self,
+        f: impl FnOnce(&std::path::Path) -> Result<(), WriteError> + Send + 'static,
+    ) {
+        let Some(vault) = self.vault.clone() else {
+            self.error(UserError::new(keys::VAULT_NOT_SET));
+            return;
+        };
+        match tokio::task::spawn_blocking(move || f(&vault)).await {
+            Ok(Ok(())) => {}
+            Ok(Err(e)) => {
+                let mut err = UserError::new(e.key());
+                if matches!(e, WriteError::Io(_) | WriteError::Core(_)) {
+                    err = err.var("detail", e.to_string());
+                }
+                self.error(err);
+            }
+            Err(e) => {
+                self.error(UserError::new(keys::VAULT_WRITE_FAILED).var("detail", e.to_string()))
+            }
+        }
+    }
+
+    async fn set_vault(&mut self, vault: PathBuf) {
+        if self.vault.as_deref() == Some(vault.as_path()) {
+            return;
+        }
+        self.vault = Some(vault);
+        self.start_watcher();
+        let reopen = self.open.take();
+        self.input = DayInput::new();
+        self.keys.clear();
+        self.shared.publish(|s| {
+            s.day = None;
+            s.shots = Arc::default();
+        });
+        self.refresh_index().await;
+        if let Some(d) = reopen {
+            self.open_day(d).await;
+        }
+    }
+
     /// Publish a day, keeping only the screenshots it still names.
     fn publish_day(&self, day: Day) {
-        let paths: HashSet<String> = day.shot_paths().into_iter().map(str::to_owned).collect();
+        let paths: HashSet<&str> = day.shot_paths().into_iter().collect();
         let shots = self.shared.read(|s| Arc::clone(&s.shots));
-        let kept: BTreeMap<String, ShotEntry> = shots
+        let kept: HashMap<String, ShotState> = shots
             .iter()
-            .filter(|(k, _)| paths.contains(*k))
+            .filter(|(k, _)| paths.contains(k.as_str()))
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         let shots = (kept.len() != shots.len()).then(|| Arc::new(kept));
@@ -419,10 +550,7 @@ impl Actor {
                 match res {
                     Ok((input, built)) => {
                         self.input = input;
-                        // Only the day still open is published (commands are
-                        // handled in order, so this always holds today; kept
-                        // for when reads stop blocking the loop).
-                        if let (Some(built), true) = (built, self.open == Some(date)) {
+                        if let Some(built) = built {
                             self.publish_day(built);
                         }
                     }
@@ -447,12 +575,12 @@ impl Actor {
             Ok((index, marks)) => {
                 let unchanged = self
                     .shared
-                    .read(|s| *s.days_index == marks && s.index.as_deref() == Some(&index));
+                    .read(|s| *s.days_index == marks && *s.index == index);
                 if !unchanged {
                     let (marks, index) = (Arc::new(marks), Arc::new(index));
                     self.shared.publish(|s| {
                         s.days_index = marks;
-                        s.index = Some(index);
+                        s.index = index;
                     });
                 }
             }
@@ -468,8 +596,8 @@ impl Actor {
         let key = rel.replace('\\', "/");
         let res = tokio::task::spawn_blocking(move || shots::load_shot(&vault, &rel)).await;
         let entry = match res {
-            Ok(Ok(s)) => ShotEntry::Ready(Arc::new(s)),
-            Ok(Err(why)) => ShotEntry::Refused(why),
+            Ok(Ok(s)) => ShotState::Ready(Arc::new(s)),
+            Ok(Err(why)) => ShotState::Refused(why),
             Err(e) => return self.read_failed(e),
         };
         let current = self.shared.read(|s| Arc::clone(&s.shots));
@@ -487,7 +615,6 @@ impl Actor {
 mod tests {
     use super::*;
     use crate::vault_write::state_dir;
-    use desk_core::HumanSide;
     use std::fs;
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{Duration, Instant};
@@ -555,7 +682,7 @@ mod tests {
                 day_review: false
             }
         );
-        assert!(s0.index.as_ref().is_some_and(|i| i.ok));
+        assert!(s0.index.ok);
 
         let before = app.snapshot().rev;
         let repaints_before = repaints.load(Ordering::SeqCst);
@@ -605,12 +732,12 @@ mod tests {
         ));
         let s = wait_until(&app, "two shots", |s| s.shots.len() == 2);
         match &s.shots["indices-kb/shots/2026-11-25/eu_h1.png"] {
-            ShotEntry::Ready(shot) => assert_eq!(shot.png.len(), 10),
+            ShotState::Ready(shot) => assert_eq!(shot.png.len(), 10),
             other => panic!("{other:?}"),
         }
         assert_eq!(
             s.shots["indices-kb/shots/2026-11-25/none.png"],
-            ShotEntry::Refused(ShotRefused::Missing)
+            ShotState::Refused(ShotRefused::Missing)
         );
         // Asking again for the same bytes changes nothing.
         let rev = s.rev;
@@ -647,10 +774,7 @@ mod tests {
         // Midnight in Kyiv between the two lines would flake; compare loosely.
         assert!((s.day.as_ref().unwrap().date - today).num_days().abs() <= 1);
         assert!(s.errors.is_empty());
-        assert_eq!(
-            s.index.as_ref().and_then(|i| i.error.as_deref()),
-            Some("no-state-dir")
-        );
+        assert_eq!(s.index.error.as_deref(), Some("no-state-dir"));
     }
 
     #[test]
@@ -690,5 +814,132 @@ mod tests {
             let _ = app.snapshot();
         }
         assert!(t0.elapsed() < Duration::from_secs(2), "{:?}", t0.elapsed());
+    }
+
+    #[test]
+    fn owner_writes_land_and_the_watcher_shows_them() {
+        let vault = tempfile::tempdir().unwrap();
+        fs::create_dir_all(state_dir(vault.path())).unwrap();
+        let app = AppHandle::start(AppConfig {
+            vault: Some(vault.path().into()),
+            watch: fast(),
+        })
+        .unwrap();
+        app.send(Command::OpenDay(d("2026-11-25")));
+        wait_until(&app, "the day", |s| s.day.is_some());
+        app.send(Command::WriteHumanRead {
+            date: d("2026-11-25"),
+            region: Region::Eu,
+            side: HumanSide::Short,
+            before_scale: false,
+        });
+        let s = wait_until(&app, "the read", |s| side(s) == Some(HumanSide::Short));
+        assert_eq!(
+            s.day
+                .as_ref()
+                .unwrap()
+                .eu
+                .human
+                .as_ref()
+                .map(|h| h.before_scale),
+            Some(false)
+        );
+        app.send(Command::WriteDayAnswers {
+            date: d("2026-11-25"),
+            regions: DayAnswerRegions::default(),
+            note: " терпение\nпомогло ".into(),
+        });
+        let s = wait_until(&app, "the answers", |s| {
+            s.day.as_ref().is_some_and(|x| x.answers.is_some())
+        });
+        assert_eq!(
+            s.day
+                .as_ref()
+                .unwrap()
+                .answers
+                .as_ref()
+                .map(|a| a.note.as_str()),
+            Some("терпение помогло")
+        );
+        assert!(s.errors.is_empty(), "{:?}", s.errors);
+    }
+
+    #[test]
+    fn bench_line_is_json() {
+        let v: serde_json::Value = serde_json::from_str(&bench_line(7, 1_795_615_364_778)).unwrap();
+        assert_eq!(
+            v,
+            serde_json::json!({ "bench": "watch", "rev": 7, "t_unix_ms": 1_795_615_364_778u64 })
+        );
+    }
+
+    #[test]
+    fn write_errors_are_i18n_keys() {
+        let app = AppHandle::start(AppConfig::default()).unwrap();
+        app.send(Command::WriteHumanRead {
+            date: d("2026-11-25"),
+            region: Region::Us,
+            side: HumanSide::Long,
+            before_scale: true,
+        });
+        let s = wait_until(&app, "no vault", |s| !s.errors.is_empty());
+        assert_eq!(s.errors[0], UserError::new(keys::VAULT_NOT_SET));
+        let vault = tempfile::tempdir().unwrap();
+        let app = AppHandle::start(AppConfig {
+            vault: Some(vault.path().into()),
+            watch: fast(),
+        })
+        .unwrap();
+        let far = NaiveDate::from_ymd_opt(10000, 1, 1).unwrap();
+        app.send(Command::WriteDayAnswers {
+            date: far,
+            regions: DayAnswerRegions::default(),
+            note: String::new(),
+        });
+        let s = wait_until(&app, "bad date", |s| !s.errors.is_empty());
+        assert_eq!(s.errors[0], UserError::new("error.vault.bad_date"));
+        assert!(!state_dir(vault.path()).exists(), "nothing written");
+    }
+
+    #[test]
+    fn set_vault_moves_everything() {
+        let a = tempfile::tempdir().unwrap();
+        let b = tempfile::tempdir().unwrap();
+        fs::create_dir_all(state_dir(a.path())).unwrap();
+        fs::create_dir_all(state_dir(b.path())).unwrap();
+        fs::write(
+            state_dir(b.path()).join("human_read_2026-11-25_eu.json"),
+            READ_LONG,
+        )
+        .unwrap();
+        fs::write(state_dir(b.path()).join("scale_2026-11-25_eu.json"), "{}").unwrap();
+        let app = AppHandle::start(AppConfig {
+            vault: Some(a.path().into()),
+            watch: fast(),
+        })
+        .unwrap();
+        app.send(Command::OpenDay(d("2026-11-25")));
+        let s = wait_until(&app, "day in a", |s| s.day.is_some());
+        assert_eq!(side(&s), None);
+        assert!(s.days_index.is_empty());
+        app.send(Command::SetVault(b.path().into()));
+        let s = wait_until(&app, "day in b", |s| {
+            side(s) == Some(HumanSide::Long) && s.days_index.len() == 1
+        });
+        assert_eq!(s.index.vault, b.path().to_string_lossy());
+        // The new vault is watched, the old one no longer.
+        fs::write(
+            state_dir(a.path()).join("human_read_2026-11-25_eu.json"),
+            READ_SHORT,
+        )
+        .unwrap();
+        std::thread::sleep(Duration::from_millis(500));
+        assert_eq!(side(&app.snapshot()), Some(HumanSide::Long));
+        fs::write(
+            state_dir(b.path()).join("human_read_2026-11-25_eu.json"),
+            READ_SHORT,
+        )
+        .unwrap();
+        wait_until(&app, "b watched", |s| side(s) == Some(HumanSide::Short));
     }
 }
