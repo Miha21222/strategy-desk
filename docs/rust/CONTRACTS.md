@@ -98,6 +98,8 @@ pub enum DriverEvent {
 pub enum ChatCommand {
     New { kind: ChatKind },                       // Ask → «+ Новый чат»
     OpenMacro { date: NaiveDate },                // один макро-чат на день, title = desk_core::prompts::macro_chat_title
+    Open { chat_id: ChatId },                     // любой чат из списка
+    SendMacro { date: NaiveDate, text: String },  // в макро-чат дня (например, discuss_prompt)
     Send { chat_id: ChatId, text: String },
     Run { window: WindowId, date: NaiveDate },    // «Запустить / Пересобрать обзор»: OpenMacro + Send(run_command)
     Stop { chat_id: ChatId },
