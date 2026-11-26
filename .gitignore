@@ -35,3 +35,4 @@ resources/vault-template/
 scripts/preview/out/
 .cowork/
 rust/target/
+rust/target-wgpu/
