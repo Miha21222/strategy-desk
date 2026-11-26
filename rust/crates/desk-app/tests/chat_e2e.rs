@@ -1,8 +1,3 @@
-// GATE: compiled out until the stage-5 chat API (docs/rust/CONTRACTS.md «Чат
-// (этап 5)») lands in desk-app. Delete the next line then, and fix the names
-// in `mod api` if they landed differently. (`any()` is always false; a named
-// feature would need a Cargo.toml entry.)
-#![cfg(any())]
 //! Stage 5 end to end: `AppHandle` → `Command::Chat` → a real child process
 //! speaking stream-json → `Snapshot.chats`, checked against
 //!
@@ -50,7 +45,7 @@ mod api {
     use std::path::{Path, PathBuf};
 
     use chrono::NaiveDate;
-    pub use desk_app::app::{ChatCommand, ChatId, ChatItem, ChatKind, ChatMeta};
+    pub use desk_app::chat::{ChatCommand, ChatId, ChatItem, ChatKind, ChatMeta};
     use desk_app::watch::WatchOptions;
     pub use desk_app::{AppConfig, AppHandle, Command, Snapshot};
     use desk_core::windows::WindowId;
@@ -65,10 +60,11 @@ mod api {
             vault: Some(vault.to_path_buf()),
             watch: WatchOptions::default(),
             data_dir: Some(data_dir.to_path_buf()),
-            claude: Some(desk_app::app::ClaudeLaunch {
-                program: claude.program,
+            claude: desk_app::chat::ClaudeLaunch {
+                program: Some(claude.program),
                 program_args: claude.args,
-            }),
+                ..Default::default()
+            },
         })
         .expect("start")
     }
@@ -294,12 +290,19 @@ fn fake_claude_entry() {
     note(
         json!({"start": true, "argv": argv, "cwd": std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default(), "env_keys": env.keys().collect::<Vec<_>>()}),
     );
-    let text = std::fs::read_to_string(str_of(&ctl["stream"])).unwrap_or_default();
-    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let mut turns: Vec<Vec<&str>> = vec![Vec::new()];
+    // Bytes, not a String: fake_garbage.jsonl carries a line that is not
+    // UTF-8 on purpose, and it must reach the desk as it is.
+    let text = std::fs::read(str_of(&ctl["stream"])).unwrap_or_default();
+    let lines: Vec<&[u8]> = text
+        .split(|b| *b == b'\n')
+        .map(|l| l.strip_suffix(b"\r").unwrap_or(l))
+        .filter(|l| !l.iter().all(u8::is_ascii_whitespace))
+        .collect();
+    let has = |l: &[u8], pat: &[u8]| l.windows(pat.len()).any(|w| w == pat);
+    let mut turns: Vec<Vec<&[u8]>> = vec![Vec::new()];
     for l in &lines {
         turns.last_mut().expect("a turn").push(l);
-        if l.contains(r#""type":"result""#) {
+        if has(l, br#""type":"result""#) {
             turns.push(Vec::new());
         }
     }
@@ -337,9 +340,9 @@ fn fake_claude_entry() {
             }
         }
         for (i, l) in turn.iter().enumerate() {
-            if die && i + 1 == turn.len() && !l.trim_end().ends_with('}') {
+            if die && i + 1 == turn.len() && l.trim_ascii_end().last() != Some(&b'}') {
                 // fake_die.jsonl ends in half a line: write it without a newline and die.
-                let _ = write!(out, "{l}");
+                let _ = out.write_all(l);
                 let _ = out.flush();
                 std::process::exit(ctl["exit"].as_i64().unwrap_or(3) as i32);
             }
@@ -355,7 +358,8 @@ fn fake_claude_entry() {
                     std::thread::sleep(Duration::from_millis(5));
                 }
             }
-            let _ = writeln!(out, "{l}");
+            let _ = out.write_all(l);
+            let _ = out.write_all(b"\n");
             let _ = out.flush();
         }
         if die {
