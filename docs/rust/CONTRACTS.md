@@ -91,3 +91,31 @@ pub enum DriverEvent {
 - Проверка года 1000–9999 для имён файлов владельца переезжает в `desk_core::names`; в desk-app второй копии нет.
 - Метки полосы дней (`DayMark`) пока строит desk-app из `MacroIndex`.
 - Точный отрезок окна США в недели рассинхрона часов: 15:00 / 15:30 / 17:30 по Киеву (как в golden `windows.json`, ответ `tz`).
+
+## Чат (этап 5)
+
+```rust
+pub enum ChatCommand {
+    New { kind: ChatKind },                       // Ask → «+ Новый чат»
+    OpenMacro { date: NaiveDate },                // один макро-чат на день, title = desk_core::prompts::macro_chat_title
+    Send { chat_id: ChatId, text: String },
+    Run { window: WindowId, date: NaiveDate },    // «Запустить / Пересобрать обзор»: OpenMacro + Send(run_command)
+    Stop { chat_id: ChatId },
+    Rename { chat_id: ChatId, title: String },
+    Delete { chat_id: ChatId },                   // только из списка чатов, с подтверждением в UI
+}
+
+pub struct ChatsView {
+    pub list: Vec<ChatMeta>,                      // новые сверху
+    pub open: Option<ChatId>,
+    pub transcripts: HashMap<ChatId, Arc<Transcript>>,   // только открытые/последние, не все
+}
+pub struct ChatMeta { id, kind, title, date: Option<NaiveDate>, created_at, updated_at, session_id: Option<String>, busy: bool, cost_usd: f64 }
+pub struct Transcript { pub items: Vec<ChatItem> }       // User{text,at} | Assistant{text,at,live:bool} | Tool{id,name,summary,ok:Option<bool>} | Notice{key,vars}
+```
+
+- Хранение: `%APPDATA%\strategy-desk-rs\chats\<id>.json` (meta + transcript), атомарно; чтение старых чатов Electron — не нужно.
+- Один процесс `claude` на чат, `--resume <session_id>` при следующем запуске Desk; `busy` чат не принимает `Send` (UI блокирует).
+- Макро-чат и «Новый чат» — `macro_env` + `prompt/macro-review.md` / `prompt/ask.md` (через `include_str!`), cwd = vault, инструменты `MACRO_ALLOWED`.
+- Где взять `claude`: `DESK_CLAUDE_BIN`, затем `claude` в PATH; не нашли — `Notice{key:"chat.error.no_claude"}` (мастер настройки — этап 6).
+- Стрим: `TextDelta` дописывается в последний `Assistant{live:true}`; снимок обновляется не чаще 30 раз в секунду.
