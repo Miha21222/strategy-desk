@@ -142,9 +142,9 @@ fn box_down(rgba: &[u8], w: usize, k: usize, sw: usize, sh: usize) -> Vec<u8> {
             let mut acc = [0u32; 4];
             for dy in 0..k {
                 let row = ((y * k + dy) * w + x * k) * 4;
-                for px in rgba[row..row + k * 4].chunks_exact(4) {
-                    for c in 0..4 {
-                        acc[c] += u32::from(px[c]);
+                for px in rgba[row..row + k * 4].as_chunks::<4>().0 {
+                    for (a, &v) in acc.iter_mut().zip(px) {
+                        *a += u32::from(v);
                     }
                 }
             }
