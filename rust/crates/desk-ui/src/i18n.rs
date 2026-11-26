@@ -2,7 +2,8 @@
 //!
 //! `t("macro.gauge")` returns the string; an unknown key returns the key
 //! itself (same rule as the TS `t()`), so a typo shows up on screen instead of
-//! crashing. The `app`, `tabs`, `macro` and `sidebar` sections are generated
+//! crashing. The `app`, `tabs`, `macro`, `sidebar`, `home`, `chat`, `composer`
+//! `notice` and `md` sections are generated
 //! from `ru.ts` into [`crate::i18n_ru`] (`tools/gen-i18n.mjs`); keys new to the
 //! Rust desk live here under `desk.*` and `error.*` (desk-app's error keys).
 //!
@@ -73,7 +74,18 @@ pub(crate) static THESIS: &[(&str, &str)] = &[
 
 /// Strings the TS desk does not have. Few, so a linear scan is fine.
 pub(crate) static DESK: &[(&str, &str)] = &[
-    ("desk.soon", "Лампочки и чаты — в следующих версиях"),
+    ("desk.soon", "Появится в следующих версиях"),
+    ("desk.chat.loading", "Загружаю разговор…"),
+    ("desk.chat.creating", "Создаю чат…"),
+    (
+        "desk.chat.macroEmpty",
+        "Здесь будет разговор с агентом об обзоре этого дня: запусти обзор на экране «Обзор дня».",
+    ),
+    (
+        "chat.error.no_claude",
+        "Не нашли Claude Code на этом компьютере. Мастер настройки поможет его подключить — он появится в следующей версии Desk.",
+    ),
+    ("chat.error.failed", "Ответ прервался: {detail}"),
     ("desk.silent", "молчат:"),
     ("desk.hitShort", "{h} из {n}"),
     (

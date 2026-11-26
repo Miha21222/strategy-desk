@@ -30,8 +30,13 @@ chrono.workspace = true
 # PNG screenshots are decoded off the UI thread; `png` alone, not `image`.
 png = "0.18"
 # No default features: no system_fonts (scans the OS font dir before the first
-# frame), no accesskit/clipboard/links until a screen needs them.
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "x11", "wayland"] }
+# frame), no accesskit/links. `clipboard` since the chat (stage 5): copying an
+# answer or a code block, pasting into the composer.
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "x11", "wayland", "clipboard"] }
+# The chat's Markdown: the parser only (no HTML renderer, no SIMD); the desk
+# draws the blocks itself (`chat/markdown.rs`). egui_commonmark was measured
+# against it, see the module docs.
+pulldown-cmark = { version = "0.13", default-features = false }
 
 [dev-dependencies]
 serde_json.workspace = true

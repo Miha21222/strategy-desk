@@ -2,6 +2,7 @@
 //! sends commands; it never waits on disk, network or another process.
 
 pub mod app;
+pub mod chat;
 pub mod cli;
 pub mod clock;
 pub mod fonts;
@@ -16,3 +17,5 @@ pub mod theme;
 
 #[cfg(test)]
 mod snapshots;
+#[cfg(test)]
+mod snapshots_chat;

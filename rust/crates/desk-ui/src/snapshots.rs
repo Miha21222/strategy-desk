@@ -27,11 +27,11 @@ use crate::gauge::{Gauge, NeedleAnim, NEEDLE_TRAVEL_S};
 use crate::i18n;
 use crate::theme::{self, Palette};
 
-fn d(s: &str) -> NaiveDate {
+pub(crate) fn d(s: &str) -> NaiveDate {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
 }
 
-fn setup(ctx: &egui::Context) {
+pub(crate) fn setup(ctx: &egui::Context) {
     crate::fonts::install(ctx);
     theme::apply(ctx, ThemePreference::System);
 }
@@ -144,7 +144,7 @@ fn every_string_has_glyphs() {
                     ui.label(s);
                     ui.label(egui::RichText::new(s.to_uppercase()).family(crate::fonts::bold()));
                 }
-                ui.label("−+%·«»—…ё Ё ✓ ✗ ⚠ × ‹ › ≈ ← →");
+                ui.label("−+%·«»—…ё Ё ✓ ✗ ⚠ × ‹ › ≈ ← → •");
             });
         });
     h.run();
@@ -153,7 +153,7 @@ fn every_string_has_glyphs() {
 // ---------------------------------------------------------------- the screen
 
 /// What desk-app would hold after `OpenDay(date)` and every `LoadShot`.
-fn demo_snapshot(date: NaiveDate) -> Snapshot {
+pub(crate) fn demo_snapshot(date: NaiveDate) -> Snapshot {
     let vault = demo_vault();
     let (index, marks) = desk_app::day::read_index(&vault);
     let day = desk_core::load_day(&desk_app::day::read_day(&vault, date), date);
@@ -183,7 +183,7 @@ fn screen(theme: Theme, now: &str, date: &str, win: Option<WindowId>) -> Harness
     screen_sized(theme, now, date, win, 1900.0)
 }
 
-fn screen_sized(
+pub(crate) fn screen_sized(
     theme: Theme,
     now: &str,
     date: &str,
@@ -206,9 +206,9 @@ fn screen_sized(
 }
 
 /// The «today» of the demo vault, at the hour of the reference shots.
-const TODAY: &str = "2026-10-26T09:40";
+pub(crate) const TODAY: &str = "2026-10-26T09:40";
 
-fn has(h: &Harness<'_, DeskApp>, s: &str) -> bool {
+pub(crate) fn has(h: &Harness<'_, DeskApp>, s: &str) -> bool {
     h.query_all_by_label_contains(s).next().is_some()
 }
 
@@ -575,7 +575,7 @@ fn shots_decode_once() {
 // ---------------------------------------------------------------- images
 
 #[cfg(target_os = "linux")]
-fn theme_name(t: Theme) -> &'static str {
+pub(crate) fn theme_name(t: Theme) -> &'static str {
     match t {
         Theme::Dark => "dark",
         Theme::Light => "light",
@@ -583,7 +583,7 @@ fn theme_name(t: Theme) -> &'static str {
 }
 
 #[cfg(target_os = "linux")]
-fn snapshot_options() -> egui_kittest::SnapshotOptions {
+pub(crate) fn snapshot_options() -> egui_kittest::SnapshotOptions {
     egui_kittest::SnapshotOptions::new()
         .output_path(concat!(env!("CARGO_MANIFEST_DIR"), "/snapshots"))
 }
