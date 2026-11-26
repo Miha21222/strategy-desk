@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use chrono::{NaiveDate, Utc};
 use desk_core::day::load_day;
@@ -22,6 +22,9 @@ use desk_core::vault::DayAnswerRegions;
 use desk_core::{Day, DayInput, HumanSide, MacroIndex, Region};
 use tokio::sync::mpsc;
 
+use crate::chat::manager::{ChatMsg, Chats, Forward};
+use crate::chat::store::{default_data_dir, ChatStore};
+use crate::chat::{ChatCommand, ChatsView, ClaudeLaunch};
 use crate::day::{self, DayMark};
 use crate::shots::{self, LoadedShot, ShotRefused};
 use crate::vault_write::{self, WriteError};
@@ -32,23 +35,6 @@ pub const ERRORS_KEPT: usize = 20;
 
 /// Bench hook (CONTRACTS «Хуки для замеров»): one stderr JSON line per new rev.
 pub const BENCH_WATCH_ENV: &str = "DESK_BENCH_WATCH";
-
-pub type ChatId = String;
-
-/// A chat command from the UI.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ChatCommand {
-    Send { chat_id: ChatId, text: String },
-    Stop { chat_id: ChatId },
-    New { kind: ChatKind },
-}
-
-/// `kind` of a chat in the MVP: the day's macro chat, or «+ Новый чат».
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChatKind {
-    Macro,
-    Ask,
-}
 
 /// A task id from a fixed list — never a command line (rule of the old app).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -89,10 +75,6 @@ pub enum ShotState {
     /// Not shown (missing, not a PNG, outside `indices-kb/shots/`); the tile stays empty.
     Refused(ShotRefused),
 }
-
-/// TODO(stage 5): chats list, messages, the live turn.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ChatsView {}
 
 /// TODO(stage 6): TradingView / CDP / Claude lights.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -175,7 +157,14 @@ pub mod keys {
 pub struct AppConfig {
     pub vault: Option<PathBuf>,
     pub watch: WatchOptions,
+    /// Where chats are stored; `None` = `<platform data dir>/strategy-desk-rs`.
+    pub data_dir: Option<PathBuf>,
+    /// How a chat's `claude` is started (tests and benches; empty in production).
+    pub claude: ClaudeLaunch,
 }
+
+/// Chat snapshots are published at most this often (≤ 30/s, CONTRACTS).
+pub const CHAT_FRAME: Duration = Duration::from_millis(34);
 
 type Repaint = Arc<dyn Fn() + Send + Sync>;
 
@@ -225,6 +214,7 @@ fn bench_line(rev: u64, t_unix_ms: u128) -> String {
 
 enum Msg {
     Cmd(Command),
+    Chat(ChatMsg),
     /// A watcher's report; `gen` names the vault it watched.
     Changed(u64, Changed),
 }
@@ -241,7 +231,7 @@ impl AppHandle {
     pub fn new(vault: PathBuf) -> std::io::Result<Self> {
         Self::start(AppConfig {
             vault: Some(vault),
-            watch: WatchOptions::default(),
+            ..AppConfig::default()
         })
     }
 
@@ -263,6 +253,9 @@ impl AppHandle {
             shared: Arc::clone(&shared),
             vault: cfg.vault,
             watch_opts: cfg.watch,
+            data_dir: cfg.data_dir,
+            launch: cfg.claude,
+            chats: None,
             // Weak: the loop must end when the UI drops its handle.
             weak: tx.downgrade(),
             watcher: None,
@@ -325,6 +318,10 @@ struct Actor {
     shared: Arc<Shared>,
     vault: Option<PathBuf>,
     watch_opts: WatchOptions,
+    data_dir: Option<PathBuf>,
+    launch: ClaudeLaunch,
+    /// Built inside the runtime (its writer is a task).
+    chats: Option<Chats>,
     weak: mpsc::WeakUnboundedSender<Msg>,
     watcher: Option<StateWatcher>,
     /// Bumped per watcher, so a late report about the previous vault is dropped.
@@ -341,14 +338,66 @@ impl Actor {
     async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Msg>) {
         self.start_watcher();
         self.refresh_index().await;
-        while let Some(msg) = rx.recv().await {
-            match msg {
-                Msg::Cmd(c) => self.command(c).await,
-                Msg::Changed(g, names) if g == self.watch_gen => self.changed(names).await,
-                Msg::Changed(..) => {}
+        self.start_chats().await;
+        let mut last_chat_publish = tokio::time::Instant::now() - CHAT_FRAME;
+        loop {
+            let due = self
+                .chats
+                .as_ref()
+                .filter(|c| c.is_dirty())
+                .map(|_| (last_chat_publish + CHAT_FRAME).max(tokio::time::Instant::now()));
+            tokio::select! {
+                // Biased: under a flood of driver events the frame still comes.
+                biased;
+                _ = async { tokio::time::sleep_until(due.unwrap_or_else(tokio::time::Instant::now)).await }, if due.is_some() => {
+                    self.publish_chats();
+                    last_chat_publish = tokio::time::Instant::now();
+                }
+                msg = rx.recv() => match msg {
+                    None => break,
+                    Some(Msg::Cmd(c)) => self.command(c).await,
+                    Some(Msg::Chat(m)) => {
+                        if let Some(chats) = self.chats.as_mut() {
+                            if let Err(e) = chats.on_msg(m, Utc::now()) {
+                                self.error(e);
+                            }
+                        }
+                    }
+                    Some(Msg::Changed(g, names)) if g == self.watch_gen => self.changed(names).await,
+                    Some(Msg::Changed(..)) => {}
+                },
             }
         }
         self.watcher = None;
+        if let Some(chats) = self.chats.take() {
+            chats.close().await;
+        }
+    }
+
+    async fn start_chats(&mut self) {
+        let Some(dir) = self.data_dir.clone().or_else(default_data_dir) else {
+            self.error(
+                UserError::new(crate::chat::model::keys::STORE).var("detail", "no data dir"),
+            );
+            return;
+        };
+        let weak = self.weak.clone();
+        let forward: Forward = Arc::new(move |m| {
+            if let Some(tx) = weak.upgrade() {
+                let _ = tx.send(Msg::Chat(m));
+            }
+        });
+        let mut chats = Chats::new(ChatStore::new(&dir), self.launch.clone(), forward);
+        if let Err(e) = chats.load_list().await {
+            self.error(e);
+        }
+        self.chats = Some(chats);
+    }
+
+    fn publish_chats(&mut self) {
+        if let Some(view) = self.chats.as_mut().and_then(Chats::take_view) {
+            self.shared.publish(|s| s.chats = view);
+        }
     }
 
     fn start_watcher(&mut self) {
@@ -410,8 +459,18 @@ impl Actor {
                 })
                 .await
             }
-            // TODO(stage 5): claude::ClaudeSession per chat, events folded into ChatsView.
-            Command::Chat(_) => self.todo("chat"),
+            Command::Chat(c) => {
+                let now = Utc::now();
+                let today = now.with_timezone(&chrono_tz::Europe::Kyiv).date_naive();
+                let vault = self.vault.clone();
+                let res = match self.chats.as_mut() {
+                    Some(chats) => chats.command(c, vault.as_deref(), today, now).await,
+                    None => Err(UserError::new(crate::chat::model::keys::STORE)),
+                };
+                if let Err(e) = res {
+                    self.error(e);
+                }
+            }
             // TODO(stage 6): status probes (sysinfo, CDP with a 1.5 s timeout).
             Command::CheckStatus => self.todo("check_status"),
             // TODO(stage 6): tv-launch port.
@@ -469,6 +528,9 @@ impl Actor {
             return;
         }
         self.vault = Some(vault);
+        if let Some(chats) = self.chats.as_mut() {
+            chats.vault_changed();
+        }
         self.start_watcher();
         let reopen = self.open.take();
         self.input = DayInput::new();
@@ -619,6 +681,16 @@ mod tests {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{Duration, Instant};
 
+    /// Tests never touch the real data dir: chats go to a temp folder.
+    fn test_cfg(vault: Option<PathBuf>) -> AppConfig {
+        AppConfig {
+            vault,
+            watch: fast(),
+            data_dir: Some(tempfile::tempdir().unwrap().keep()),
+            claude: ClaudeLaunch::default(),
+        }
+    }
+
     fn fast() -> WatchOptions {
         WatchOptions {
             debounce: Duration::from_millis(100),
@@ -692,11 +764,7 @@ mod tests {
             crate::vault_write::atomic_write(&sd, name, text.as_bytes()).unwrap();
         };
 
-        let app = AppHandle::start(AppConfig {
-            vault: Some(vault.path().into()),
-            watch: fast(),
-        })
-        .unwrap();
+        let app = AppHandle::start(test_cfg(Some(vault.path().into()))).unwrap();
         let s0 = wait_until(&app, "the index", |s| s.days_index.len() == 2);
         assert_eq!(
             s0.days_index[0],
@@ -736,11 +804,7 @@ mod tests {
             [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2],
         )
         .unwrap();
-        let app = AppHandle::start(AppConfig {
-            vault: Some(vault.path().into()),
-            watch: fast(),
-        })
-        .unwrap();
+        let app = AppHandle::start(test_cfg(Some(vault.path().into()))).unwrap();
         app.send(Command::LoadShot(
             "indices-kb/shots/2026-11-25/eu_h1.png".into(),
         ));
@@ -771,18 +835,14 @@ mod tests {
 
     #[test]
     fn today_and_missing_vault() {
-        let app = AppHandle::start(AppConfig::default()).unwrap();
+        let app = AppHandle::start(test_cfg(None)).unwrap();
         app.send(Command::Today);
         let s = wait_until(&app, "an error", |s| !s.errors.is_empty());
         assert_eq!(s.errors[0], UserError::new(keys::VAULT_NOT_SET));
         assert!(s.day.is_none());
 
         let vault = tempfile::tempdir().unwrap();
-        let app = AppHandle::start(AppConfig {
-            vault: Some(vault.path().into()),
-            watch: fast(),
-        })
-        .unwrap();
+        let app = AppHandle::start(test_cfg(Some(vault.path().into()))).unwrap();
         app.send(Command::Today);
         let s = wait_until(&app, "today", |s| s.day.is_some());
         let today = Utc::now()
@@ -796,7 +856,7 @@ mod tests {
 
     #[test]
     fn unwired_commands_answer_with_a_user_error() {
-        let app = AppHandle::start(AppConfig::default()).unwrap();
+        let app = AppHandle::start(test_cfg(None)).unwrap();
         app.send(Command::Chat(ChatCommand::Send {
             chat_id: "c1".into(),
             text: "hi".into(),
@@ -804,11 +864,11 @@ mod tests {
         app.send(Command::CheckStatus);
         app.send(Command::RunTask(TaskId("provision-runtime".into())));
         let s = wait_until(&app, "three errors", |s| s.errors.len() == 3);
-        assert!(s.errors.iter().all(|e| e.key == keys::NOT_IMPLEMENTED));
         assert_eq!(
-            s.errors[0].vars,
-            vec![("command".to_string(), "chat".to_string())]
+            s.errors[0],
+            UserError::new(crate::chat::model::keys::UNKNOWN_CHAT)
         );
+        assert!(s.errors[1..].iter().all(|e| e.key == keys::NOT_IMPLEMENTED));
         for _ in 0..(ERRORS_KEPT + 5) {
             app.send(Command::LaunchTradingView);
         }
@@ -822,7 +882,7 @@ mod tests {
 
     #[test]
     fn send_never_blocks_and_snapshot_is_cheap() {
-        let app = AppHandle::start(AppConfig::default()).unwrap();
+        let app = AppHandle::start(test_cfg(None)).unwrap();
         let t0 = Instant::now();
         for _ in 0..10_000 {
             app.send(Command::CheckStatus);
@@ -839,11 +899,7 @@ mod tests {
     fn owner_writes_land_and_the_watcher_shows_them() {
         let vault = tempfile::tempdir().unwrap();
         fs::create_dir_all(state_dir(vault.path())).unwrap();
-        let app = AppHandle::start(AppConfig {
-            vault: Some(vault.path().into()),
-            watch: fast(),
-        })
-        .unwrap();
+        let app = AppHandle::start(test_cfg(Some(vault.path().into()))).unwrap();
         app.send(Command::OpenDay(d("2026-11-25")));
         wait_until(&app, "the day", |s| s.day.is_some());
         app.send(Command::WriteHumanRead {
@@ -894,7 +950,7 @@ mod tests {
 
     #[test]
     fn write_errors_are_i18n_keys() {
-        let app = AppHandle::start(AppConfig::default()).unwrap();
+        let app = AppHandle::start(test_cfg(None)).unwrap();
         app.send(Command::WriteHumanRead {
             date: d("2026-11-25"),
             region: Region::Us,
@@ -904,11 +960,7 @@ mod tests {
         let s = wait_until(&app, "no vault", |s| !s.errors.is_empty());
         assert_eq!(s.errors[0], UserError::new(keys::VAULT_NOT_SET));
         let vault = tempfile::tempdir().unwrap();
-        let app = AppHandle::start(AppConfig {
-            vault: Some(vault.path().into()),
-            watch: fast(),
-        })
-        .unwrap();
+        let app = AppHandle::start(test_cfg(Some(vault.path().into()))).unwrap();
         let far = NaiveDate::from_ymd_opt(10000, 1, 1).unwrap();
         app.send(Command::WriteDayAnswers {
             date: far,
@@ -932,11 +984,7 @@ mod tests {
         )
         .unwrap();
         fs::write(state_dir(b.path()).join("scale_2026-11-25_eu.json"), "{}").unwrap();
-        let app = AppHandle::start(AppConfig {
-            vault: Some(a.path().into()),
-            watch: fast(),
-        })
-        .unwrap();
+        let app = AppHandle::start(test_cfg(Some(a.path().into()))).unwrap();
         app.send(Command::OpenDay(d("2026-11-25")));
         let s = wait_until(&app, "day in a", |s| s.day.is_some());
         assert_eq!(side(&s), None);

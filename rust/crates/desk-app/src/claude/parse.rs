@@ -8,7 +8,7 @@
 //! | `system`/`init` | `SessionStarted` (once per id) |
 //! | `stream_event` with `content_block_delta`/`text_delta` | `TextDelta` |
 //! | `assistant` → `tool_use` block | `ToolCall` |
-//! | `assistant` → `text` block of a message that was NOT streamed | `TextDelta` |
+//! | `assistant` → `text` block whose text did NOT just stream as deltas | `TextDelta` |
 //! | `assistant` with `error` | `Error { chat.error.api }` |
 //! | `user` → `tool_result` block | `ToolResult` |
 //! | `result` | `Usage`, maybe `Error`, `Done` |
@@ -55,13 +55,12 @@ pub struct Parsed {
 #[derive(Debug, Default)]
 pub struct Translator {
     session_id: Option<String>,
-    /// Message id of the last `message_start`.
-    stream_msg: Option<String>,
-    /// Messages whose text already went out as deltas this turn.
-    streamed: HashSet<String>,
-    /// Text deltas arrived without a known message id: skip assistant text
-    /// for the rest of the turn rather than print it twice.
-    streamed_unknown: bool,
+    /// Text went out as deltas since the last `assistant` frame with a text
+    /// block: that frame repeats it and must not print it again. Keyed on
+    /// order, not on message ids: the CLI streams a block, then sends its
+    /// whole-message twin, and a synthetic message (API error) that was never
+    /// streamed comes with nothing pending, so its text is shown.
+    pending_text: bool,
     interrupted: bool,
     warned: HashSet<String>,
 }
@@ -156,40 +155,26 @@ impl Translator {
 
     fn stream_event(&mut self, v: &Value, out: &mut Vec<DriverEvent>) {
         let Some(ev) = v.get("event") else { return };
-        match ev.get("type").and_then(Value::as_str) {
-            Some("message_start") => {
-                self.stream_msg = ev
-                    .pointer("/message/id")
-                    .and_then(Value::as_str)
-                    .map(str::to_string);
-            }
-            Some("content_block_delta") => {
-                let Some(delta) = ev.get("delta") else { return };
-                if delta.get("type").and_then(Value::as_str) != Some("text_delta") {
-                    return; // thinking / input_json deltas: not shown
-                }
-                let Some(text) = delta.get("text").and_then(Value::as_str) else {
-                    return;
-                };
-                match &self.stream_msg {
-                    Some(id) => {
-                        self.streamed.insert(id.clone());
-                    }
-                    None => self.streamed_unknown = true,
-                }
-                if !text.is_empty() {
-                    out.push(DriverEvent::TextDelta {
-                        text: text.to_string(),
-                    });
-                }
-            }
-            _ => {}
+        if ev.get("type").and_then(Value::as_str) != Some("content_block_delta") {
+            return;
+        }
+        let Some(delta) = ev.get("delta") else { return };
+        if delta.get("type").and_then(Value::as_str) != Some("text_delta") {
+            return; // thinking / input_json deltas: not shown
+        }
+        let Some(text) = delta.get("text").and_then(Value::as_str) else {
+            return;
+        };
+        self.pending_text = true;
+        if !text.is_empty() {
+            out.push(DriverEvent::TextDelta {
+                text: text.to_string(),
+            });
         }
     }
 
     fn assistant(&mut self, v: &Value, out: &mut Vec<DriverEvent>) {
-        let msg_id = v.pointer("/message/id").and_then(Value::as_str);
-        let streamed = self.streamed_unknown || msg_id.is_some_and(|id| self.streamed.contains(id));
+        let streamed = self.pending_text;
         if let Some(blocks) = v.pointer("/message/content").and_then(Value::as_array) {
             for b in blocks {
                 match b.get("type").and_then(Value::as_str) {
@@ -207,6 +192,7 @@ impl Translator {
                             out.push(DriverEvent::TextDelta { text });
                         }
                     }
+                    Some("text") => self.pending_text = false,
                     _ => {}
                 }
             }
@@ -265,9 +251,7 @@ impl Translator {
         out.push(DriverEvent::Done { stop });
         // Per-turn state.
         self.interrupted = false;
-        self.streamed.clear();
-        self.streamed_unknown = false;
-        self.stream_msg = None;
+        self.pending_text = false;
         Parsed {
             turn_done: true,
             control_request: None,
@@ -622,6 +606,26 @@ mod tests {
         let p = t.feed(r#"{"type":"control_request","request_id":"r7","request":{"subtype":"can_use_tool","tool_name":"Bash"}}"#, &mut out);
         assert_eq!(p.control_request.as_deref(), Some("r7"));
         assert!(out.is_empty());
+    }
+
+    /// desk-bench's fake gives the whole-message frame another id than
+    /// `message_start`; the twin must still not print twice.
+    #[test]
+    fn a_twin_with_another_message_id_is_not_printed_twice() {
+        let ev = run(concat!(
+            r#"{"type":"stream_event","event":{"type":"message_start","message":{"id":"msg_a"}},"parent_tool_use_id":null}"#,
+            "\n",
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"раз "}},"parent_tool_use_id":null}"#,
+            "\n",
+            r#"{"type":"assistant","message":{"id":"msg_b","content":[{"type":"text","text":"раз "}]},"parent_tool_use_id":null}"#,
+            "\n",
+            r#"{"type":"stream_event","event":{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"два"}},"parent_tool_use_id":null}"#,
+            "\n",
+            r#"{"type":"assistant","message":{"id":"msg_c","content":[{"type":"text","text":"два"}]},"parent_tool_use_id":null}"#,
+            "\n",
+            r#"{"type":"assistant","message":{"id":"synthetic","content":[{"type":"text","text":" ошибка"}]},"parent_tool_use_id":null,"error":"rate_limit"}"#,
+        ));
+        assert_eq!(text_of(&ev), "раз два ошибка");
     }
 
     #[test]

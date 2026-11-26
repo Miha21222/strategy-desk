@@ -65,6 +65,8 @@ fn every_demo_day_through_the_app_matches_the_old_app() {
     let app = AppHandle::start(AppConfig {
         vault: Some(golden().join("vault")),
         watch: WatchOptions::default(),
+        data_dir: Some(tempfile::tempdir().expect("tmp").keep()),
+        ..AppConfig::default()
     })
     .expect("start");
     let days = expected_days(&golden().join("expected"));
@@ -104,6 +106,8 @@ fn a_state_file_written_into_the_open_day_is_on_screen_within_a_second() {
     let app = AppHandle::start(AppConfig {
         vault: Some(tmp.path().to_path_buf()),
         watch: WatchOptions::default(),
+        data_dir: Some(tempfile::tempdir().expect("tmp").keep()),
+        ..AppConfig::default()
     })
     .expect("start");
     // «today» of the demo vault: no owner's read yet.
@@ -185,6 +189,8 @@ fn owner_writes_touch_exactly_their_own_file() {
     let app = AppHandle::start(AppConfig {
         vault: Some(tmp.path().to_path_buf()),
         watch: WatchOptions::default(),
+        data_dir: Some(tempfile::tempdir().expect("tmp").keep()),
+        ..AppConfig::default()
     })
     .expect("start");
     let d = date("2026-10-26");
