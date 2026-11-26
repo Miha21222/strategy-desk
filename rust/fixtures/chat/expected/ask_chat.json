@@ -1,0 +1,104 @@
+{
+ "case": "ask_chat",
+ "about": "«+ Новый чат» = kind ask: the same vault session with prompt/ask.md (never runs a review, never writes state); untitled chat takes its title from the first message (≤ 60 chars).",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/text_turn.jsonl",
+   "sha256": "ba678145e26d0df76b341692e91e5ea5a709c3fb02d6a3b297f0d843722b8f1f"
+  }
+ ],
+ "kind": "ask",
+ "user_turns": [
+  "Какое правило я нарушаю чаще всего? Ответь коротко, с датами и уроками из журнала за месяц."
+ ],
+ "skipped_non_json_lines": 0,
+ "specs": [
+  {
+   "resume": null,
+   "text": "Какое правило я нарушаю чаще всего? Ответь коротко, с датами и уроками из журнала за месяц.",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/ask.md",
+   "prompt_sha256": "771f9ef886d9bc86061e1343f5ff52d72539442ff1ca1a4db9a267d0a78a4cde",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Какое правило я нарушаю чаще всего? Ответь коротко, с датами",
+  "session_id": "5f0c2a8e-1111-4c1e-9a55-000000000001",
+  "cost_usd": 0.0213,
+  "tokens": {
+   "in": 21292,
+   "out": 14
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "Какое правило я нарушаю чаще всего? Ответь коротко, с датами и уроками из журнала за месяц."
+  },
+  {
+   "role": "assistant",
+   "text": "Привет! Европа открывается спокойно.",
+   "tools": [],
+   "thinking": false
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "Какое правило я нарушаю чаще всего? Ответь коротко, с датами и уроками из журнала за месяц."
+  },
+  {
+   "role": "assistant",
+   "text": "Привет! Европа открывается спокойно.",
+   "live": false,
+   "thinking": false,
+   "tools": []
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-opus-5-5",
+    "engineVersion": "2.1.332",
+    "mcpServers": [
+     {
+      "name": "tradingview",
+      "status": "connected"
+     }
+    ],
+    "toolCount": 12,
+    "sessionId": "5f0c2a8e-1111-4c1e-9a55-000000000001"
+   }
+  },
+  {
+   "kind": "text",
+   "delta": "Привет! "
+  },
+  {
+   "kind": "text",
+   "delta": "Европа открывается спокойно."
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 812,
+    "out": 14,
+    "cacheRead": 20480,
+    "cacheWrite": 0
+   },
+   "costUsd": 0.0213,
+   "sessionId": "5f0c2a8e-1111-4c1e-9a55-000000000001",
+   "turns": 1,
+   "stopped": false
+  }
+ ]
+}
