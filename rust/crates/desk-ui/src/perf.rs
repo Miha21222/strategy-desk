@@ -169,6 +169,15 @@ pub mod trace {
         eprintln!("{}", line(phase, ms, mem(), extra));
     }
 
+    /// A repeated event (decode, upload, free): printed every time.
+    pub fn event(name: &str, extra: &str) {
+        let Some(Some(t)) = TRACE.get() else {
+            return;
+        };
+        let ms = t.started.elapsed().as_secs_f64() * 1000.0;
+        eprintln!("{}", line(name, ms, mem(), extra));
+    }
+
     /// `idle_10s`: memory once the window has sat still for 10 s.
     pub fn idle_after_first_frame() {
         if !enabled() {

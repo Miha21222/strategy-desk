@@ -47,7 +47,7 @@ pub const PREVIEW_MAX_W: usize = 1280;
 /// Which texture of a picture.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
-    /// Downscaled to ≤ [`PREVIEW_MAX_W`], with mipmaps (cards).
+    /// Downscaled to ≤ [`PREVIEW_MAX_W`] (cards).
     Preview,
     /// Full size, no mipmaps (the magnifier).
     Full,
@@ -66,6 +66,16 @@ pub struct ShotTextures {
     /// `DESK_OPT=shots_full`: full size with mipmaps everywhere, kept for
     /// the session (the b8d06cb behaviour, for A/B runs).
     pub full_everywhere: bool,
+    /// `DESK_OPT=shot_mips`: previews get mipmaps (off by default: the box
+    /// downscale already filters, and the driver keeps the mip chain too).
+    pub preview_mips: bool,
+    /// `DESK_OPT=no_shots`: never load a picture (diagnostic).
+    pub disabled: bool,
+    /// Widest preview; `DESK_OPT=shot_small` lowers it to 640 (diagnostic:
+    /// does the memory after an upload follow the texture size?).
+    pub preview_max_w: usize,
+    /// An upload went out this frame: trace the memory once it is painted.
+    traced_upload: Option<String>,
     /// How many PNGs were decoded (QA: «декодируется один раз»).
     pub decoded: usize,
 }
@@ -80,6 +90,10 @@ impl Default for ShotTextures {
             rx,
             sync: false,
             full_everywhere: false,
+            preview_mips: false,
+            disabled: false,
+            preview_max_w: PREVIEW_MAX_W,
+            traced_upload: None,
             decoded: 0,
         }
     }
@@ -91,15 +105,81 @@ pub fn decode_png(bytes: &[u8]) -> Option<ColorImage> {
 }
 
 /// PNG → RGBA, box-downscaled by a whole factor until it is at most
-/// `max_w` wide (the CPU image is dropped right after upload, so only the
-/// smaller texture stays).
+/// `max_w` wide. The picture is read row by row straight into the smaller
+/// image: no full-size RGBA buffer and no second copy (with a 1920×1080
+/// screenshot that was ~16 MB of short-lived heap per decode, which the
+/// Windows heap does not hand back promptly). Interlaced PNGs, which the
+/// skill does not write, take the whole-image path.
 pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
     dec.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = dec.read_info().ok()?;
+    let (w, h) = (reader.info().width as usize, reader.info().height as usize);
+    if w == 0 || h == 0 {
+        return None;
+    }
+    let k = max_w.map_or(1, |m| w.div_ceil(m.max(1)).max(1));
+    if reader.info().interlaced {
+        return decode_whole(reader, w, h, k);
+    }
+    let ch = match reader.output_color_type().0 {
+        png::ColorType::Rgba => 4,
+        png::ColorType::Rgb => 3,
+        png::ColorType::GrayscaleAlpha => 2,
+        png::ColorType::Grayscale => 1,
+        // normalize_to_color8 expands palettes, so this is not reached.
+        png::ColorType::Indexed => return None,
+    };
+    let (sw, sh) = ((w / k).max(1), (h / k).max(1));
+    let n = (k * k) as u32;
+    let mut acc = vec![0u32; sw * 4];
+    let mut out: Vec<Color32> = Vec::with_capacity(sw * sh);
+    for y in 0..sh * k {
+        let row = reader.next_row().ok()??;
+        let data = row.data();
+        if data.len() < w * ch {
+            return None;
+        }
+        for (x, a) in acc.chunks_exact_mut(4).enumerate() {
+            for px in data[x * k * ch..(x * k + k) * ch].chunks_exact(ch) {
+                let (r, g, b, al) = match *px {
+                    [r, g, b, al] => (r, g, b, al),
+                    [r, g, b] => (r, g, b, 255),
+                    [v, al] => (v, v, v, al),
+                    [v] => (v, v, v, 255),
+                    _ => (0, 0, 0, 0),
+                };
+                a[0] += u32::from(r);
+                a[1] += u32::from(g);
+                a[2] += u32::from(b);
+                a[3] += u32::from(al);
+            }
+        }
+        if (y + 1) % k == 0 {
+            for a in acc.chunks_exact_mut(4) {
+                let avg = |v: u32| ((v + n / 2) / n) as u8;
+                out.push(Color32::from_rgba_unmultiplied(
+                    avg(a[0]),
+                    avg(a[1]),
+                    avg(a[2]),
+                    avg(a[3]),
+                ));
+                a.fill(0);
+            }
+        }
+    }
+    Some(ColorImage::new([sw, sh], out))
+}
+
+/// The whole-image path (interlaced PNGs).
+fn decode_whole<R: std::io::BufRead + std::io::Seek>(
+    mut reader: png::Reader<R>,
+    w: usize,
+    h: usize,
+    k: usize,
+) -> Option<ColorImage> {
     let mut buf = vec![0; reader.output_buffer_size()?];
     let info = reader.next_frame(&mut buf).ok()?;
-    let (w, h) = (info.width as usize, info.height as usize);
     let px = &buf[..info.buffer_size()];
     let rgba: Vec<u8> = match info.color_type {
         png::ColorType::Rgba => px.to_vec(),
@@ -116,13 +196,11 @@ pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> 
             .iter()
             .flat_map(|&[g, a]| [g, g, g, a])
             .collect(),
-        // normalize_to_color8 expands palettes, so this is not reached.
         png::ColorType::Indexed => return None,
     };
     if rgba.len() != w * h * 4 {
         return None;
     }
-    let k = max_w.map_or(1, |m| w.div_ceil(m.max(1)).max(1));
     if k == 1 {
         return Some(ColorImage::from_rgba_unmultiplied([w, h], &rgba));
     }
@@ -142,9 +220,9 @@ fn box_down(rgba: &[u8], w: usize, k: usize, sw: usize, sh: usize) -> Vec<u8> {
             let mut acc = [0u32; 4];
             for dy in 0..k {
                 let row = ((y * k + dy) * w + x * k) * 4;
-                for px in rgba[row..row + k * 4].as_chunks::<4>().0 {
-                    for (a, &v) in acc.iter_mut().zip(px) {
-                        *a += u32::from(v);
+                for px in rgba[row..row + k * 4].chunks_exact(4) {
+                    for c in 0..4 {
+                        acc[c] += u32::from(px[c]);
                     }
                 }
             }
@@ -169,8 +247,10 @@ impl ShotTextures {
     /// again; and the old day's textures go (GPU and driver memory).
     pub fn forget_requests(&mut self) {
         self.requested.clear();
-        if !self.full_everywhere {
+        if !self.full_everywhere && !self.map.is_empty() {
+            let n = self.live_textures();
             self.map.clear();
+            crate::perf::trace::event("shots_freed", &format!(", \"count\": {n}"));
         }
     }
 
@@ -189,6 +269,11 @@ impl ShotTextures {
 
     /// Upload what the workers finished. Call once per frame.
     pub fn poll(&mut self, ctx: &egui::Context) {
+        // The texture of the last upload has been painted (sent to the GPU
+        // driver) by now: what did that cost?
+        if let Some(k) = self.traced_upload.take() {
+            crate::perf::trace::event("shot_on_gpu", &format!(", \"key\": {k:?}"));
+        }
         while let Ok((path, key, img)) = self.rx.try_recv() {
             self.finish(ctx, path, key, img);
         }
@@ -205,11 +290,26 @@ impl ShotTextures {
         if !matches!(self.map.get(&map_key), Some(Tex::Decoding(k)) if *k == key) {
             return;
         }
-        let mipmaps = self.full_everywhere || !map_key.starts_with("full:");
+        let mipmaps = self.full_everywhere || (self.preview_mips && !map_key.starts_with("full:"));
         let tex = match img {
             Some(img) => {
+                let size = img.size;
                 let h = ctx.load_texture(&map_key, img, texture_options(mipmaps));
                 crate::perf::trace::mark("first_shot_uploaded");
+                crate::perf::trace::event(
+                    "shot_uploaded",
+                    &format!(
+                        ", \"key\": {:?}, \"w\": {}, \"h\": {}, \"mips\": {mipmaps}, \"live\": {}",
+                        map_key,
+                        size[0],
+                        size[1],
+                        self.live_textures() + 1
+                    ),
+                );
+                if crate::perf::trace::enabled() {
+                    self.traced_upload = Some(map_key.clone());
+                    ctx.request_repaint();
+                }
                 Tex::Ready(key, h)
             }
             None => Tex::Failed(key),
@@ -257,6 +357,9 @@ impl ShotTextures {
         out: &mut Vec<Command>,
         kind: Kind,
     ) -> ShotView {
+        if self.disabled {
+            return ShotView::Missing;
+        }
         let entry = snap
             .shots
             .get(path)
@@ -286,7 +389,7 @@ impl ShotTextures {
         }
         self.map.insert(map_key.clone(), Tex::Decoding(key));
         self.decoded += 1;
-        let max_w = (kind == Kind::Preview && !self.full_everywhere).then_some(PREVIEW_MAX_W);
+        let max_w = (kind == Kind::Preview && !self.full_everywhere).then_some(self.preview_max_w);
         if self.sync {
             let img = decode_png_max(&loaded.png, max_w);
             self.finish(ctx, map_key, key, img);
@@ -301,7 +404,12 @@ impl ShotTextures {
         let spawned = std::thread::Builder::new()
             .name("desk-png".into())
             .spawn(move || {
+                crate::perf::trace::event(
+                    "shot_decode_begin",
+                    &format!(", \"bytes\": {}", bytes.len()),
+                );
                 let img = decode_png_max(&bytes, max_w);
+                crate::perf::trace::event("shot_decode_end", "");
                 // The receiver lives as long as the app; a send after it is gone is moot.
                 let _ = tx.send((owned, key, img));
                 repaint.request_repaint();
@@ -815,6 +923,25 @@ mod tests {
             box_down(&rgba, 4, 2, 2, 1),
             vec![255, 255, 255, 255, 0, 0, 0, 255]
         );
+    }
+
+    #[test]
+    fn row_decode_matches_whole_decode() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/golden/vault/indices-kb/shots");
+        for png in walk(&dir).into_iter().take(3) {
+            let bytes = std::fs::read(&png).unwrap();
+            for k in [1usize, 2, 3] {
+                let mut dec = png::Decoder::new(std::io::Cursor::new(&bytes[..]));
+                dec.set_transformations(png::Transformations::normalize_to_color8());
+                let r = dec.read_info().unwrap();
+                let (w, h) = (r.info().width as usize, r.info().height as usize);
+                let whole = decode_whole(r, w, h, k).unwrap();
+                let rows = decode_png_max(&bytes, Some(w.div_ceil(k))).unwrap();
+                assert_eq!(rows.size, whole.size, "{png:?} k={k}");
+                assert!(rows.pixels == whole.pixels, "{png:?} k={k}");
+            }
+        }
     }
 
     #[test]

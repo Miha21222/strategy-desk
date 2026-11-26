@@ -393,6 +393,11 @@ pub fn run(started: Instant, opts: WindowOpts) -> anyhow::Result<()> {
                 app.adopt(&cc.egui_ctx, h);
             }
             app.tex.full_everywhere = o.shots_full;
+            app.tex.preview_mips = o.shot_mips;
+            app.tex.disabled = !o.shots;
+            if o.shot_small {
+                app.tex.preview_max_w = 640;
+            }
             app.perf = perf;
             app.bench = bench;
             app.autochat = autochat;
