@@ -6,6 +6,7 @@
 //! strategy-desk --demo                  … on the demo vault (rust/fixtures/golden/vault), clock at its «today»
 //! strategy-desk --now 2026-10-26T10:15  … with the clock fixed (Kyiv wall time; also DESK_NOW)
 //! strategy-desk --bench-first-frame     open, print {"first_frame_ms":…} after the first frame, exit 0
+//! strategy-desk --bench-data-ready      open, wait for the day, print {"first_frame_ms","data_ready_ms",…}, exit 0
 //! strategy-desk --bench-switch N        N day switches, print {"switch_ms":[…]}, exit 0
 //! strategy-desk run --window eu|us      headless scheduled review (stage 6; exits 2 for now)
 //! ```
@@ -32,6 +33,8 @@ impl Region {
 pub struct WindowOpts {
     pub demo: bool,
     pub bench_first_frame: bool,
+    /// `--bench-data-ready`: like `--bench-first-frame`, waiting for the day.
+    pub bench_data_ready: bool,
     /// `--bench-switch N`: N day switches, then exit.
     pub bench_switch: Option<u32>,
     pub vault: Option<PathBuf>,
@@ -47,17 +50,22 @@ pub enum Cli {
 }
 
 pub const USAGE: &str = "\
-usage: strategy-desk [--vault DIR] [--demo] [--now TIME] [--bench-first-frame] [--bench-switch N]
+usage: strategy-desk [--vault DIR] [--demo] [--now TIME] [--bench-first-frame | --bench-data-ready]
+                     [--bench-switch N]
        strategy-desk run --window eu|us
 
   --vault DIR          the Trading Strategy Assistant folder (else env DESK_VAULT)
   --demo               open the demo vault with the clock at its «today» (2026-10-26 10:15)
   --now TIME           fix the clock: 2026-10-26T10:15 (Kyiv) or RFC 3339 (else env DESK_NOW)
   --bench-first-frame  print {\"first_frame_ms\": …, \"rss_mb\": …} after the first frame and exit
+  --bench-data-ready   wait until the day is drawn, print {\"first_frame_ms\", \"data_ready_ms\",
+                       \"private_mb\", \"ws_mb\"} and exit
   --bench-switch N     switch the day N times, print {\"switch_ms\": […]} and exit
   run --window eu|us   run the scheduled review without a window (not implemented yet)
 
 env: DESK_FRAME_STATS=1 logs frame time p50/p95/p99 to stderr every 10 s;
+     DESK_STARTUP_TRACE=1 prints one JSON line per start-up phase to stderr;
+     DESK_OPT=vsync0,app_sync,app_late,shots_full,no_inter flips start-up choices;
      DESK_BENCH_AUTOCHAT=1 sends one chat message after the first frame (stage 5: warns only)";
 
 /// Parses everything after the program name. `Err` carries the message to
@@ -109,6 +117,7 @@ where
         match flag {
             "--demo" => opts.demo = true,
             "--bench-first-frame" => opts.bench_first_frame = true,
+            "--bench-data-ready" => opts.bench_data_ready = true,
             "--bench-switch" => {
                 let v = value("--bench-switch")?;
                 let n =
@@ -168,6 +177,10 @@ mod tests {
         assert!(p(&["--bench-switch", "0"]).is_err());
         assert!(p(&["--bench-switch", "x"]).is_err());
         assert!(p(&["--vault"]).is_err());
+        let Ok(Cli::Window(o)) = p(&["--bench-data-ready"]) else {
+            panic!("parse failed")
+        };
+        assert!(o.bench_data_ready && !o.bench_first_frame);
     }
 
     #[test]

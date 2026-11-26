@@ -566,6 +566,10 @@ fn shots_decode_once() {
         n,
         "a texture is decoded once"
     );
+    // Another day: the old day's textures are freed.
+    assert!(h.state_mut().textures_mut().live_textures() >= 1);
+    h.state_mut().textures_mut().forget_requests();
+    assert_eq!(h.state_mut().textures_mut().live_textures(), 0);
 }
 
 // ---------------------------------------------------------------- images
@@ -627,5 +631,23 @@ fn screen_snapshots() {
             let name = format!("screen_{}_{name}", theme_name(theme));
             results.add(h.try_snapshot_options(name, &snapshot_options()));
         }
+    }
+}
+
+#[test]
+#[ignore] // measurement, run by hand: cargo test -p desk-ui atlas_size -- --ignored --nocapture
+fn atlas_size() {
+    for (name, date, win) in [
+        ("1026 ask", "2026-10-26", Some(WindowId::Eu)),
+        ("0914 eu", "2026-09-14", Some(WindowId::Eu)),
+        ("0914 review", "2026-09-14", Some(WindowId::Review)),
+    ] {
+        let mut h = screen(Theme::Light, TODAY, date, win);
+        h.run();
+        let s = h.ctx.fonts(|f| f.font_image_size());
+        println!(
+            "{name}: atlas {s:?} = {:.1} MB RGBA",
+            (s[0] * s[1] * 4) as f64 / 1048576.0
+        );
     }
 }
