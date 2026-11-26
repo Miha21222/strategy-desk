@@ -140,7 +140,7 @@ pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> 
         if data.len() < w * ch {
             return None;
         }
-        for (x, a) in acc.chunks_exact_mut(4).enumerate() {
+        for (x, a) in acc.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             for px in data[x * k * ch..(x * k + k) * ch].chunks_exact(ch) {
                 let (r, g, b, al) = match *px {
                     [r, g, b, al] => (r, g, b, al),
@@ -156,7 +156,7 @@ pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> 
             }
         }
         if (y + 1) % k == 0 {
-            for a in acc.chunks_exact_mut(4) {
+            for a in acc.as_chunks_mut::<4>().0 {
                 let avg = |v: u32| ((v + n / 2) / n) as u8;
                 out.push(Color32::from_rgba_unmultiplied(
                     avg(a[0]),
@@ -220,9 +220,9 @@ fn box_down(rgba: &[u8], w: usize, k: usize, sw: usize, sh: usize) -> Vec<u8> {
             let mut acc = [0u32; 4];
             for dy in 0..k {
                 let row = ((y * k + dy) * w + x * k) * 4;
-                for px in rgba[row..row + k * 4].chunks_exact(4) {
-                    for c in 0..4 {
-                        acc[c] += u32::from(px[c]);
+                for px in rgba[row..row + k * 4].as_chunks::<4>().0 {
+                    for (a, &v) in acc.iter_mut().zip(px) {
+                        *a += u32::from(v);
                     }
                 }
             }

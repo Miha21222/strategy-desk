@@ -14,7 +14,9 @@ use egui_kittest::Harness;
 
 use crate::app::DeskApp;
 use crate::chat::{ChatItem, ChatKind, ChatMeta, ChatsView, Page, Transcript};
-use crate::snapshots::{d, has, screen_sized, snapshot_options, theme_name, TODAY};
+use crate::snapshots::{d, has, screen_sized, TODAY};
+#[cfg(target_os = "linux")]
+use crate::snapshots::{snapshot_options, theme_name};
 
 const MACRO_ID: &str = "m-2026-10-26";
 const ASK_ID: &str = "a-1";
