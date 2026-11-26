@@ -3,7 +3,7 @@
 //! desk-app wakes the window with `request_repaint` when `rev` moves.
 
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use chrono::NaiveDate;
@@ -53,8 +53,8 @@ pub struct DeskApp {
     bench: Option<SwitchBench>,
     chat: ChatUi,
     /// The chats on screen: desk-app's, or a test's ([`DeskApp::set_chats`]).
-    chats: ChatsView,
-    chats_override: Option<ChatsView>,
+    chats: Arc<ChatsView>,
+    chats_override: Option<Arc<ChatsView>>,
     theme: ThemePreference,
     /// desk-app starting on a helper thread (`DESK_OPT` default): the
     /// handle arrives here; commands wait in `sent` until it does.
@@ -119,7 +119,7 @@ impl DeskApp {
             perf: None,
             bench: None,
             chat: ChatUi::default(),
-            chats: ChatsView::default(),
+            chats: Arc::default(),
             chats_override: None,
             theme: ThemePreference::System,
             pending: None,
@@ -154,6 +154,7 @@ impl DeskApp {
 
     /// For tests: draw these chats instead of the snapshot's.
     pub fn set_chats(&mut self, chats: ChatsView) {
+        let chats = Arc::new(chats);
         self.chats = chats.clone();
         self.chats_override = Some(chats);
     }
@@ -171,7 +172,7 @@ impl DeskApp {
     }
 
     fn send_chat(&mut self, actions: Vec<ChatAction>) {
-        let cmds = actions.into_iter().flat_map(chat::to_commands).collect();
+        let cmds = actions.into_iter().map(chat::to_command).collect();
         self.send(cmds);
     }
 
@@ -260,11 +261,7 @@ impl DeskApp {
                     }
                 }
                 ScreenEvent::Chat(a) => actions.push(a),
-                ScreenEvent::OpenChat(id) => {
-                    if let Some(m) = self.chats.meta(&id).cloned() {
-                        self.chat.open(&m, &mut actions);
-                    }
-                }
+                ScreenEvent::OpenChat(id) => self.chat.open(&id, &mut actions),
             }
         }
         self.send_chat(actions);
@@ -323,9 +320,11 @@ impl eframe::App for DeskApp {
         if self.frames >= 2 && self.chat.autochat.is_some() {
             // CONTRACTS «Хуки»: one chat message once the first frame is out.
             let mut actions = Vec::new();
-            self.chat.autochat_step(&mut actions);
+            let waiting = self.chat.autochat_step(&mut actions);
             self.send_chat(actions);
-            ctx.request_repaint_after(Duration::from_millis(50));
+            if waiting {
+                ctx.request_repaint_after(Duration::from_millis(50));
+            }
         }
         if let Some(b) = &mut self.bench {
             if let Some(go) = b.before_frame(&self.snap, self.screen.shown_date()) {

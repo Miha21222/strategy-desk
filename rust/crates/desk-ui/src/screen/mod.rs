@@ -27,7 +27,7 @@ use self::kit::{bold, txt, CardKind, Tone};
 use self::region::{RegionAction, RegionCtx, RegionUi};
 use self::review::{AnswersUi, ReviewAction, ReviewCtx};
 use self::shots::{Lightbox, ShotTextures};
-use crate::chat::{markdown, ChatAction, ChatId, ChatItem, ChatsView};
+use crate::chat::{last_word, markdown, ChatAction, ChatId, ChatItem, ChatsView, ViewExt};
 use crate::gauge::{zone_label, Gauge};
 use crate::i18n::{t, tf};
 use crate::theme::{radius, space, text, Palette};
@@ -707,7 +707,7 @@ fn agent_strip(
     let last = macro_chat
         .filter(|_| !s.withheld)
         .and_then(|m| chat.view.transcript(&m.id))
-        .and_then(|tr| tr.last_word().cloned());
+        .and_then(|tr| last_word(tr).cloned());
     Frame::new()
         .fill(p.bg_elev)
         .stroke(Stroke::new(1.0, p.border))

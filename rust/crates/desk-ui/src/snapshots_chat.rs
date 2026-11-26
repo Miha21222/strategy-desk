@@ -99,8 +99,12 @@ pub(crate) fn sample_chats(busy: bool) -> ChatsView {
                 live: false,
             },
             ChatItem::Notice {
-                key: "chat.error.no_claude".into(),
+                key: "chat.notice.stopped".into(),
                 vars: Vec::new(),
+            },
+            ChatItem::Notice {
+                key: "chat.error.spawn".into(),
+                vars: vec![("detail".into(), "exit code 1".into())],
             },
         ],
     };
@@ -204,7 +208,11 @@ fn enter_sends_into_an_idle_chat() {
     );
     h.run();
     assert!(has(&h, "вход до конца IB"));
-    assert!(has(&h, "Не нашли Claude Code"), "the notice is drawn");
+    assert!(has(&h, "Остановлено."));
+    assert!(
+        has(&h, "Claude Code не запустился: exit code 1"),
+        "vars filled"
+    );
     let input = h.get_by_role(egui::accesskit::Role::MultilineTextInput);
     input.focus();
     input.type_text("А в ноябре?");
@@ -241,17 +249,22 @@ fn new_chat_asks_first_and_sends_once_it_exists() {
     }
     h.get_by_label("Был ли похожий день? Чем кончился?").click();
     h.run();
-    // desk-app made the chat and opened it.
+    // desk-app made the chat and opened it; an «Ask» chat has no title
+    // until its first message names it.
     let mut chats = sample_chats(false);
     chats
         .list
-        .insert(0, meta("a-new", ChatKind::Ask, "Новый чат", false));
+        .insert(0, meta("a-new", ChatKind::Ask, "", false));
     chats.open = Some("a-new".into());
     h.state_mut().set_chats(chats);
     h.run();
     assert_eq!(
         h.state_mut().chat_mut().page,
         Page::Chat(Some("a-new".into()))
+    );
+    assert!(
+        h.query_all_by_label("Новый чат").count() >= 2,
+        "the untitled chat is «Новый чат» in the head and the list"
     );
     assert_eq!(
         chat_cmds(&h)[1],
@@ -279,6 +292,12 @@ fn agent_strip_follows_the_macro_chat() {
         h.state_mut().chat_mut().page,
         Page::Chat(Some(MACRO_ID.into()))
     );
+    assert_eq!(
+        chat_cmds(&h),
+        vec![ChatCommand::Open {
+            chat_id: MACRO_ID.into()
+        }]
+    );
     // The sidebar tab brings the day back.
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Обзор дня")
         .click();
@@ -303,9 +322,9 @@ fn run_is_a_chat_action_outside_the_demo() {
     h.run();
     assert_eq!(
         chat_cmds(&h),
-        vec![ChatCommand::Send {
-            chat_id: "Обзор дня 26.10".into(),
-            text: "/macro-review eu 2026-10-26".into()
+        vec![ChatCommand::Run {
+            window: WindowId::Eu,
+            date: d("2026-10-26")
         }]
     );
 }

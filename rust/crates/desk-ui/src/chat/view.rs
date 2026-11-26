@@ -11,7 +11,9 @@ use eframe::egui::{
     ScrollArea, Sense, Stroke, TextEdit, Ui,
 };
 
-use super::{markdown, ChatAction, ChatItem, ChatKind, ChatMeta, ChatUi, ChatsView, Page};
+use super::{
+    markdown, title_of, ChatAction, ChatItem, ChatKind, ChatMeta, ChatUi, ChatsView, Page, ViewExt,
+};
 use crate::i18n::{t, tf};
 use crate::screen::kit::{self, bold, txt};
 use crate::theme::{radius, space, text, Palette};
@@ -143,7 +145,7 @@ fn column<R>(ui: &mut Ui, body: impl FnOnce(&mut Ui) -> R) -> R {
 
 fn head(ui: &mut Ui, p: &Palette, meta: Option<&ChatMeta>) {
     ui.horizontal(|ui| {
-        let title = meta.map_or(t("sidebar.newChat"), |m| m.title.as_str());
+        let title = meta.map_or_else(|| t("sidebar.newChat").to_owned(), title_of);
         ui.add(egui::Label::new(bold(title, text::HEADING, p.fg)).truncate());
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if let Some(m) = meta {
@@ -213,6 +215,8 @@ fn item_ui(ui: &mut Ui, p: &Palette, md: &mut markdown::Cache, item: &ChatItem) 
         ChatItem::Notice { key, vars } => {
             let (fill, fg) = if is_error(key) {
                 (p.err_soft, p.err)
+            } else if key.starts_with("chat.notice") {
+                (p.bg_elev, p.fg_muted)
             } else {
                 (p.warn_soft, p.warn)
             };
@@ -416,7 +420,7 @@ fn row(
             let esc = ui.input(|i| i.key_pressed(Key::Escape));
             if r.lost_focus() || enter || esc {
                 let new = title.trim().to_owned();
-                if !esc && enter && !new.is_empty() && new != m.title {
+                if !esc && enter && !new.is_empty() && new != title_of(m) {
                     out.push(ChatAction::Rename {
                         chat_id: m.id.clone(),
                         title: new,
@@ -475,7 +479,7 @@ fn row(
                 let room = ui.available_width() - if m.busy { 18.0 } else { 0.0 };
                 ui.scope(|ui| {
                     ui.set_max_width(room);
-                    ui.add(egui::Label::new(txt(&m.title, text::MD, color)).truncate());
+                    ui.add(egui::Label::new(txt(title_of(m), text::MD, color)).truncate());
                 });
                 if m.busy {
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -495,7 +499,7 @@ fn row(
             Sense::click(),
         )
         .on_hover_cursor(egui::CursorIcon::PointingHand);
-    let label = m.title.clone();
+    let label = title_of(m);
     r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, &label));
     if r.hovered() && !selected {
         ui.painter().rect_stroke(
@@ -506,11 +510,11 @@ fn row(
         );
     }
     if r.clicked() {
-        st.open(m, out);
+        st.open(&m.id, out);
     }
     r.context_menu(|ui| {
         if ui.button(t("chat.rename")).clicked() {
-            st.rename = Some((m.id.clone(), m.title.clone()));
+            st.rename = Some((m.id.clone(), title_of(m)));
             ui.close();
         }
         if ui.button(t("chat.delete")).clicked() {

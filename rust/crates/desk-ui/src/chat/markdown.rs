@@ -3,10 +3,12 @@
 //! palette. Only the live message is re-parsed while it streams.
 //!
 //! Why not `egui_commonmark` (0.26, egui 0.37): measured 2026-11-26 on the
-//! release binary (Linux x86_64, glow, stripped), it costs more than this
-//! module for what an agent's answer needs — paragraphs, headings, lists,
-//! code, quotes, tables, links — and it draws in its own styles, which the
-//! desk would have to fight. Numbers in the stage-5 report.
+//! release binary (Linux x86_64, glow, stripped). The parser costs 0.39 MB
+//! either way (`pulldown-cmark`, no default features); egui_commonmark's
+//! renderer adds another 0.24 MB on top of this module even without its
+//! image loading, and it draws in its own styles, which the desk would have
+//! to fight. What an agent's answer needs — paragraphs, headings, lists,
+//! code, quotes, tables, links — fits in the few hundred lines below.
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;

@@ -5,7 +5,7 @@
 use chrono::NaiveDate;
 use desk_app::{ChatCommand, Command, Snapshot};
 use desk_core::gauge::{split_factors, FactorSplit};
-use desk_core::prompts::{discuss_prompt, macro_chat_title};
+use desk_core::prompts::discuss_prompt;
 use desk_core::stats::fmt;
 use desk_core::vault::{
     DiscussionItem, HumanRead, HumanSide, MacroVerdict, PlanLevel, ScaleFactor, ScaleFile,
@@ -130,10 +130,7 @@ pub fn light_fill(p: &Palette, l: &ScaleLight) -> egui::Color32 {
 }
 
 fn send(out: &mut Vec<Command>, date: NaiveDate, text: String) {
-    out.push(Command::Chat(ChatCommand::Send {
-        chat_id: macro_chat_title(date),
-        text,
-    }));
+    out.push(Command::Chat(ChatCommand::SendMacro { date, text }));
 }
 
 // ---------------------------------------------------------------- the view

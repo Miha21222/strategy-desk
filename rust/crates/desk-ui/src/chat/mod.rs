@@ -1,10 +1,6 @@
-//! The chat (stage 5): the list in the sidebar, the chat page, and the one
-//! place where the UI's chat actions become desk-app commands.
-//!
-//! The UI speaks [`ChatAction`], the contract's `ChatCommand` spelled out
-//! (CONTRACTS «Чат (этап 5)»). desk-app's enum still has only `Send`, `Stop`
-//! and `New`, so [`to_commands`] maps what it can and drops the rest with a
-//! trace line; when the backend lands it is a one-to-one mapping.
+//! The chat (stage 5): the list in the sidebar, the chat page, and the
+//! state the UI keeps between frames. The UI speaks desk-app's
+//! [`ChatCommand`] (CONTRACTS «Чат (этап 5)») and draws its `ChatsView`.
 
 pub mod markdown;
 pub mod model;
@@ -13,65 +9,19 @@ pub mod view;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use chrono::NaiveDate;
-use desk_app::{ChatCommand, Command};
-use desk_core::prompts::{macro_chat_title, run_command};
-use desk_core::WindowId;
+use desk_app::Command;
 
-pub use self::model::{chats_of, ChatId, ChatItem, ChatKind, ChatMeta, ChatsView, Transcript};
+pub use self::model::{
+    chats_of, last_word, title_of, ChatCommand, ChatId, ChatItem, ChatKind, ChatMeta, ChatsView,
+    Transcript, ViewExt,
+};
 
-/// What the chat UI asks desk-app for (the contract's `ChatCommand`).
-#[derive(Debug, Clone, PartialEq)]
-pub enum ChatAction {
-    /// «+ Новый чат» (`Ask`).
-    New {
-        kind: ChatKind,
-    },
-    /// One macro chat per day; opening it from the list loads its transcript.
-    OpenMacro {
-        date: NaiveDate,
-    },
-    Send {
-        chat_id: ChatId,
-        text: String,
-    },
-    /// «Запустить / Пересобрать обзор»: OpenMacro + Send(run_command).
-    Run {
-        window: WindowId,
-        date: NaiveDate,
-    },
-    Stop {
-        chat_id: ChatId,
-    },
-    Rename {
-        chat_id: ChatId,
-        title: String,
-    },
-    /// Only from the list, after «Точно?».
-    Delete {
-        chat_id: ChatId,
-    },
-}
+/// What the chat UI asks desk-app for.
+pub type ChatAction = ChatCommand;
 
-/// The bridge to today's desk-app. `Run` is sent the way the Electron desk
-/// did it (a `Send` of the skill command into the day's macro chat, by
-/// title); `OpenMacro`, `Rename` and `Delete` have no command yet.
-pub fn to_commands(a: ChatAction) -> Vec<Command> {
-    let c = match a {
-        ChatAction::New { kind } => ChatCommand::New { kind },
-        ChatAction::Send { chat_id, text } => ChatCommand::Send { chat_id, text },
-        ChatAction::Stop { chat_id } => ChatCommand::Stop { chat_id },
-        ChatAction::Run { window, date } => ChatCommand::Send {
-            chat_id: macro_chat_title(date),
-            text: run_command(window, date),
-        },
-        other => {
-            let what = format!("{other:?}");
-            crate::perf::trace::event("chat_action_unwired", &format!(", \"action\": {what:?}"));
-            return Vec::new();
-        }
-    };
-    vec![Command::Chat(c)]
+/// Into the command desk-app takes.
+pub fn to_command(a: ChatAction) -> Command {
+    Command::Chat(a)
 }
 
 /// Which page the main area shows.
@@ -90,7 +40,6 @@ pub enum Page {
 pub struct AutoChat {
     pub text: String,
     started: Option<Instant>,
-    done: bool,
 }
 
 /// How long autochat waits for desk-app to open the new chat.
@@ -101,7 +50,6 @@ impl AutoChat {
         Self {
             text,
             started: None,
-            done: false,
         }
     }
 }
@@ -116,7 +64,7 @@ pub struct ChatUi {
     pub pending_send: Option<String>,
     /// `open` as last seen in the view, so only a change moves the page.
     seen_open: Option<ChatId>,
-    /// The page follows the next change of `open` (we asked for New/OpenMacro).
+    /// The page follows the next change of `open` (we asked for New).
     follow_open: bool,
     pub md: markdown::Cache,
     /// Inline rename in the list: (chat, text being typed).
@@ -144,12 +92,12 @@ impl ChatUi {
         });
     }
 
-    /// Open a chat from the list.
-    pub fn open(&mut self, meta: &ChatMeta, out: &mut Vec<ChatAction>) {
-        self.page = Page::Chat(Some(meta.id.clone()));
-        if let (ChatKind::Macro, Some(date)) = (meta.kind, meta.date) {
-            out.push(ChatAction::OpenMacro { date });
-        }
+    /// Open a chat from the list (desk-app loads its transcript).
+    pub fn open(&mut self, id: &str, out: &mut Vec<ChatAction>) {
+        self.page = Page::Chat(Some(id.to_owned()));
+        out.push(ChatAction::Open {
+            chat_id: id.to_owned(),
+        });
     }
 
     /// Once per frame, before drawing: follow `open`, deliver a message typed
@@ -182,33 +130,33 @@ impl ChatUi {
     }
 
     /// Drive `DESK_BENCH_AUTOCHAT` (called from the second frame on).
-    pub fn autochat_step(&mut self, out: &mut Vec<ChatAction>) {
-        let Some(a) = &mut self.autochat else { return };
-        if a.done {
-            return;
+    /// Returns `true` while it still waits for desk-app; once the message is
+    /// out (or it gave up) autochat is dropped, so it stops asking for frames.
+    pub fn autochat_step(&mut self, out: &mut Vec<ChatAction>) -> bool {
+        let Some(a) = &mut self.autochat else {
+            return false;
+        };
+        let Some(t0) = a.started else {
+            a.started = Some(Instant::now());
+            let text = a.text.clone();
+            crate::perf::trace::mark("autochat_new");
+            self.start_new(out);
+            self.pending_send = Some(text);
+            return true;
+        };
+        if self.pending_send.is_none() {
+            crate::perf::trace::mark("autochat_sent");
+            eprintln!("strategy-desk: DESK_BENCH_AUTOCHAT: message sent");
+        } else if t0.elapsed() > AUTOCHAT_TIMEOUT {
+            eprintln!(
+                "strategy-desk: DESK_BENCH_AUTOCHAT: no chat opened in {} s",
+                AUTOCHAT_TIMEOUT.as_secs()
+            );
+        } else {
+            return true;
         }
-        match a.started {
-            None => {
-                a.started = Some(Instant::now());
-                let text = a.text.clone();
-                crate::perf::trace::mark("autochat_new");
-                self.start_new(out);
-                self.pending_send = Some(text);
-            }
-            Some(t0) => {
-                if self.pending_send.is_none() {
-                    a.done = true;
-                    crate::perf::trace::mark("autochat_sent");
-                    eprintln!("strategy-desk: DESK_BENCH_AUTOCHAT: message sent");
-                } else if t0.elapsed() > AUTOCHAT_TIMEOUT {
-                    a.done = true;
-                    eprintln!(
-                        "strategy-desk: DESK_BENCH_AUTOCHAT: no chat opened in {} s (is the chat backend in this build?)",
-                        AUTOCHAT_TIMEOUT.as_secs()
-                    );
-                }
-            }
-        }
+        self.autochat = None;
+        false
     }
 
     /// The composer sends: now, or once the new chat exists.
@@ -246,26 +194,6 @@ mod tests {
             busy,
             cost_usd: 0.0,
         }
-    }
-
-    #[test]
-    fn run_goes_into_the_days_macro_chat() {
-        let d = NaiveDate::from_ymd_opt(2026, 10, 26).unwrap();
-        let cmds = to_commands(ChatAction::Run {
-            window: WindowId::Eu,
-            date: d,
-        });
-        assert_eq!(
-            cmds,
-            vec![Command::Chat(ChatCommand::Send {
-                chat_id: "Обзор дня 26.10".into(),
-                text: "/macro-review eu 2026-10-26".into(),
-            })]
-        );
-        assert!(to_commands(ChatAction::Delete {
-            chat_id: "x".into()
-        })
-        .is_empty());
     }
 
     #[test]
