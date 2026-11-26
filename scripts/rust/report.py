@@ -31,6 +31,8 @@ DEFAULT_SUMMARY = REPO / "docs" / "rust" / "perf" / "summary.json"
 LABELS = {
     "cold_start_ms": "Холодный старт до первого кадра",
     "warm_start_ms": "Тёплый старт",
+    "data_ready_cold_ms": "Данные дня на экране, холодный старт",
+    "data_ready_warm_ms": "Данные дня на экране, тёплый старт",
     "idle_working_set_mb": "RAM в покое (Working Set)",
     "idle_private_mb": "RAM в покое (Private Bytes)",
     "idle_cpu_pct": "CPU в покое",
@@ -38,6 +40,9 @@ LABELS = {
     "frame_p50_ms": "Кадр p50 при стриме",
     "frame_p95_ms": "Кадр p95 при стриме",
     "frame_p99_ms": "Кадр p99 при стриме",
+    "switch_frame_p50_ms": "Кадр p50 при переключении дней",
+    "switch_frame_p95_ms": "Кадр p95 при переключении дней",
+    "switch_frame_p99_ms": "Кадр p99 при переключении дней",
     "day_load_ms": "Загрузка дня (~22 файла)",
     "day_load_real_size_ms": "Загрузка дня, файлы реального размера",
     "vault_x10_parse_ms": "Разбор всего vault ×10",
@@ -158,6 +163,15 @@ def summarize(reports: list[dict], before: dict | None, after: dict | None) -> d
     for s in (after or {}).get("stress", []) or []:
         if s.get("status") == "fail":
             failed.append({"id": s.get("id", ""), "label": f"стресс: {s.get('id', '')}", "reason": s.get("detail", "")})
+    variants = []
+    for v in (after or {}).get("variants", []) or []:
+        variants.append({
+            "id": v.get("id", ""), "label": v.get("label", ""), "env": v.get("env", {}), "exe": v.get("exe", ""),
+            "mode": v.get("mode", ""),
+            "metrics": {m["id"]: {"value": m.get("value"), "status": m.get("status"), "target": m.get("target"),
+                                  "unit": m.get("unit", ""), "label": LABELS.get(m["id"], m.get("label", m["id"]))}
+                        for m in v.get("metrics", [])},
+        })
     return {
         "schema": "desk-perf-summary/1",
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -165,6 +179,8 @@ def summarize(reports: list[dict], before: dict | None, after: dict | None) -> d
         "representative": bool(after and after.get("representative")),
         "counts": counts, "metrics": rows, "failed": failed,
         "stress": (after or {}).get("stress", []) or [],
+        "variants": variants,
+        "vault": ((after or {}).get("harness") or {}).get("vault", ""),
     }
 
 
@@ -185,6 +201,25 @@ def table(summary: dict) -> str:
            f"после: {a['file']} ({a['label'] or a['kind']}, {a['date']})" if a else "после: —"]
     if a and not a["representative"]:
         top.append("ВНИМАНИЕ: «после» снят не на ноутбуке владельца — цифры не репрезентативны.")
+    vs = summary.get("variants") or []
+    if vs:
+        ids = [i for i in ORDER if any(i in v["metrics"] for v in vs)]
+        rows = [("вариант «после»",) + tuple(v["label"] for v in vs)]
+        for i in ids:
+            cells = []
+            for v in vs:
+                m = v["metrics"].get(i)
+                cells.append("—" if not m or m["value"] is None else f"{fmt(m['value'], m['unit'])} {STATUS_RU.get(m['status'], '')}")
+            rows.append((LABELS.get(i, i),) + tuple(cells))
+        w = [max(len(r[c]) for r in rows) for c in range(len(rows[0]))]
+        out.append("")
+        for n, r in enumerate(rows):
+            out.append("  ".join(r[c].ljust(w[c]) if c == 0 else r[c].rjust(w[c]) for c in range(len(r))))
+            if n == 0:
+                out.append("  ".join("─" * x for x in w))
+        for v in vs:
+            env = ", ".join(f"{k}={x}" for k, x in (v["env"] or {}).items()) or "без переменных"
+            out.append(f"  {v['label']}: {v['exe']}, {env}, протокол {v['mode']}")
     tail = [f"провалы: {len(summary['failed'])}"] + [f"  · {f['label']}: {f['reason']}" for f in summary["failed"]]
     return "\n".join(top + [""] + out + [""] + tail)
 
@@ -195,7 +230,11 @@ def self_test() -> int:
                 "machine": {}, "build": {"kind": kind_, "version": "x", "commit": created[-3:]},
                 "metrics": [{"id": k, "unit": "ms", "value": v, "target": 150.0, "stat": "median",
                              "status": "pass" if v <= 150 else "fail", "samples": {"value": [v], "Count": 1}} for k, v in vals.items()],
-                "stress": [{"id": "x", "status": "fail", "detail": "boom"}]}
+                "stress": [{"id": "x", "status": "fail", "detail": "boom"}],
+                "variants": [{"id": "v1", "label": "base", "env": {"DESK_OPT": "base"}, "exe": "d.exe", "mode": "data-ready",
+                              "metrics": [{"id": "data_ready_warm_ms", "unit": "ms", "value": 250.0, "target": 300.0, "status": "pass"}]},
+                             {"id": "v2", "label": "all", "env": {"DESK_OPT": "all"}, "exe": "d.exe", "mode": "data-ready",
+                              "metrics": [{"id": "data_ready_warm_ms", "unit": "ms", "value": 180.0, "target": 300.0, "status": "pass"}]}]}
     with tempfile.TemporaryDirectory() as d:
         p = Path(d)
         (p / "e.json").write_text(json.dumps(rep("electron", True, "2026-11-25T10:00:00Z", {"warm_start_ms": 900.0})), encoding="utf-8")
@@ -213,6 +252,8 @@ def self_test() -> int:
             (reps[1]["metrics"][0]["samples"] == [200.0], "ps 5.1 array unwrapped"),
             (any(f["reason"] == "boom" for f in s["failed"]), "stress failure listed"),
             ("Тёплый старт" in table(s), "table label"),
+            ([v["metrics"]["data_ready_warm_ms"]["value"] for v in s["variants"]] == [250.0, 180.0], "variant columns"),
+            ("Данные дня на экране, тёплый старт" in table(s), "variant table"),
         ]
         for c, name in checks:
             print(("ok   " if c else "FAIL ") + name)

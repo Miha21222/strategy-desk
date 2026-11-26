@@ -599,8 +599,10 @@ fn main() -> Result<()> {
             cold_method: String::new(),
             idle_seconds: idle_s,
             settle_seconds: 0,
+            vault: "gen-vault (synthetic)".into(),
         },
         metrics,
+        variants: Vec::new(),
         notes: vec![format!("day parser: {hook}")],
     };
     let mut v = serde_json::to_value(&report)?;
