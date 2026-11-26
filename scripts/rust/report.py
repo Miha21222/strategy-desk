@@ -167,7 +167,8 @@ def summarize(reports: list[dict], before: dict | None, after: dict | None) -> d
     for v in (after or {}).get("variants", []) or []:
         variants.append({
             "id": v.get("id", ""), "label": v.get("label", ""), "env": v.get("env", {}), "exe": v.get("exe", ""),
-            "mode": v.get("mode", ""),
+            "mode": v.get("mode", ""), "build": v.get("build", ""), "opt": v.get("opt", ""),
+            "phases": v.get("phases", {}),
             "metrics": {m["id"]: {"value": m.get("value"), "status": m.get("status"), "target": m.get("target"),
                                   "unit": m.get("unit", ""), "label": LABELS.get(m["id"], m.get("label", m["id"]))}
                         for m in v.get("metrics", [])},
@@ -220,8 +221,37 @@ def table(summary: dict) -> str:
         for v in vs:
             env = ", ".join(f"{k}={x}" for k, x in (v["env"] or {}).items()) or "без переменных"
             out.append(f"  {v['label']}: {v['exe']}, {env}, протокол {v['mode']}")
+        out += phase_table(vs, "warm") + phase_table(vs, "idle")
     tail = [f"провалы: {len(summary['failed'])}"] + [f"  · {f['label']}: {f['reason']}" for f in summary["failed"]]
     return "\n".join(top + [""] + out + [""] + tail)
+
+
+KEY_PHASES = ["first_frame_presented", "day_drawn", "day_presented", "first_shot_uploaded", "idle_10s"]
+
+
+def phase_table(vs: list[dict], run: str = "warm") -> list[str]:
+    """Medians of the DESK_STARTUP_TRACE phases, «мс / Private МБ» per variant;
+    run = "warm" (every variant) or "idle" (the ones with an idle run)."""
+    vs = [v for v in vs if ((v.get("phases") or {}).get(run))]
+    have = [p for p in KEY_PHASES if any(p in v["phases"][run] for v in vs)]
+    if not have:
+        return []
+    title = {"warm": "фазы старта, тёплый: мс / Private МБ", "idle": "фазы в простое: мс / Private МБ"}[run]
+    rows = [(title,) + tuple(have)]
+    for v in vs:
+        w = v["phases"][run]
+        cells = []
+        for p in have:
+            x = w.get(p)
+            cells.append("—" if not x or x.get("ms") is None else f"{x['ms']:.0f} / {fmt(x.get('private_mb'))}")
+        rows.append((v["label"],) + tuple(cells))
+    wd = [max(len(r[c]) for r in rows) for c in range(len(rows[0]))]
+    out = [""]
+    for n, r in enumerate(rows):
+        out.append("  ".join(r[c].ljust(wd[c]) if c == 0 else r[c].rjust(wd[c]) for c in range(len(r))))
+        if n == 0:
+            out.append("  ".join("─" * x for x in wd))
+    return out
 
 
 def self_test() -> int:
@@ -232,6 +262,7 @@ def self_test() -> int:
                              "status": "pass" if v <= 150 else "fail", "samples": {"value": [v], "Count": 1}} for k, v in vals.items()],
                 "stress": [{"id": "x", "status": "fail", "detail": "boom"}],
                 "variants": [{"id": "v1", "label": "base", "env": {"DESK_OPT": "base"}, "exe": "d.exe", "mode": "data-ready",
+                              "phases": {"warm": {"day_presented": {"n": 5, "ms": 240.0, "private_mb": 91.0}}},
                               "metrics": [{"id": "data_ready_warm_ms", "unit": "ms", "value": 250.0, "target": 300.0, "status": "pass"}]},
                              {"id": "v2", "label": "all", "env": {"DESK_OPT": "all"}, "exe": "d.exe", "mode": "data-ready",
                               "metrics": [{"id": "data_ready_warm_ms", "unit": "ms", "value": 180.0, "target": 300.0, "status": "pass"}]}]}
@@ -254,6 +285,7 @@ def self_test() -> int:
             ("Тёплый старт" in table(s), "table label"),
             ([v["metrics"]["data_ready_warm_ms"]["value"] for v in s["variants"]] == [250.0, 180.0], "variant columns"),
             ("Данные дня на экране, тёплый старт" in table(s), "variant table"),
+            ("240 / 91" in table(s), "phase table"),
         ]
         for c, name in checks:
             print(("ok   " if c else "FAIL ") + name)

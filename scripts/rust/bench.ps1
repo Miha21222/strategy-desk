@@ -41,6 +41,12 @@ param(
     [string[]]$Variants = @(),
     [int]$VariantRuns = 0,
     [int]$SwitchCount = 1500,
+    [string[]]$Exes = @(),
+    [string[]]$Opts = @(),
+    [string[]]$ColdOpts = @('default'),
+    [string[]]$IdleVariants = @(),
+    [string]$Now = 'auto',
+    [string]$TraceDir = '',
     [switch]$SkipCold,
     [switch]$SkipWarm,
     [switch]$SkipIdle,
@@ -59,7 +65,7 @@ $ErrorActionPreference = 'Stop'
 # PowerShell 5.1 serializes some arrays as {"value": [...], "Count": n}
 # because of the ETS Count alias on System.Array; without it they stay arrays.
 Remove-TypeData -TypeName System.Array -ErrorAction SilentlyContinue
-$ScriptVersion = '2'
+$ScriptVersion = '3'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 # ---------------------------------------------------------------- catalog
@@ -703,6 +709,96 @@ function New-Report([string]$kindName, $machine, $build, $metrics, $notes, [stri
     return $r
 }
 
+# ---------------------------------------------------------------- A/B matrix
+# DESK_OPT value of one option name: 'default' = no switch, '+' joins several
+# (DESK_OPT itself is a comma list, and a comma separates -Opts items).
+function ConvertTo-DeskOpt([string]$Opt) {
+    if ($Opt -eq 'default') { return '' }
+    return ($Opt -replace '\+', ',')
+}
+
+# -Exes "glow=path,wgpu=path" x -Opts "default,vsync0,..." -> variants
+# "glow/default", "glow/vsync0", ..., "wgpu/...". Exe-major order, so the
+# reference (first exe, first opt) comes first.
+function New-MatrixVariants([string[]]$ExeItems, [string[]]$OptItems, [string[]]$ColdOpts, [string]$DefaultExe) {
+    $exes = New-Object System.Collections.ArrayList
+    foreach ($e in $ExeItems) {
+        $eq = $e.IndexOf('=')
+        if ($eq -lt 1) { throw ('-Exes "{0}": expected NAME=PATH' -f $e) }
+        [void]$exes.Add(@($e.Substring(0, $eq).Trim(), $e.Substring($eq + 1).Trim()))
+    }
+    if ($exes.Count -eq 0) { [void]$exes.Add(@('exe', $DefaultExe)) }
+    if ($OptItems.Count -eq 0) { $OptItems = @('default') }
+    $out = New-Object System.Collections.ArrayList
+    $n = 0
+    foreach ($e in $exes) {
+        foreach ($o in $OptItems) {
+            $n++
+            $envMap = [ordered]@{ DESK_OPT = (ConvertTo-DeskOpt $o) }
+            [void]$out.Add([ordered]@{ id = ('v{0}' -f $n); label = ('{0}/{1}' -f $e[0], $o); env = $envMap; exe = $e[1]; mode = ''
+                    build = $e[0]; opt = $o; cold = ($ColdOpts -contains $o); idle = $false })
+        }
+    }
+    return , $out.ToArray()
+}
+
+# The stderr of one launch (lines "<utc> <text>") -> records for the trace
+# file: {variant, run, utc, trace} for DESK_STARTUP_TRACE JSON, else {.., raw}.
+function ConvertFrom-StderrText([string]$Text, [string]$Variant, [string]$Run) {
+    $recs = New-Object System.Collections.ArrayList
+    foreach ($line in ($Text -split "`n")) {
+        if (-not $line.Trim()) { continue }
+        $sp = $line.IndexOf(' ')
+        $utc = ''; $body = $line
+        if ($sp -gt 0) { $utc = $line.Substring(0, $sp); $body = $line.Substring($sp + 1) }
+        $rec = [ordered]@{ variant = $Variant; run = $Run; utc = $utc }
+        $parsed = $null
+        if ($body.TrimStart().StartsWith('{')) { try { $parsed = ConvertFrom-Json $body } catch { $parsed = $null } }
+        if ($null -ne $parsed -and $parsed.PSObject.Properties['trace']) { $rec.trace = $parsed } else { $rec.raw = $body }
+        [void]$recs.Add($rec)
+    }
+    return , $recs.ToArray()
+}
+
+# Median ms / private_mb / ws_mb per start-up phase over the given records.
+function Get-PhaseSummary($Records) {
+    $by = [ordered]@{}
+    foreach ($r in $Records) {
+        if (-not $r.Contains('trace')) { continue }
+        $t = $r.trace
+        $ph = [string]$t.trace
+        if (-not $by.Contains($ph)) { $by[$ph] = @{ ms = (New-Object System.Collections.ArrayList); pm = (New-Object System.Collections.ArrayList); wm = (New-Object System.Collections.ArrayList) } }
+        if ($t.PSObject.Properties['ms'] -and $null -ne $t.ms) { [void]$by[$ph].ms.Add([double]$t.ms) }
+        if ($t.PSObject.Properties['private_mb'] -and $null -ne $t.private_mb) { [void]$by[$ph].pm.Add([double]$t.private_mb) }
+        if ($t.PSObject.Properties['ws_mb'] -and $null -ne $t.ws_mb) { [void]$by[$ph].wm.Add([double]$t.ws_mb) }
+    }
+    $out = [ordered]@{}
+    foreach ($ph in $by.Keys) {
+        $out[$ph] = [ordered]@{ n = $by[$ph].ms.Count; ms = (Round3 (Get-Median $by[$ph].ms.ToArray()))
+            private_mb = (Round3 (Get-Median $by[$ph].pm.ToArray())); ws_mb = (Round3 (Get-Median $by[$ph].wm.ToArray())) }
+    }
+    return $out
+}
+
+# A day the desk shows WITH a chart screenshot: the newest date whose shots
+# file says ok and whose window the owner has read (else "first the human",
+# note 23, hides the plan, shots included). Returns a DESK_NOW value, or ''.
+function Find-ShotNow([string]$VaultDir) {
+    $state = Join-Path $VaultDir 'indices-kb\state'
+    $files = @(Get-ChildItem -LiteralPath $state -Filter 'shots_*_*.json' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+    foreach ($f in $files) {
+        $m = [regex]::Match($f.Name, '^shots_(\d{4}-\d{2}-\d{2})_(eu|us)\.json$')
+        if (-not $m.Success) { continue }
+        $d = $m.Groups[1].Value; $reg = $m.Groups[2].Value
+        if (-not (Test-Path -LiteralPath (Join-Path $state ('human_read_{0}_{1}.json' -f $d, $reg)))) { continue }
+        try { $j = Get-Content -Raw -Encoding UTF8 -LiteralPath $f.FullName | ConvertFrom-Json } catch { continue }
+        if (-not ($j.PSObject.Properties['ok'] -and $j.ok)) { continue }
+        # After the window's review: 12:00 for Europe, 21:00 for the US (Kyiv).
+        if ($reg -eq 'eu') { return ('{0}T12:00' -f $d) } else { return ('{0}T21:00' -f $d) }
+    }
+    return ''
+}
+
 # ---------------------------------------------------------------- self-test
 if ($SelfTest) {
     # Pure parts only, so this also runs under pwsh on Linux (CI, agents).
@@ -739,6 +835,19 @@ if ($SelfTest) {
     $v = ConvertTo-Variant 'DESK_OPT=base' 1 'C:\a\desk.exe'
     Assert-Eq $v.label 'DESK_OPT=base' 'variant default label'
     Assert-Eq $v.exe 'C:\a\desk.exe' 'variant default exe'
+    $mv = New-MatrixVariants @('glow=C:\g.exe', 'wgpu=C:\w.exe') @('default', 'vsync0', 'app_sync+no_inter') @('default') 'C:\x.exe'
+    Assert-Eq $mv.Count 6 'matrix size'
+    Assert-Eq $mv[0].label 'glow/default' 'matrix reference first'
+    Assert-Eq $mv[0].env['DESK_OPT'] '' 'default = empty DESK_OPT'
+    Assert-Eq $mv[2].env['DESK_OPT'] 'app_sync,no_inter' 'plus joins switches'
+    Assert-Eq $mv[3].exe 'C:\w.exe' 'second exe'
+    Assert-Eq (@($mv | Where-Object { $_.cold }) | ForEach-Object { $_.label }) 'glow/default wgpu/default' 'cold only for default'
+    $recs = ConvertFrom-StderrText ("2026-11-26T19:00:00.0000000Z {""trace"": ""day_drawn"", ""ms"": 240.5, ""private_mb"": 90.0, ""ws_mb"": 70.0}`n" + "2026-11-26T19:00:00.1000000Z strategy-desk: hello`n" + "2026-11-26T19:00:01.0000000Z {""trace"": ""day_drawn"", ""ms"": 260.5, ""private_mb"": 92.0, ""ws_mb"": null}") 'glow/default' 'warm 1'
+    Assert-Eq $recs.Count 3 'trace records'
+    Assert-Eq $recs[1].raw 'strategy-desk: hello' 'raw stderr kept'
+    $ph = Get-PhaseSummary $recs
+    Assert-Eq $ph['day_drawn'].ms 250.5 'phase median'
+    Assert-Eq $ph['day_drawn'].ws_mb 70 'phase median skips null'
     $b = Read-BenchLine '{"first_frame_ms": 180.5, "data_ready_ms": 260.0, "private_mb": 95.1, "ws_mb": 80}'
     Assert-Eq $b.data_ready_ms 260 'bench line data ready'
     Assert-Eq (Get-DerivedFirstFrame 300.0 $b.first_frame_ms $b.data_ready_ms) 220.5 'derived first frame'
@@ -773,23 +882,53 @@ if ((Test-InTradingWindow $kyiv) -and -not $Force) {
     exit 2
 }
 
+$Variants = Expand-VariantArgs $Variants
+$Exes = Expand-VariantArgs $Exes
+$Opts = Expand-VariantArgs $Opts
+$ColdOpts = Expand-VariantArgs $ColdOpts
+$IdleVariants = Expand-VariantArgs $IdleVariants
+$matrix = ($Exes.Count -gt 0 -or $Opts.Count -gt 0)
+if ($matrix -and $Variants.Count -gt 0) { throw 'use either -Variants or -Exes/-Opts, not both' }
+if ($matrix -and $Kind -ne 'rust') { throw '-Exes/-Opts drive DESK_OPT of the Rust build only' }
+
 if (-not $Exe) {
-    if ($Kind -eq 'electron') { $Exe = Find-ElectronExe } else { $Exe = Join-Path $RepoRoot 'rust\target\release\strategy-desk.exe' }
+    if ($Exes.Count -gt 0) { $Exe = $Exes[0].Substring($Exes[0].IndexOf('=') + 1) }
+    elseif ($Kind -eq 'electron') { $Exe = Find-ElectronExe }
+    else { $Exe = Join-Path $RepoRoot 'rust\target\release\strategy-desk.exe' }
 }
 if (-not $Exe -or -not (Test-Path -LiteralPath $Exe)) {
     throw ('exe not found: "{0}". Pass -Exe <path>.' -f $Exe)
 }
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
 
-# Variants: the first one is the reference and fills `metrics`; without
-# -Variants there is exactly one, the plain exe with no extra environment.
-$Variants = Expand-VariantArgs $Variants
+# Variants: the first one is the reference and fills `metrics`. Without
+# -Variants / -Exes / -Opts there is exactly one, the plain exe.
 $variantList = New-Object System.Collections.ArrayList
-if ($Variants.Count -eq 0) {
-    [void]$variantList.Add((ConvertTo-Variant 'default|' 1 $Exe))
+if ($matrix) {
+    foreach ($v in (New-MatrixVariants $Exes $Opts $ColdOpts $Exe)) { [void]$variantList.Add($v) }
+} elseif ($Variants.Count -eq 0) {
+    $v = ConvertTo-Variant 'default|' 1 $Exe
+    $v.cold = $true; $v.idle = $true
+    [void]$variantList.Add($v)
 } else {
-    for ($i = 0; $i -lt $Variants.Count; $i++) { [void]$variantList.Add((ConvertTo-Variant $Variants[$i] ($i + 1) $Exe)) }
+    for ($i = 0; $i -lt $Variants.Count; $i++) {
+        $v = ConvertTo-Variant $Variants[$i] ($i + 1) $Exe
+        $v.cold = $true
+        [void]$variantList.Add($v)
+    }
 }
+# Idle: the labels in -IdleVariants; by default the reference, and in a
+# matrix also <first exe>/shots_full (the screenshot memory question).
+if ($IdleVariants.Count -eq 0) {
+    $IdleVariants = @($variantList[0].label)
+    if ($matrix) {
+        $sf = @($variantList | Where-Object { $_.build -eq $variantList[0].build -and $_.opt -eq 'shots_full' })
+        if ($sf.Count -gt 0) { $IdleVariants += $sf[0].label }
+    }
+}
+foreach ($v in $variantList) { $v.idle = ($IdleVariants -contains $v.label) }
+foreach ($l in $IdleVariants) { if (-not (@($variantList | Where-Object { $_.label -eq $l }).Count)) { throw ('-IdleVariants: no variant "{0}"' -f $l) } }
+
 foreach ($v in $variantList) {
     if (-not (Test-Path -LiteralPath $v.exe)) { throw ('variant {0}: exe not found: "{1}"' -f $v.label, $v.exe) }
     $v.exe = (Resolve-Path -LiteralPath $v.exe).Path
@@ -804,6 +943,8 @@ $Exe = $variantList[0].exe   # sizes and the build line describe the reference
 $exeName = Split-Path -Leaf $Exe
 $VR = $VariantRuns
 if ($VR -le 0) { $VR = $Runs }
+$coldVariants = @($variantList | Where-Object { $_.cold })
+$idleList = @($variantList | Where-Object { $_.idle })
 
 if ($SoakHours -gt 0) {
     # A soak is its own run: nothing else in it, so the series is clean.
@@ -820,13 +961,14 @@ if ($ColdMethod -eq 'admin' -and -not $isAdmin) { throw '-ColdMethod admin needs
 $nv = $variantList.Count
 $coldPer = 8
 if ($ColdMethod -eq 'pressure') { $coldPer = 45 }
-$est = $nv * 8
-if (-not $SkipCold) { $est += $nv * $VR * $coldPer }
+$est = $nv * 4
+if (-not $SkipCold) { $est += $coldVariants.Count * $Runs * $coldPer }
 if (-not $SkipWarm) { $est += $nv * ($VR + 1) * 4 }
-if (-not $SkipIdle) { $est += $IdleRuns * ($IdleSeconds + $SettleSeconds + 15) }
+if (-not $SkipIdle) { $est += $idleList.Count * $IdleRuns * ($IdleSeconds + $SettleSeconds + 15) }
 if ($StreamFrames) { $est += 90 }
 if ($SoakHours -gt 0) { $est = [int]($SoakHours * 3600) }
-Write-Host (Fmt 'bench.ps1: about {0:F0} min ({1} variant(s) x {2} runs, cold method {3})' ($est / 60.0) $nv $VR $ColdMethod)
+Write-Host (Fmt 'bench.ps1: about {0:F0} min: {1} variant(s) x {2} warm, {3} x {4} cold ({5}), idle {6} x {7}' ($est / 60.0) $nv $VR $coldVariants.Count $Runs $ColdMethod $idleList.Count $IdleRuns)
+if ($ColdMethod -eq 'pressure' -and $est -gt 1200) { Write-Host 'NOTE: without admin each cold launch first squeezes memory (~45 s). An elevated PowerShell makes this run much shorter.' }
 if (-not $Force -and $SoakHours -le 0 -and (Test-WouldCross ($est + 60))) {
     Write-Host ('Refusing: the run takes about {0} min and would reach the 16:25 trading window. Start after 18:30, or pass -Force.' -f [math]::Ceiling($est / 60))
     exit 2
@@ -834,12 +976,37 @@ if (-not $Force -and $SoakHours -le 0 -and (Test-WouldCross ($est + 60))) {
 
 $vaultPath = ''
 $vaultSource = 'electron settings (its own)'
+$deskNow = ''
+$nowSource = ''
 if ($Kind -eq 'rust') {
     $vr2 = Resolve-Vault
     $vaultPath = $vr2[0]; $vaultSource = $vr2[1]
     if (-not $vaultPath) { Write-Host 'WARNING: no vault found (-Vault, DESK_VAULT, the Electron settings, Documents\Strategy Desk): the Rust build will start on an empty screen and data_ready cannot be measured.' }
     else { Write-Host ('vault: {0}' -f $vaultSource) }
+    # One clock for every launch, so every variant draws the same day.
+    if ($Now -eq 'auto') {
+        if ($vaultPath) { $deskNow = Find-ShotNow $vaultPath }
+        if ($deskNow) { $nowSource = 'auto: newest day with a screenshot and an owner read' }
+        else { $nowSource = 'real clock (no day with a screenshot and a read found)' }
+    } elseif ($Now -and $Now -ne 'none') { $deskNow = $Now; $nowSource = '-Now' }
+    else { $nowSource = 'real clock' }
+    if ($deskNow) { Write-Host ('DESK_NOW={0} ({1})' -f $deskNow, $nowSource) }
 }
+
+# Startup traces go into the repo, where the lead can read them.
+# (PowerShell names are case-insensitive: $traceOut, not $traceDir, or the
+# -TraceDir parameter would be overwritten.)
+$traceOut = ''
+if ($Kind -eq 'rust') {
+    $traceOut = $TraceDir
+    if (-not $traceOut) {
+        $traceOut = Join-Path $RepoRoot ('docs\rust\perf\ab\{0}' -f (Get-Date -Format 'yyyy-MM-dd'))
+        if ((Test-Path -LiteralPath $traceOut) -and @(Get-ChildItem -LiteralPath $traceOut).Count -gt 0) { $traceOut = $traceOut + (Get-Date -Format '-HHmm') }
+    }
+    New-Item -ItemType Directory -Force -Path $traceOut | Out-Null
+}
+$traces = @{}
+foreach ($v in $variantList) { $traces[$v.id] = New-Object System.Collections.ArrayList }
 
 $machine = Get-MachineInfo
 $machine.noise = Get-Noise
@@ -862,19 +1029,30 @@ $aborted = $false
 Write-Host 'Do not touch the mouse or keyboard while it runs; windows will open and close by themselves.'
 $timeoutMs = $StartTimeoutSeconds * 1000
 
-# Environment pairs for one launch: the vault (Rust only), the variant, extras.
+# Environment pairs for one launch: vault, clock, trace (Rust only), the variant, extras.
 function Get-EnvPairs($v, [string[]]$extra) {
     $pairs = New-Object System.Collections.ArrayList
-    if ($Kind -eq 'rust' -and $vaultPath) { [void]$pairs.Add('DESK_VAULT'); [void]$pairs.Add($vaultPath) }
+    if ($Kind -eq 'rust') {
+        if ($vaultPath) { [void]$pairs.Add('DESK_VAULT'); [void]$pairs.Add($vaultPath) }
+        if ($deskNow) { [void]$pairs.Add('DESK_NOW'); [void]$pairs.Add($deskNow) }
+        [void]$pairs.Add('DESK_STARTUP_TRACE'); [void]$pairs.Add('1')
+    }
     foreach ($k in $v.env.Keys) { [void]$pairs.Add([string]$k); [void]$pairs.Add([string]$v.env[$k]) }
     if ($null -ne $extra) { foreach ($x in $extra) { [void]$pairs.Add($x) } }
     if ($pairs.Count -eq 0) { return $null }
     return [string[]]$pairs.ToArray()
 }
 
+function Save-Trace($v, [string]$run, [string]$stderrText) {
+    foreach ($rec in (ConvertFrom-StderrText $stderrText $v.label $run)) { [void]$traces[$v.id].Add($rec) }
+}
+
+$script:launchNo = 0
+$script:launchTotal = 0
 function Invoke-Start($v, [string]$what, [string]$modeOverride = '') {
     $mode = $v.mode
     if ($modeOverride) { $mode = $modeOverride }
+    $script:launchNo++
     $err = New-Object System.Text.StringBuilder
     $startArgs = ''
     $lineKey = $null
@@ -887,6 +1065,7 @@ function Invoke-Start($v, [string]$what, [string]$modeOverride = '') {
     $r = [DeskBenchNative]::Start($v.exe, $startArgs, (Get-EnvPairs $v $null), $lineKey, $true, $false, $timeoutMs, $err)
     if (-not $r.Exited) { [DeskBenchNative]::CloseTree($r.Pid, 5000) }
     Start-Sleep -Milliseconds 1500  # let the processes go and the disk settle
+    if ($Kind -eq 'rust') { Save-Trace $v $what $err.ToString() }
     $b = Read-BenchLine $r.Line
     $line = $null
     if ($r.LineMs -ge 0) { $line = $r.LineMs }
@@ -905,8 +1084,9 @@ function Invoke-Start($v, [string]$what, [string]$modeOverride = '') {
         $primary = $null
     }
     if ($null -eq $primary) { $primary = -1 }
-    $msg = Fmt '{0}: first frame {1:F1} ms, window {2:F1} ms' $what $primary $r.WindowMs
-    if ($null -ne $ready) { $msg += (Fmt ', data ready {0:F1} ms' $ready) }
+    $msg = Fmt '[{0}/{1}] {2} {3}: first frame {4:F0} ms' $script:launchNo $script:launchTotal $what $v.label $primary
+    if ($null -ne $ready) { $msg += (Fmt ', data ready {0:F0} ms' $ready) }
+    if ($null -ne $b.private_mb) { $msg += (Fmt ', private {0:F0} MB' $b.private_mb) }
     if ($r.TimedOut) { $msg += ' (TIMED OUT)' }
     Write-Host $msg
     return @{ primary = $primary; window = $r.WindowMs; self = $b.first_frame_ms; ready = $ready; selfReady = $b.data_ready_ms
@@ -929,10 +1109,14 @@ function New-StartMetric([string]$id, $results, [string]$field, [string]$method)
     return (New-Metric $id @($ok | ForEach-Object { $_[$field] }) $method $note $extra)
 }
 
+$script:launchTotal = $nv
+if (-not $SkipCold) { $script:launchTotal += $coldVariants.Count * $Runs }
+if (-not $SkipWarm) { $script:launchTotal += $nv * ($VR + 1) }
+
 # ---------------------------------------------------------------- which start protocol each variant speaks
 foreach ($v in $variantList) {
-    if ($Kind -ne 'rust') { $v.mode = 'window'; continue }
-    $probe = Invoke-Start $v ('probe {0} (discarded)' -f $v.label) 'data-ready'
+    if ($Kind -ne 'rust') { $v.mode = 'window'; $script:launchNo++; continue }
+    $probe = Invoke-Start $v 'probe (discarded)' 'data-ready'
     if ($null -ne $probe.selfReady) { $v.mode = 'data-ready' }
     else {
         $v.mode = 'first-frame'
@@ -949,9 +1133,10 @@ foreach ($v in $variantList) {
 $cold = @{}; $warm = @{}
 foreach ($v in $variantList) { $cold[$v.id] = New-Object System.Collections.ArrayList; $warm[$v.id] = New-Object System.Collections.ArrayList }
 $flushNotes = New-Object System.Collections.ArrayList
-if (-not $SkipCold) {
-    for ($i = 1; $i -le $VR -and -not $aborted; $i++) {
-        foreach ($v in $variantList) {
+if (-not $SkipCold -and $coldVariants.Count -gt 0) {
+    Write-Host ('-- cold: {0} x {1} ({2})' -f (($coldVariants | ForEach-Object { $_.label }) -join ', '), $Runs, $ColdMethod)
+    for ($i = 1; $i -le $Runs -and -not $aborted; $i++) {
+        foreach ($v in $coldVariants) {
             if (-not (Test-MayContinue 120)) { $aborted = $true; break }
             if ($ColdMethod -eq 'admin') {
                 [void]$flushNotes.Add(('purge status {0}' -f [DeskBenchNative]::PurgeStandby()))
@@ -960,21 +1145,23 @@ if (-not $SkipCold) {
                 [void]$flushNotes.Add((Fmt 'pressure {0:F0} MB in {1:F1} s' $pr[0] $pr[1]))
             }
             Start-Sleep -Seconds 3
-            [void]$cold[$v.id].Add((Invoke-Start $v ('cold {0}/{1} {2}' -f $i, $VR, $v.label)))
+            [void]$cold[$v.id].Add((Invoke-Start $v ('cold {0}/{1}' -f $i, $Runs)))
         }
     }
 }
 if (-not $SkipWarm -and -not $aborted) {
-    foreach ($v in $variantList) { [void](Invoke-Start $v ('warm-up {0} (discarded)' -f $v.label)) }
+    Write-Host ('-- warm: {0} variant(s) x {1}' -f $nv, $VR)
+    foreach ($v in $variantList) { [void](Invoke-Start $v 'warm-up (discarded)') }
     for ($i = 1; $i -le $VR -and -not $aborted; $i++) {
         foreach ($v in $variantList) {
             if (-not (Test-MayContinue 60)) { $aborted = $true; break }
-            [void]$warm[$v.id].Add((Invoke-Start $v ('warm {0}/{1} {2}' -f $i, $VR, $v.label)))
+            [void]$warm[$v.id].Add((Invoke-Start $v ('warm {0}/{1}' -f $i, $VR)))
         }
     }
 }
 
 $variantsOut = New-Object System.Collections.ArrayList
+$coldLabels = ($coldVariants | ForEach-Object { $_.label }) -join ', '
 foreach ($v in $variantList) {
     $vm = New-Object System.Collections.ArrayList
     $sm = 'Stopwatch from Process.Start to the first visible top-level window of the process tree (EnumWindows, 1 ms polling)'
@@ -992,6 +1179,7 @@ foreach ($v in $variantList) {
         $res = $p[1][$v.id]
         $isCold = $p[0] -like '*cold*'
         if (($isCold -and $SkipCold) -or (-not $isCold -and $SkipWarm)) { [void]$vm.Add((New-Skip $p[0] ('skipped by -Skip' + @('Warm', 'Cold')[[int]$isCold]))); continue }
+        if ($isCold -and -not $v.cold) { [void]$vm.Add((New-Skip $p[0] ('cold runs only for: {0}' -f $coldLabels))); continue }
         if ($p[2] -eq 'ready' -and $v.mode -ne 'data-ready') {
             $why = 'Electron 0.2.3 has no hook that says when the day data is drawn; see the manual stopwatch method in docs/rust/PERF.md'
             if ($Kind -eq 'rust') { $why = 'this build printed no data_ready_ms (see notes)' }
@@ -1002,26 +1190,35 @@ foreach ($v in $variantList) {
         if ($isCold -and $flushNotes.Count -gt 0) { $m.extra.flush = @($flushNotes) }
         [void]$vm.Add($m)
     }
-    [void]$variantsOut.Add([ordered]@{ id = $v.id; label = $v.label; env = $v.env; exe = (Split-Path -Leaf $v.exe); mode = $v.mode; metrics = @($vm.ToArray()) })
+    $o = [ordered]@{ id = $v.id; label = $v.label; env = $v.env; exe = (Split-Path -Leaf $v.exe); mode = $v.mode }
+    if ($v.Contains('build')) { $o.build = $v.build; $o.opt = $v.opt }
+    $o.metrics = $vm
+    [void]$variantsOut.Add($o)
+    $dr = @($vm | Where-Object { $_.id -eq 'data_ready_warm_ms' })
+    $ws = @($vm | Where-Object { $_.id -eq 'warm_start_ms' })
+    $line = '== {0}: warm first frame {1}' -f $v.label, $(if ($ws.Count -and $null -ne $ws[0].value) { Fmt '{0:F0} ms' $ws[0].value } else { '-' })
+    if ($dr.Count -and $null -ne $dr[0].value) { $line += (Fmt ', data ready {0:F0} ms ({1})' $dr[0].value $dr[0].status) }
+    Write-Host $line
 }
-foreach ($m in $variantsOut[0].metrics) { [void]$metrics.Add($m) }
 $ref = $variantList[0]
 
-# ---------------------------------------------------------------- idle (reference variant)
-if (-not $SkipIdle -and -not $aborted) {
+# ---------------------------------------------------------------- idle (the -IdleVariants; the reference fills `metrics`)
+function Invoke-Idle($v) {
     $ws = New-Object System.Collections.ArrayList
     $pb = New-Object System.Collections.ArrayList
     $cpu = New-Object System.Collections.ArrayList
     $fpm = New-Object System.Collections.ArrayList
     $procs = New-Object System.Collections.ArrayList
+    $shots = New-Object System.Collections.ArrayList
+    $out = New-Object System.Collections.ArrayList
     for ($i = 1; $i -le $IdleRuns; $i++) {
-        if (-not (Test-MayContinue ($IdleSeconds + $SettleSeconds + 60))) { $aborted = $true; break }
+        if (-not (Test-MayContinue ($IdleSeconds + $SettleSeconds + 60))) { $script:aborted = $true; break }
         $err = New-Object System.Text.StringBuilder
         $extraEnv = $null
         if ($Kind -eq 'rust') { $extraEnv = [string[]]@('DESK_FRAME_STATS', '1') }
-        $r = [DeskBenchNative]::Start($ref.exe, '', (Get-EnvPairs $ref $extraEnv), $null, $true, $false, $timeoutMs, $err)
+        $r = [DeskBenchNative]::Start($v.exe, '', (Get-EnvPairs $v $extraEnv), $null, $true, $false, $timeoutMs, $err)
         if ($r.WindowMs -lt 0) {
-            [void]$notes.Add(('idle run {0}: no window within {1} s' -f $i, $StartTimeoutSeconds))
+            [void]$notes.Add(('idle {0} run {1}: no window within {2} s' -f $v.label, $i, $StartTimeoutSeconds))
             [DeskBenchNative]::CloseTree($r.Pid, 5000)
             continue
         }
@@ -1031,6 +1228,8 @@ if (-not $SkipIdle -and -not $aborted) {
         $t1 = [DateTime]::UtcNow
         [DeskBenchNative]::CloseTree($r.Pid, 5000)
         Start-Sleep -Seconds 2
+        if ($Kind -eq 'rust') { Save-Trace $v ('idle {0}/{1}' -f $i, $IdleRuns) $err.ToString() }
+        [void]$shots.Add(($err.ToString() -match '"first_shot_uploaded"'))
         $pct = $idle.CpuSeconds / $idle.WallSeconds / [Environment]::ProcessorCount * 100.0
         [void]$ws.Add($idle.WorkingSetMB); [void]$pb.Add($idle.PrivateMB); [void]$cpu.Add($pct); [void]$procs.Add($idle.Processes)
         # Frame lines stamped inside the idle window only.
@@ -1046,26 +1245,44 @@ if (-not $SkipIdle -and -not $aborted) {
         $rows = Get-FrameStats $inWin.ToString()
         $frames = @($rows | Where-Object { $null -ne $_.frames } | ForEach-Object { $_.frames })
         if ($frames.Count -gt 0) { [void]$fpm.Add((($frames | Measure-Object -Sum).Sum) / ($IdleSeconds / 60.0)) }
-        Write-Host (Fmt 'idle {0}/{1}: WS {2:F1} MB, private {3:F1} MB, CPU {4:F2} %, {5} processes' $i $IdleRuns $idle.WorkingSetMB $idle.PrivateMB $pct $idle.Processes)
+        Write-Host (Fmt 'idle {0} {1}/{2}: WS {3:F1} MB, private {4:F1} MB, CPU {5:F2} %, {6} processes, screenshot on screen: {7}' $v.label $i $IdleRuns $idle.WorkingSetMB $idle.PrivateMB $pct $idle.Processes $shots[$shots.Count - 1])
     }
-    $im = ('variant {0}; launch, first visible window, {1} s settle (not counted), then {2} s idle; memory = sum over the process tree at the end' -f $ref.label, $SettleSeconds, $IdleSeconds)
+    $im = ('variant {0}; launch, first visible window, {1} s settle (not counted), then {2} s idle; memory = sum over the process tree at the end' -f $v.label, $SettleSeconds, $IdleSeconds)
     if ($ws.Count -gt 0) {
-        [void]$metrics.Add((New-Metric 'idle_working_set_mb' $ws.ToArray() ($im + ', Process.WorkingSet64') '' ([ordered]@{ processes = @($procs) })))
-        [void]$metrics.Add((New-Metric 'idle_private_mb' $pb.ToArray() ($im + ', Process.PrivateMemorySize64 (= Private Bytes)')))
-        [void]$metrics.Add((New-Metric 'idle_cpu_pct' $cpu.ToArray() ('TotalProcessorTime of the tree sampled every 1 s over the idle window / wall / logical CPUs (Task Manager scale)')))
+        $shotNote = ''
+        if ($Kind -eq 'rust' -and @($shots | Where-Object { -not $_ }).Count -gt 0) { $shotNote = 'no first_shot_uploaded trace in some runs: no screenshot was on screen there' }
+        [void]$out.Add((New-Metric 'idle_working_set_mb' $ws.ToArray() ($im + ', Process.WorkingSet64') $shotNote ([ordered]@{ processes = @($procs); screenshot_on_screen = @($shots) })))
+        [void]$out.Add((New-Metric 'idle_private_mb' $pb.ToArray() ($im + ', Process.PrivateMemorySize64 (= Private Bytes)') $shotNote))
+        [void]$out.Add((New-Metric 'idle_cpu_pct' $cpu.ToArray() ('TotalProcessorTime of the tree sampled every 1 s over the idle window / wall / logical CPUs (Task Manager scale)')))
     } else {
-        foreach ($id in @('idle_working_set_mb', 'idle_private_mb', 'idle_cpu_pct')) { [void]$metrics.Add((New-Skip $id 'no idle run completed')) }
+        foreach ($id in @('idle_working_set_mb', 'idle_private_mb', 'idle_cpu_pct')) { [void]$out.Add((New-Skip $id 'no idle run completed')) }
     }
     if ($Kind -eq 'rust' -and $fpm.Count -gt 0) {
-        [void]$metrics.Add((New-Metric 'idle_frames_per_min' $fpm.ToArray() 'sum of "frames" in DESK_FRAME_STATS=1 stderr lines inside the idle window'))
+        [void]$out.Add((New-Metric 'idle_frames_per_min' $fpm.ToArray() 'sum of "frames" in DESK_FRAME_STATS=1 stderr lines inside the idle window'))
     } elseif ($Kind -eq 'rust') {
-        [void]$metrics.Add((New-Skip 'idle_frames_per_min' 'no DESK_FRAME_STATS line with a frame count inside the idle window'))
+        [void]$out.Add((New-Skip 'idle_frames_per_min' 'no DESK_FRAME_STATS line with a frame count inside the idle window'))
     } else {
-        [void]$metrics.Add((New-Skip 'idle_frames_per_min' 'Electron has no frame counter'))
+        [void]$out.Add((New-Skip 'idle_frames_per_min' 'Electron has no frame counter'))
+    }
+    return , $out.ToArray()
+}
+
+foreach ($m in $variantsOut[0].metrics) { [void]$metrics.Add($m) }
+if (-not $SkipIdle -and -not $aborted) {
+    foreach ($v in $idleList) {
+        Write-Host ('-- idle: {0} x {1} ({2} s)' -f $v.label, $IdleRuns, $IdleSeconds)
+        $im = Invoke-Idle $v
+        $o = @($variantsOut | Where-Object { $_.id -eq $v.id })[0]
+        foreach ($m in $im) { [void]$o.metrics.Add($m) }
+        if ($v.id -eq $ref.id) { foreach ($m in $im) { [void]$metrics.Add($m) } }
+    }
+    if (-not $ref.idle) {
+        foreach ($id in @('idle_working_set_mb', 'idle_private_mb', 'idle_cpu_pct')) { [void]$metrics.Add((New-Skip $id ('idle measured for: {0}' -f ($IdleVariants -join ', ')))) }
     }
 } else {
     foreach ($id in @('idle_working_set_mb', 'idle_private_mb', 'idle_cpu_pct')) { [void]$metrics.Add((New-Skip $id '-SkipIdle')) }
 }
+foreach ($o in $variantsOut) { $o.metrics = @($o.metrics.ToArray()) }
 
 # ---------------------------------------------------------------- frames
 $frameIds = @('frame_p50_ms', 'frame_p95_ms', 'frame_p99_ms')
@@ -1095,6 +1312,7 @@ if ($StreamFrames -and $Kind -eq 'rust' -and -not $aborted) {
             Start-Sleep -Seconds ([int]($StreamEvents / [math]::Max($StreamRate, 1)) + 25)
         }
         [DeskBenchNative]::CloseTree($r.Pid, 5000)
+        Save-Trace $ref 'stream' $err.ToString()
         $rows = Get-FrameStats $err.ToString()
         if ($state -eq 'streaming' -and $rows.Count -gt 0) {
             Add-FrameMetrics $metrics 'frame_' $rows ('DESK_FRAME_STATS=1 per-10-s windows while fake-claude streams {0} events at {1}/s; p95/p99 judged on the worst window' -f $StreamEvents, $StreamRate)
@@ -1117,6 +1335,7 @@ if ($StreamFrames -and $Kind -eq 'rust' -and -not $aborted) {
         $err = New-Object System.Text.StringBuilder
         $r = [DeskBenchNative]::Start($ref.exe, ('--bench-switch {0}' -f $SwitchCount), (Get-EnvPairs $ref ([string[]]@('DESK_FRAME_STATS', '1'))), 'switch_ms', $false, $false, 180000, $err)
         if (-not $r.Exited) { [DeskBenchNative]::CloseTree($r.Pid, 5000) }
+        Save-Trace $ref 'switch' $err.ToString()
         $rows = Get-FrameStats $err.ToString()
         $sm = ('variant {0}; strategy-desk --bench-switch {1} with DESK_FRAME_STATS=1 on the vault ({2})' -f $ref.label, $SwitchCount, $vaultSource)
         if ($rows.Count -gt 0) {
@@ -1202,8 +1421,41 @@ foreach ($id in @('day_load_ms', 'watch_latency_ms')) {
 }
 if ($aborted) { [void]$notes.Add('ABORTED: stopped early to stay out of the 16:25-18:30 trading window') }
 
+# ---------------------------------------------------------------- traces and phases
+# One JSONL per variant ({variant, run, utc, trace|raw} per stderr line) and
+# phases.json (median per start-up phase over the warm / cold / idle runs).
+if ($Kind -eq 'rust' -and $traceOut) {
+    $enc = New-Object Text.UTF8Encoding $false
+    $phasesAll = [ordered]@{}
+    foreach ($v in $variantList) {
+        $recs = @($traces[$v.id].ToArray())
+        $file = Join-Path $traceOut (($v.label -replace '[^A-Za-z0-9_.-]', '_') + '.jsonl')
+        $sb = New-Object System.Text.StringBuilder
+        foreach ($rec in $recs) { [void]$sb.Append((ConvertTo-Json -InputObject $rec -Compress -Depth 6)).Append("`n") }
+        [IO.File]::WriteAllText($file, $sb.ToString(), $enc)
+        $ph = [ordered]@{}
+        foreach ($kind2 in @('warm', 'cold', 'idle')) {
+            $sel = @($recs | Where-Object { $_.run -like ($kind2 + ' *') })
+            if ($sel.Count -gt 0) { $ph[$kind2] = Get-PhaseSummary $sel }
+        }
+        $phasesAll[$v.label] = $ph
+        $o = @($variantsOut | Where-Object { $_.id -eq $v.id })[0]
+        $o.phases = $ph
+    }
+    $meta = [ordered]@{ commit = [string]$Commit; vault = $vaultSource; desk_now = $deskNow; now_source = $nowSource
+        note = 'DESK_STARTUP_TRACE=1 on every launch; ms since main(); runs: probe, cold i/N, warm-up, warm i/N, idle i/N, stream, switch'
+        phases = $phasesAll }
+    [IO.File]::WriteAllText((Join-Path $traceOut 'phases.json'), (ConvertTo-Json -InputObject $meta -Depth 8) + "`n", $enc)
+    Write-Host ('traces: {0}' -f $traceOut)
+    $rel = Split-Path -Leaf $traceOut
+    if ($traceOut.StartsWith($RepoRoot)) { $rel = ($traceOut.Substring($RepoRoot.Length).TrimStart('\', '/') -replace '\\', '/') }
+    [void]$notes.Add(('startup traces: {0}' -f $rel))
+}
+
 $variantsForReport = $null
-if ($Variants.Count -gt 0) { $variantsForReport = $variantsOut.ToArray() }
+if ($Variants.Count -gt 0 -or $matrix) { $variantsForReport = $variantsOut.ToArray() }
 $report = New-Report $Kind $machine $build $metrics.ToArray() $notes.ToArray() $ColdMethod $variantsForReport $vaultSource
+if ($deskNow) { $report.harness.desk_now = $deskNow }
+if ($nowSource) { $report.harness.now_source = $nowSource }
 Write-Report $report $Out
 Show-Summary $report

@@ -32,7 +32,7 @@ PY
 APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
   -Kind rust -Exe "$tmp/strategy-desk" -Vault "$tmp/vault" -Runs 3 -IdleRuns 1 -IdleSeconds 1 -SettleSeconds 0 \
   -Variants "base|DESK_OPT=base,all|DESK_OPT=all" -StreamFrames -SwitchCount 40 \
-  -FakeClaude "$tmp/strategy-desk" -Commit sim -Label "bench-sim (not a measurement)" -Out "$out" -Force
+  -FakeClaude "$tmp/strategy-desk" -TraceDir "$tmp/traces-v" -Commit sim -Label "bench-sim (not a measurement)" -Out "$out" -Force
 python3 - "$out" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8-sig"))
@@ -55,9 +55,43 @@ for ok, n in checks:
     print(("ok   " if ok else "FAIL ") + n)
 sys.exit(1 if bad else 0)
 PY
+# The owner's A/B matrix: two exes x options, cold only for default, idle
+# for default vs shots_full, traces into a folder, a day with a screenshot.
+cp "$tmp/strategy-desk" "$tmp/strategy-desk-wgpu"
+echo '{"ok": true, "shots": []}' > "$tmp/vault/indices-kb/state/shots_2026-11-20_eu.json"
+echo '{"side": "LONG"}' > "$tmp/vault/indices-kb/state/human_read_2026-11-20_eu.json"
+echo '{"ok": true, "shots": []}' > "$tmp/vault/indices-kb/state/shots_2026-11-24_eu.json"
+APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
+  -Kind rust -Vault "$tmp/vault" -Exes "glow=$tmp/strategy-desk,wgpu=$tmp/strategy-desk-wgpu" \
+  -Opts "default,vsync0,shots_full" -Runs 2 -VariantRuns 2 -IdleRuns 1 -IdleSeconds 1 -SettleSeconds 0 \
+  -TraceDir "$tmp/ab" -Commit sim-ab -Out "$tmp/ab.json" -Force > "$tmp/ab.log"
+grep -c '^\[' "$tmp/ab.log" >/dev/null
+python3 - "$tmp/ab.json" "$tmp/ab" <<'PY'
+import json, os, sys
+r = json.load(open(sys.argv[1], encoding="utf-8-sig"))
+d = sys.argv[2]
+v = {x["label"]: x for x in r["variants"]}
+mid = lambda lab, i: {m["id"]: m for m in v[lab]["metrics"]}.get(i, {})
+checks = [
+    (len(v) == 6 and list(v)[0] == "glow/default", "6 variants, glow/default first"),
+    (mid("glow/default", "data_ready_cold_ms").get("status") != "skip" and mid("wgpu/default", "data_ready_cold_ms").get("status") != "skip", "cold for both defaults"),
+    (mid("glow/vsync0", "data_ready_cold_ms").get("status") == "skip", "no cold for the rest"),
+    (mid("glow/vsync0", "data_ready_warm_ms")["extra"]["self_reported_ms"][0] == 150.0, "DESK_OPT reached the process"),
+    (mid("glow/shots_full", "idle_private_mb").get("value") is not None and not mid("wgpu/shots_full", "idle_private_mb"), "idle for glow default + shots_full only"),
+    (r["harness"].get("desk_now") == "2026-11-20T12:00", "DESK_NOW = newest day with a shot AND a read"),
+    (v["glow/default"]["phases"]["warm"]["day_presented"]["n"] == 2, "phases per variant"),
+    (all(os.path.exists(os.path.join(d, f)) for f in ("glow_default.jsonl", "wgpu_shots_full.jsonl", "phases.json")), "trace files"),
+    (any('"first_shot_uploaded"' in l for l in open(os.path.join(d, "glow_shots_full.jsonl"))), "idle trace has the screenshot"),
+    (mid("glow/default", "idle_working_set_mb")["extra"]["screenshot_on_screen"] == [True], "screenshot_on_screen recorded"),
+]
+for ok, n in checks:
+    print(("ok   " if ok else "FAIL ") + n)
+sys.exit(0 if all(c for c, _ in checks) else 1)
+PY
+
 # An older build without --bench-data-ready: start falls back, data_ready says why.
 SIM_OLD_BUILD=1 APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
-  -Kind rust -Exe "$tmp/strategy-desk" -Vault "$tmp/vault" -Runs 2 -SkipIdle -Commit sim-old -Out "$tmp/old.json" -Force >/dev/null
+  -Kind rust -Exe "$tmp/strategy-desk" -Vault "$tmp/vault" -Runs 2 -SkipIdle -TraceDir "$tmp/traces-old" -Commit sim-old -Out "$tmp/old.json" -Force >/dev/null
 python3 - "$tmp/old.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8-sig"))
@@ -66,4 +100,7 @@ ok = m["warm_start_ms"]["value"] is not None and m["data_ready_warm_ms"]["status
 print(("ok   " if ok else "FAIL ") + "old build: --bench-first-frame fallback, data_ready skipped")
 sys.exit(0 if ok else 1)
 PY
+if [ -d "$here/../../docs/rust/perf/ab" ] && [ -n "$(find "$here/../../docs/rust/perf/ab" -newer "$tmp/bench.ps1" -print -quit)" ]; then
+  echo "FAIL the sim wrote traces into the repo"; exit 1
+fi
 echo "bench-sim passed: $out"

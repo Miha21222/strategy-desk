@@ -133,6 +133,13 @@
         "vault": {
           "type": "string",
           "description": "where the Rust build's DESK_VAULT came from: -Vault | env DESK_VAULT | electron settings | documents default | none; never the path"
+        },
+        "desk_now": {
+          "type": "string",
+          "description": "DESK_NOW given to every Rust launch (a trading date + Kyiv time)"
+        },
+        "now_source": {
+          "type": "string"
         }
       }
     },
@@ -222,6 +229,18 @@
             "items": {
               "$ref": "#/$defs/metric"
             }
+          },
+          "build": {
+            "type": "string",
+            "description": "-Exes name (glow, wgpu)"
+          },
+          "opt": {
+            "type": "string",
+            "description": "-Opts name; DESK_OPT is in env"
+          },
+          "phases": {
+            "type": "object",
+            "description": "DESK_STARTUP_TRACE medians: warm|cold|idle -> phase -> {n, ms, private_mb, ws_mb}"
           }
         }
       }

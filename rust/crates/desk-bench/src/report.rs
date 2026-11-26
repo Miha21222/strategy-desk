@@ -368,7 +368,15 @@ pub struct Variant {
     /// The start protocol the build spoke: "data-ready" | "first-frame" | "window".
     #[serde(default)]
     pub mode: String,
+    /// Matrix runs (`-Exes` × `-Opts`): which build and which `DESK_OPT`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub build: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub opt: String,
     pub metrics: Vec<Metric>,
+    /// `DESK_STARTUP_TRACE` medians: run kind → phase → {n, ms, private_mb, ws_mb}.
+    #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
+    pub phases: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -453,7 +461,10 @@ mod tests {
                 env: serde_json::Map::new(),
                 exe: "strategy-desk.exe".into(),
                 mode: "data-ready".into(),
+                build: "glow".into(),
+                opt: "default".into(),
                 metrics: vec![Metric::measured("data_ready_warm_ms", vec![250.0], "t")],
+                phases: serde_json::json!({"warm": {"day_presented": {"n": 5, "ms": 240.0}}}),
             }],
             notes: vec![],
         };

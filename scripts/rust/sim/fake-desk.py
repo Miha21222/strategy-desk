@@ -10,7 +10,16 @@ def at(ms):
     time.sleep(max(0.0, ms / 1000.0 - (time.monotonic() - T0)))
 
 args = sys.argv[1:]
-fast = os.environ.get("DESK_OPT") == "all"
+opts = [o for o in os.environ.get("DESK_OPT", "").split(",") if o]
+fast = "all" in opts or "vsync0" in opts
+TRACE = os.environ.get("DESK_STARTUP_TRACE") == "1"
+
+
+def trace(phase, ms, pm=60.0):
+    if TRACE:
+        at(ms)
+        print(json.dumps({"trace": phase, "ms": ms, "private_mb": pm, "ws_mb": pm - 10}), file=sys.stderr, flush=True)
+
 vault = os.environ.get("DESK_VAULT", "")
 if os.environ.get("DESK_BENCH_AUTOCHAT") == "1":
     print("strategy-desk: DESK_BENCH_AUTOCHAT=1 ignored — the chat arrives in stage 5", file=sys.stderr, flush=True)
@@ -21,6 +30,10 @@ if "--bench-data-ready" in args:
     ff, dr = (90.0, 150.0) if fast else (120.0, 260.0)
     if not vault:
         time.sleep(100)
+    trace("main", 1.0)
+    trace("first_frame_presented", ff - 1, 70.0)
+    trace("day_drawn", dr - 5, 85.0)
+    trace("day_presented", dr - 1, 88.0)
     at(dr)
     print(json.dumps({"first_frame_ms": ff, "data_ready_ms": dr, "private_mb": 91.5, "ws_mb": 80.2}), flush=True)
     sys.exit(0)
@@ -35,6 +48,9 @@ if "--bench-switch" in args:
     print(json.dumps({"switch_ms": [20.0 + (i % 7) for i in range(n)]}), flush=True)
     sys.exit(0)
 # A window that stays until killed.
+trace("first_frame_presented", 100.0, 70.0)
+if os.environ.get("DESK_NOW"):
+    trace("first_shot_uploaded", 150.0, 140.0 if "shots_full" in opts else 95.0)
 if os.environ.get("DESK_FRAME_STATS") == "1":
     print("frame_stats n=1 p50=1.00ms p95=1.00ms p99=1.00ms max=1.00ms", file=sys.stderr, flush=True)
 time.sleep(3600)

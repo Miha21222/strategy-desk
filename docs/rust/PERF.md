@@ -16,16 +16,19 @@
 # База «до»: установленный Electron 0.2.3 (exe находится сам). Снята 2026-11-25, повторять не нужно.
 powershell -ExecutionPolicy Bypass -File scripts\rust\bench.ps1 -Kind electron
 
-# «После»: Rust-сборка из этой ветки (glow по умолчанию) и вторая, wgpu, для сравнения
+# Сборки glow (по умолчанию) и wgpu
 cd rust
 cargo build --release -p desk-ui -p desk-bench
-cargo build --release -p desk-ui --no-default-features --features wgpu --target-dir target/wgpu
+cargo build --release -p desk-ui --no-default-features --features wgpu --target-dir target-wgpu
 cd ..
 
-# Одна сессия ~15 мин: старт и «данные на экране» для трёх вариантов вперемешку, покой, кадры при переключении дней
-powershell -ExecutionPolicy Bypass -File scripts\rust\bench.ps1 -Kind rust -Exe rust\target\release\strategy-desk.exe -StreamFrames -Variants "base|DESK_OPT=base,all|DESK_OPT=all,wgpu|DESK_OPT=all;exe=rust\target-wgpu\release\strategy-desk.exe"
+# ОДНА сессия A/B, ~15 мин, PowerShell от администратора, не в 16:25–18:30:
+# glow + wgpu × {default, vsync0, app_sync, app_late, no_inter, shots_full} × 5 тёплых data-ready,
+# холодные 10 только для glow/default и wgpu/default, покой 60 с для glow/default и glow/shots_full,
+# кадры при переключении дней, трассы старта в docs\rust\perf\ab\<дата>\
+powershell -ExecutionPolicy Bypass -File scripts\rust\bench.ps1 -Kind rust -Exes "glow=rust\target\release\strategy-desk.exe,wgpu=rust\target-wgpu\release\strategy-desk.exe" -Opts "default,vsync0,app_sync,app_late,no_inter,shots_full" -VariantRuns 5 -Runs 10 -IdleRuns 2 -StreamFrames
 
-# Сводка «до / после», колонки вариантов и summary.json для дашборда
+# Сводка «до / после», колонки вариантов, фазы старта и summary.json для дашборда
 python scripts\rust\report.py docs\rust\perf
 ```
 
@@ -33,7 +36,7 @@ python scripts\rust\report.py docs\rust\perf
 
 Vault для Rust-сборки (`DESK_VAULT`) берётся по порядку: `-Vault <папка>`, переменная `DESK_VAULT`, папка из настроек установленного Electron (`%APPDATA%\strategy-desk\config.json` → `vaultPath`), `Документы\Strategy Desk`. Годится только папка, где есть `indices-kb\state`. В отчёт пишется только источник (`harness.vault`), не путь. Без vault Rust стартует на пустом экране: `data_ready_*` будут `skip`, а старт будет быстрее настоящего. Первый Rust-прогон 2026-11-25 (`b8d06cb`, скрипт v1) источник vault не записывал, поэтому его старт и RAM, возможно, сняты на пустом экране.
 
-Полезные ключи: `-Runs 10`, `-VariantRuns N` (повторы на вариант, по умолчанию = `-Runs`), `-Variants`, `-Vault`, `-IdleRuns 3`, `-IdleSeconds 60`, `-SettleSeconds 10`, `-ColdMethod auto|admin|pressure|none`, `-Installer <путь>`, `-SkipCold/-SkipWarm/-SkipIdle`, `-StreamFrames`, `-SwitchCount 1500`, `-SoakHours 24`, `-Out <файл>`. Ключ `-SelfTest` проверяет чистые функции (статистику, окно, разбор строк, варианты, JSON) без Windows и запускается и под `pwsh` на Linux. `scripts/rust/bench-sim.sh` прогоняет на Linux весь путь скрипта против поддельного desk (`scripts/rust/sim/`), заменяя только Win32-хелпер.
+Полезные ключи: `-Runs 10`, `-VariantRuns N` (повторы на вариант, по умолчанию = `-Runs`), `-Exes`, `-Opts`, `-ColdOpts`, `-IdleVariants`, `-Now auto|none|<время>`, `-TraceDir`, `-Variants`, `-Vault`, `-IdleRuns 3`, `-IdleSeconds 60`, `-SettleSeconds 10`, `-ColdMethod auto|admin|pressure|none`, `-Installer <путь>`, `-SkipCold/-SkipWarm/-SkipIdle`, `-StreamFrames`, `-SwitchCount 1500`, `-SoakHours 24`, `-Out <файл>`. Ключ `-SelfTest` проверяет чистые функции (статистику, окно, разбор строк, варианты, JSON) без Windows и запускается и под `pwsh` на Linux. `scripts/rust/bench-sim.sh` прогоняет на Linux весь путь скрипта против поддельного desk (`scripts/rust/sim/`), заменяя только Win32-хелпер.
 
 ## Метрики
 
@@ -77,10 +80,30 @@ Vault для Rust-сборки (`DESK_VAULT`) берётся по порядку
 
 ## Варианты: A/B в одной сессии
 
+### Матрица сборок и `DESK_OPT`
+
+`-Exes "glow=<exe>,wgpu=<exe>"` × `-Opts "default,vsync0,…"` строит варианты `glow/default`, `glow/vsync0`, …, `wgpu/…`. Порядок: сначала все опции первой сборки, затем второй. Эталон — `<первая сборка>/default`. Каждый вариант запускается с `DESK_OPT=<опция>`: `default` означает пустое значение, а `+` склеивает переключатели (`app_sync+no_inter` → `DESK_OPT=app_sync,no_inter`). Пустое значение ставится явно, чтобы `DESK_OPT` из окружения владельца не попал в замер.
+
+- Тёплые запуски (`-VariantRuns`, 5) идут для всех вариантов вперемешку, перед ними по одному выброшенному прогреву на вариант.
+- Холодные (`-Runs`, 10) — только для опций из `-ColdOpts` (по умолчанию `default`), то есть для `glow/default` и `wgpu/default`. У остальных `cold_*` = `skip` с пояснением.
+- Покой (`-IdleRuns` × 60 с) — для `-IdleVariants`, по умолчанию `<первая сборка>/default` и `<первая сборка>/shots_full`. Это вопрос «сколько памяти держит снимок графика на экране». Чтобы снимок действительно был на экране, `-Now auto` (по умолчанию) ставит всем запускам один `DESK_NOW`: самый новый день, где `shots_<D>_<регион>.json` с `ok: true` и есть `human_read_<D>_<регион>.json`, 12:00 для Европы или 21:00 для США по Киеву. Без ответа владельца «Сначала человек» прячет план вместе со снимками. Есть ли снимок на экране, проверяется по трассе (`first_shot_uploaded`) и пишется в `extra.screenshot_on_screen` каждого прогона. `-Now none` оставляет настоящие часы, `-Now 2026-11-20T12:00` задаёт время явно.
+- Каждый запуск печатает строку `[номер/всего] <прогон> <вариант>: first frame … ms, data ready … ms, private … MB`, а после серий — итог по каждому варианту.
+
+**Трассы старта.** Каждый запуск Rust идёт с `DESK_STARTUP_TRACE=1`. desk-ui пишет в stderr по строке JSON на фазу (`main`, `before_run_native`, `creator_entered`, `fonts_installed`, `app_handle_started`, `first_update_begin/end`, `first_frame_presented`, `day_drawn`, `day_presented`, `first_shot_uploaded`, `idle_10s`; у каждой `ms` от `main`, `private_mb`, `ws_mb`). Скрипт сохраняет их в репозиторий, а не в %TEMP%, чтобы тимлид мог их прочитать: `docs/rust/perf/ab/<дата>/` (если папка уже занята — `<дата>-ЧЧММ`; `-TraceDir` перекрывает):
+
+- `<сборка>_<опция>.jsonl` — по строке на каждую строку stderr: `{"variant","run","utc","trace":{…}}` или `{…,"raw":"…"}` для всего остального (frame_stats, предупреждения). `run` — это `probe`, `cold i/N`, `warm-up`, `warm i/N`, `idle i/N`, `stream`, `switch`.
+- `phases.json` — медианы `ms` / `private_mb` / `ws_mb` по каждой фазе отдельно для тёплых, холодных и простойных прогонов, по каждому варианту, плюс коммит, источник vault и `DESK_NOW`. Те же медианы лежат в `variants[].phases` отчёта, `report.py` печатает их таблицей.
+
+Печать трассы — это несколько строк в stderr и замер памяти на фазу, микросекунды на запуск. Её включают во всех запусках одинаково, поэтому варианты сравниваются честно.
+
+Без админа каждый холодный запуск сначала выдавливает память (~45 с), и матрица растянется до ~30 минут. Скрипт это видит в своей оценке и предупреждает. Тогда либо открыть PowerShell от администратора, либо уменьшить `-Runs 5`.
+
+### Произвольные варианты
+
 `-Variants` запускает метрики старта (`cold_start_ms`, `warm_start_ms`, `data_ready_cold_ms`, `data_ready_warm_ms`) для нескольких настроек за один прогон. Каждый вариант — `[метка|]КЛЮЧ=ЗНАЧЕНИЕ[;КЛЮЧ=ЗНАЧЕНИЕ…]`, варианты разделяются запятой. Ключ `exe` задаёт другой бинарь, например сборку на wgpu рядом с glow. Значения не могут содержать запятую: `powershell -File` передаёт список одной строкой, и скрипт режет её по запятым.
 
 ```
--Variants "base|DESK_OPT=base,all|DESK_OPT=all,wgpu|DESK_OPT=all;exe=rust\target-wgpu\release\strategy-desk.exe"
+-Variants "default|DESK_OPT=,vsync0|DESK_OPT=vsync0,wgpu-vsync0|DESK_OPT=vsync0;exe=rust\target-wgpu\release\strategy-desk.exe"
 ```
 
 Запуски идут вперемешку (v1, v2, v3, v1, …), и в холодной, и в тёплой серии. Так дрейф (нагрев, фоновое обновление) делится между всеми вариантами, а не достаётся последнему. Первый вариант — эталон: его числа идут в `metrics` (там их видят «до / после» и тренд), а покой, кадры и размеры снимаются только для него. Все варианты, эталон тоже, лежат в `variants[]` отчёта со своими `env`, именем exe и протоколом старта (`mode`). `report.py` печатает их колонками и кладёт в `summary.json`.
@@ -199,6 +222,8 @@ cargo run --release -p desk-bench --bin perf-sample -- --out ../docs/rust/perf/<
 - `harness.vault` — откуда взят vault;
 - `variants[]` — `{id, label, env, exe, mode, metrics[]}` на каждый вариант `-Variants`; без `-Variants` поля нет;
 - в `extra` метрик старта: `private_mb_at_ready`, `ws_mb_at_ready` (у `data_ready_*`).
+
+Со скрипта v3 (2026-11-26, матрица): у `variants[]` появились `build`, `opt` (для матрицы) и `phases` (медианы трассы старта: `warm|cold|idle` → фаза → `{n, ms, private_mb, ws_mb}`); у `harness` — `desk_now` и `now_source`; у `idle_*` в `extra` — `screenshot_on_screen` по прогонам; `variants[]` с метриками покоя для `-IdleVariants`. Трассы лежат рядом, в `docs/rust/perf/ab/<дата>/`, а в `notes` отчёта записана ссылка на эту папку.
 
 `python scripts/rust/report.py [файлы или папки]` печатает таблицу «метрика · до · после · цель · статус» и пишет `docs/rust/perf/summary.json` (`desk-perf-summary/1`): `before` и `after` (какие отчёты взяты), по каждой метрике `before` / `after` / `target` / `status` / `delta_pct` / `trend` (все Rust-отчёты по времени), `failed` с причиной, `stress`. «До» — самый новый Electron-отчёт, «после» — самый новый Rust-отчёт, причём репрезентативные идут раньше прочих. Ключи `--before` / `--after` задают их явно. Дашборд-артефакт читает только `summary.json`.
 
