@@ -66,7 +66,8 @@ usage: strategy-desk [--vault DIR] [--demo] [--now TIME] [--bench-first-frame | 
 env: DESK_FRAME_STATS=1 logs frame time p50/p95/p99 to stderr every 10 s;
      DESK_STARTUP_TRACE=1 prints one JSON line per start-up phase to stderr;
      DESK_OPT=vsync0,app_sync,app_late,shots_full,no_inter flips start-up choices;
-     DESK_BENCH_AUTOCHAT=1 sends one chat message after the first frame (stage 5: warns only)";
+     DESK_BENCH_AUTOCHAT=1 opens «+ Новый чат» after the first frame and sends one message
+     (DESK_BENCH_AUTOCHAT_TEXT, else «Что из уроков подходит к сегодняшнему дню?»)";
 
 /// Parses everything after the program name. `Err` carries the message to
 /// print above the usage.

@@ -9,6 +9,9 @@
 //! | `app_late` | desk-app starts at once | start it after the first frame is presented |
 //! | `shots_full` | screenshots downscaled to ≤ 1280 px wide (+ mipmaps), full size only in the magnifier | full size + mipmaps everywhere, kept for the whole session |
 //! | `no_inter` | Inter Regular + SemiBold | egui's own fonts only |
+//! | `shot_mips` | previews without mipmaps (the box downscale already filters) | previews with mipmaps |
+//! | `no_shots` | screenshots shown | never loaded (diagnostic: what do they cost?) |
+//! | `shot_small` | previews ≤ 1280 px wide | ≤ 640 px (diagnostic: does memory follow texture size?) |
 //!
 //! Unknown names are reported on stderr and ignored.
 
@@ -19,6 +22,9 @@ pub struct Opts {
     pub app_late: bool,
     pub shots_full: bool,
     pub inter: bool,
+    pub shot_mips: bool,
+    pub shots: bool,
+    pub shot_small: bool,
 }
 
 impl Default for Opts {
@@ -29,6 +35,9 @@ impl Default for Opts {
             app_late: false,
             shots_full: false,
             inter: true,
+            shot_mips: false,
+            shots: true,
+            shot_small: false,
         }
     }
 }
@@ -45,6 +54,9 @@ impl Opts {
                 "app_late" => o.app_late = true,
                 "shots_full" => o.shots_full = true,
                 "no_inter" => o.inter = false,
+                "shot_mips" => o.shot_mips = true,
+                "no_shots" => o.shots = false,
+                "shot_small" => o.shot_small = true,
                 other => unknown.push(other.to_owned()),
             }
         }
@@ -78,6 +90,15 @@ impl Opts {
         }
         if self.inter != d.inter {
             v.push("no_inter");
+        }
+        if self.shot_mips != d.shot_mips {
+            v.push("shot_mips");
+        }
+        if self.shots != d.shots {
+            v.push("no_shots");
+        }
+        if self.shot_small != d.shot_small {
+            v.push("shot_small");
         }
         v.join(",")
     }

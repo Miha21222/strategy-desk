@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const KEEP = ['app', 'tabs', 'macro', 'sidebar'];
+const KEEP = ['app', 'tabs', 'macro', 'sidebar', 'home', 'chat', 'composer', 'notice', 'md'];
 const src = 'src/renderer/i18n/ru.ts';
 const out = 'rust/crates/desk-ui/src/i18n_ru.rs';
 

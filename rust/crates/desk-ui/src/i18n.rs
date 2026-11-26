@@ -2,7 +2,8 @@
 //!
 //! `t("macro.gauge")` returns the string; an unknown key returns the key
 //! itself (same rule as the TS `t()`), so a typo shows up on screen instead of
-//! crashing. The `app`, `tabs`, `macro` and `sidebar` sections are generated
+//! crashing. The `app`, `tabs`, `macro`, `sidebar`, `home`, `chat`, `composer`
+//! `notice` and `md` sections are generated
 //! from `ru.ts` into [`crate::i18n_ru`] (`tools/gen-i18n.mjs`); keys new to the
 //! Rust desk live here under `desk.*` and `error.*` (desk-app's error keys).
 //!
@@ -73,7 +74,42 @@ pub(crate) static THESIS: &[(&str, &str)] = &[
 
 /// Strings the TS desk does not have. Few, so a linear scan is fine.
 pub(crate) static DESK: &[(&str, &str)] = &[
-    ("desk.soon", "Лампочки и чаты — в следующих версиях"),
+    ("desk.soon", "Появится в следующих версиях"),
+    ("desk.chat.loading", "Загружаю разговор…"),
+    ("desk.chat.creating", "Создаю чат…"),
+    (
+        "desk.chat.macroEmpty",
+        "Здесь будет разговор с агентом об обзоре этого дня: запусти обзор на экране «Обзор дня».",
+    ),
+// desk-app's chat keys (chat/model.rs `keys`, claude/mod.rs `keys`).
+    (
+        "chat.error.no_claude",
+        "Не нашли Claude Code на этом компьютере · мастер настройки подключит его в следующей версии",
+    ),
+    ("chat.error.no_vault", "Папка проекта не указана · агенту негде работать"),
+    ("chat.error.spawn", "Claude Code не запустился: {detail}"),
+    (
+        "chat.error.busy",
+        "Агент ещё отвечает в этом чате · дождись конца или нажми «Стоп»",
+    ),
+    ("chat.error.unknown_chat", "Этого чата больше нет"),
+    ("chat.error.store", "Чат не сохранился: {detail}"),
+    (
+        "chat.error.process_died",
+        "Claude Code оборвался посреди ответа · отправь сообщение ещё раз",
+    ),
+    ("chat.error.process_exited", "Claude Code закрылся с ошибкой: {detail}"),
+    ("chat.error.result", "Ответ оборвался с ошибкой: {detail}"),
+    (
+        "chat.error.resume_missing",
+        "Прошлый разговор не нашёлся · агент начнёт его заново",
+    ),
+    (
+        "chat.error.max_turns",
+        "Агент дошёл до предела шагов за один ответ · напиши «продолжай», и он закончит",
+    ),
+    ("chat.error.api", "Claude ответил ошибкой: {detail}"),
+    ("chat.notice.stopped", "Остановлено."),
     ("desk.silent", "молчат:"),
     ("desk.hitShort", "{h} из {n}"),
     (

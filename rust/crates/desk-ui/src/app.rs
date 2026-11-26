@@ -3,13 +3,14 @@
 //! desk-app wakes the window with `request_repaint` when `rev` moves.
 
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 use chrono::NaiveDate;
 use desk_app::{AppHandle, Command, Snapshot};
 use eframe::egui::{self, Frame, Margin, ScrollArea, ThemePreference, Ui};
 
+use crate::chat::{self, view as chat_view, AutoChat, ChatAction, ChatUi, ChatsView, Page};
 use crate::cli::WindowOpts;
 use crate::clock::{parse_now, Clock};
 use crate::fonts;
@@ -50,7 +51,10 @@ pub struct DeskApp {
     vault: Option<PathBuf>,
     perf: Option<Perf>,
     bench: Option<SwitchBench>,
-    autochat: bool,
+    chat: ChatUi,
+    /// The chats on screen: desk-app's, or a test's ([`DeskApp::set_chats`]).
+    chats: Arc<ChatsView>,
+    chats_override: Option<Arc<ChatsView>>,
     theme: ThemePreference,
     /// desk-app starting on a helper thread (`DESK_OPT` default): the
     /// handle arrives here; commands wait in `sent` until it does.
@@ -114,7 +118,9 @@ impl DeskApp {
             vault,
             perf: None,
             bench: None,
-            autochat: false,
+            chat: ChatUi::default(),
+            chats: Arc::default(),
+            chats_override: None,
             theme: ThemePreference::System,
             pending: None,
             late_start: None,
@@ -146,12 +152,35 @@ impl DeskApp {
         self.snap = snap;
     }
 
+    /// For tests: draw these chats instead of the snapshot's.
+    pub fn set_chats(&mut self, chats: ChatsView) {
+        let chats = Arc::new(chats);
+        self.chats = chats.clone();
+        self.chats_override = Some(chats);
+    }
+
+    pub fn chat_mut(&mut self) -> &mut ChatUi {
+        &mut self.chat
+    }
+
     pub fn screen_mut(&mut self) -> &mut ScreenState {
         &mut self.screen
     }
 
     pub fn textures_mut(&mut self) -> &mut ShotTextures {
         &mut self.tex
+    }
+
+    fn send_chat(&mut self, actions: Vec<ChatAction>) {
+        let cmds = actions.into_iter().map(chat::to_command).collect();
+        self.send(cmds);
+    }
+
+    fn refresh_chats(&mut self) {
+        self.chats = match &self.chats_override {
+            Some(c) => c.clone(),
+            None => chat::chats_of(&self.snap),
+        };
     }
 
     fn send(&mut self, cmds: Vec<Command>) {
@@ -164,6 +193,9 @@ impl DeskApp {
     /// The whole window; public so the kittest harness can drive it.
     pub fn draw(&mut self, ui: &mut Ui) {
         let p = Palette::of(ui);
+        let mut actions = Vec::new();
+        self.chat.sync(&self.chats, &mut actions);
+        let today = desk_core::windows::kyiv_now(self.clock.now()).date;
         egui::Panel::left("sidebar")
             .resizable(false)
             .exact_size(SIDEBAR_WIDTH)
@@ -173,13 +205,23 @@ impl DeskApp {
                     .inner_margin(Margin::same(space::S4 as i8)),
             )
             .show(ui, |ui| {
-                if let Some(pref) = sidebar(ui, &p, self.theme) {
+                let picked = sidebar(
+                    ui,
+                    &p,
+                    self.theme,
+                    &mut self.chat,
+                    &self.chats,
+                    today,
+                    &mut actions,
+                );
+                if let Some(pref) = picked {
                     self.theme = pref;
                     ui.ctx().set_theme(pref);
                 }
             });
         let mut out = Vec::new();
         let mut events = Vec::new();
+        let on_day = self.chat.page == Page::Day;
         egui::CentralPanel::default()
             .frame(Frame::new().fill(p.bg_chat).inner_margin(Margin {
                 left: space::S12 as i8,
@@ -188,6 +230,10 @@ impl DeskApp {
                 bottom: 0,
             }))
             .show(ui, |ui| {
+                if !on_day {
+                    actions.extend(chat_view::page(ui, &p, &mut self.chat, &self.chats));
+                    return;
+                }
                 ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                     ui.set_max_width(ui.available_width().min(MAIN_MAX_WIDTH) - space::S6);
                     ui.spacing_mut().item_spacing.y = space::S6;
@@ -197,6 +243,10 @@ impl DeskApp {
                         &self.snap,
                         self.clock.now(),
                         &mut self.tex,
+                        screen::ChatCtx {
+                            view: &self.chats,
+                            md: &mut self.chat.md,
+                        },
                         &mut out,
                     );
                     ui.add_space(40.0);
@@ -210,8 +260,11 @@ impl DeskApp {
                         open_in_system(&desk_app::day::full_path(v, &rel));
                     }
                 }
+                ScreenEvent::Chat(a) => actions.push(a),
+                ScreenEvent::OpenChat(id) => self.chat.open(&id, &mut actions),
             }
         }
+        self.send_chat(actions);
         if self.clock == Clock::Real {
             // Window states and «сегодня» move with the minute; nothing else
             // on screen depends on the clock.
@@ -260,14 +313,18 @@ impl eframe::App for DeskApp {
         if let Some(h) = &self.handle {
             self.snap = h.snapshot();
         }
+        self.refresh_chats();
         if let Some(perf) = &mut self.perf {
             perf.on_frame(ctx, frame);
         }
-        if self.autochat {
-            // CONTRACTS «Хуки»: one chat message after the first frame. The chat
-            // driver arrives in stage 5; until then say so instead of pretending.
-            self.autochat = false;
-            eprintln!("strategy-desk: DESK_BENCH_AUTOCHAT=1 ignored — the chat arrives in stage 5");
+        if self.frames >= 2 && self.chat.autochat.is_some() {
+            // CONTRACTS «Хуки»: one chat message once the first frame is out.
+            let mut actions = Vec::new();
+            let waiting = self.chat.autochat_step(&mut actions);
+            self.send_chat(actions);
+            if waiting {
+                ctx.request_repaint_after(Duration::from_millis(50));
+            }
         }
         if let Some(b) = &mut self.bench {
             if let Some(go) = b.before_frame(&self.snap, self.screen.shown_date()) {
@@ -393,9 +450,20 @@ pub fn run(started: Instant, opts: WindowOpts) -> anyhow::Result<()> {
                 app.adopt(&cc.egui_ctx, h);
             }
             app.tex.full_everywhere = o.shots_full;
+            app.tex.preview_mips = o.shot_mips;
+            app.tex.disabled = !o.shots;
+            if o.shot_small {
+                app.tex.preview_max_w = 640;
+            }
             app.perf = perf;
             app.bench = bench;
-            app.autochat = autochat;
+            if autochat {
+                let text = std::env::var("DESK_BENCH_AUTOCHAT_TEXT")
+                    .ok()
+                    .filter(|s| !s.trim().is_empty())
+                    .unwrap_or_else(|| t("home.askToday").to_owned());
+                app.chat.autochat = Some(AutoChat::new(text));
+            }
             Ok(Box::new(app))
         }),
     )
@@ -404,24 +472,40 @@ pub fn run(started: Instant, opts: WindowOpts) -> anyhow::Result<()> {
 
 // ---------------------------------------------------------------- sidebar
 
-/// The four tabs of the MVP; only «Обзор дня» is here yet.
-fn sidebar(ui: &mut Ui, p: &Palette, theme_now: ThemePreference) -> Option<ThemePreference> {
+/// The tabs of the MVP (only «Обзор дня» is live yet), the chats, the theme.
+#[allow(clippy::too_many_arguments)]
+fn sidebar(
+    ui: &mut Ui,
+    p: &Palette,
+    theme_now: ThemePreference,
+    chat: &mut ChatUi,
+    chats: &ChatsView,
+    today: NaiveDate,
+    actions: &mut Vec<ChatAction>,
+) -> Option<ThemePreference> {
     ui.spacing_mut().item_spacing.y = space::S3;
     ui.add_space(space::S2);
     ui.label(bold(t("app.title"), text::HEADING, p.fg));
     ui.add_space(space::S4);
-    for (key, on) in [
+    for (key, live) in [
         ("tabs.macro", true),
         ("tabs.copilot", false),
         ("tabs.settings", false),
         ("tabs.help", false),
     ] {
+        let on = live && chat.page == Page::Day;
         let fill = if on {
             p.accent_soft
         } else {
             egui::Color32::TRANSPARENT
         };
-        let color = if on { p.accent } else { p.fg_muted };
+        let color = if on {
+            p.accent
+        } else if live {
+            p.fg
+        } else {
+            p.fg_muted
+        };
         let r = Frame::new()
             .fill(fill)
             .corner_radius(egui::CornerRadius::same(crate::theme::radius::SM))
@@ -436,7 +520,16 @@ fn sidebar(ui: &mut Ui, p: &Palette, theme_now: ThemePreference) -> Option<Theme
                 ui.label(label);
             })
             .response;
-        if !on {
+        if live {
+            let r = ui
+                .interact(r.rect, ui.scope_id().with(key), egui::Sense::click())
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
+            let label = t(key);
+            r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, on, label));
+            if r.clicked() {
+                chat.page = Page::Day;
+            }
+        } else {
             r.on_hover_text(t("desk.soon"));
         }
     }
@@ -444,8 +537,9 @@ fn sidebar(ui: &mut Ui, p: &Palette, theme_now: ThemePreference) -> Option<Theme
     kit::sub(ui, p, t("sidebar.simple.title"));
     kit::para(ui, txt(t("desk.soon"), text::SM, p.fg_muted));
     ui.add_space(space::S8);
-    kit::sub(ui, p, t("sidebar.chats"));
-    kit::para(ui, txt(t("sidebar.empty"), text::SM, p.fg_muted));
+    // Leave room for the theme switch at the bottom.
+    let list_h = (ui.available_height() - 90.0).max(80.0);
+    actions.extend(chat_view::sidebar_list(ui, p, chat, chats, today, list_h));
 
     let mut picked = None;
     ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {

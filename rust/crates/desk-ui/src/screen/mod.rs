@@ -14,8 +14,7 @@ pub mod review;
 pub mod shots;
 
 use chrono::{Datelike, NaiveDate, NaiveTime, Timelike};
-use desk_app::{ChatCommand, Command, Snapshot};
-use desk_core::prompts::{macro_chat_title, run_command};
+use desk_app::{Command, Snapshot};
 use desk_core::windows::{
     default_window_at, kyiv_now, visibility, window_label_times, window_state_at, window_times,
     KyivNow, WindowId, WindowState,
@@ -28,6 +27,7 @@ use self::kit::{bold, txt, CardKind, Tone};
 use self::region::{RegionAction, RegionCtx, RegionUi};
 use self::review::{AnswersUi, ReviewAction, ReviewCtx};
 use self::shots::{Lightbox, ShotTextures};
+use crate::chat::{last_word, markdown, ChatAction, ChatId, ChatItem, ChatsView, ViewExt};
 use crate::gauge::{zone_label, Gauge};
 use crate::i18n::{t, tf};
 use crate::theme::{radius, space, text, Palette};
@@ -73,9 +73,13 @@ impl ScreenState {
 }
 
 /// What the app does for the screen (things outside the snapshot).
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ScreenEvent {
     OpenNote(String),
+    /// «Запустить / Пересобрать обзор» and the like.
+    Chat(ChatAction),
+    /// «Весь разговор»: show the day's macro chat.
+    OpenChat(ChatId),
 }
 
 /// «Понедельник, 26 октября».
@@ -147,13 +151,21 @@ pub fn neighbours(
     (prev, next)
 }
 
-/// Draw the screen. `vault_known` = a vault was given at all.
+/// What the screen reads besides the snapshot: the chats (for the agent
+/// strip) and the parsed-Markdown cache it shares with the chat page.
+pub struct ChatCtx<'a> {
+    pub view: &'a ChatsView,
+    pub md: &'a mut markdown::Cache,
+}
+
+/// Draw the screen.
 pub fn show(
     ui: &mut Ui,
     st: &mut ScreenState,
     snap: &Snapshot,
     clock_now: chrono::DateTime<chrono::Utc>,
     tex: &mut ShotTextures,
+    chat: ChatCtx<'_>,
     out: &mut Vec<Command>,
 ) -> Vec<ScreenEvent> {
     let p = Palette::of(ui);
@@ -209,7 +221,16 @@ pub fn show(
     let active = st.win.unwrap_or_else(|| default_window_at(day, date, now));
     let busy = snap.index.demo == Some(true);
     tiles(ui, &p, st, day, date, now, clock_now, active);
-    agent_strip(ui, &p, st, day, date, now, active, busy, out);
+    let strip = Strip {
+        day,
+        date,
+        now,
+        active,
+        blocked: busy,
+        // «Сначала человек»: the agent's words wait for the owner's read too.
+        withheld: day.is_some_and(|d| visibility(active, d, clock_now, st.peek).withheld),
+    };
+    agent_strip(ui, &p, st, &strip, chat, &mut events);
 
     let Some(day) = day else {
         ui.add_space(space::S8);
@@ -635,21 +656,35 @@ fn tile(
 
 // ---------------------------------------------------------------- the agent strip
 
-#[allow(clippy::too_many_arguments)] // the strip reads the whole day
+/// What the agent strip reads.
+struct Strip<'a> {
+    day: Option<&'a Day>,
+    date: NaiveDate,
+    now: KyivNow,
+    active: WindowId,
+    /// The demo vault: nothing to run.
+    blocked: bool,
+    /// The window is withheld until the owner's read: no agent text either.
+    withheld: bool,
+}
+
+/// The strip under the tiles: what the agent did for this window, the
+/// button that runs it, and while the day's macro chat talks, its last word.
 fn agent_strip(
     ui: &mut Ui,
     p: &Palette,
     st: &mut ScreenState,
-    day: Option<&Day>,
-    date: NaiveDate,
-    now: KyivNow,
-    active: WindowId,
-    blocked: bool,
-    out: &mut Vec<Command>,
+    s: &Strip<'_>,
+    chat: ChatCtx<'_>,
+    events: &mut Vec<ScreenEvent>,
 ) {
-    let state = window_state_at(active, day, date, now);
+    let (date, active) = (s.date, s.active);
+    let state = window_state_at(active, s.day, date, s.now);
     let has = matches!(state, WindowState::Ready | WindowState::Partial);
+    let macro_chat = chat.view.macro_for(date);
+    let streaming = macro_chat.is_some_and(|m| m.busy);
     let title = match state {
+        _ if streaming => t("macro.agentBusy").to_owned(),
         WindowState::Partial => t(&format!("macro.agentPartial.{}", active.as_str())).to_owned(),
         _ if has => t("macro.agentDone").to_owned(),
         _ => window_text(
@@ -661,7 +696,7 @@ fn agent_strip(
     // Rebuilding a review costs minutes and tokens: two taps, the second one
     // says so and goes away by itself after 6 s.
     let time = ui.input(|i| i.time);
-    if st.confirm_rerun.is_some_and(|t0| time - t0 > 6.0) {
+    if st.confirm_rerun.is_some_and(|t0| time - t0 > 6.0) || streaming {
         st.confirm_rerun = None;
     }
     let confirm = st.confirm_rerun.is_some();
@@ -669,6 +704,10 @@ fn agent_strip(
         ui.ctx()
             .request_repaint_after(std::time::Duration::from_secs(1));
     }
+    let last = macro_chat
+        .filter(|_| !s.withheld)
+        .and_then(|m| chat.view.transcript(&m.id))
+        .and_then(|tr| last_word(tr).cloned());
     Frame::new()
         .fill(p.bg_elev)
         .stroke(Stroke::new(1.0, p.border))
@@ -679,6 +718,11 @@ fn agent_strip(
             ui.horizontal(|ui| {
                 ui.add(egui::Label::new(bold(&title, text::BASE, p.fg)).wrap());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(m) = macro_chat {
+                        if kit::link(ui, p, t("macro.toChat")).clicked() {
+                            events.push(ScreenEvent::OpenChat(m.id.clone()));
+                        }
+                    }
                     let label = if has {
                         if confirm {
                             t("macro.rerunConfirm")
@@ -689,14 +733,15 @@ fn agent_strip(
                         t("macro.run")
                     };
                     let primary = state == WindowState::Due || confirm;
-                    if kit::button(ui, p, label, primary, !blocked).clicked() {
+                    let enabled = !s.blocked && !streaming;
+                    if kit::button(ui, p, label, primary, enabled).clicked() {
                         if has && !confirm {
                             st.confirm_rerun = Some(time);
                         } else {
                             st.confirm_rerun = None;
-                            out.push(Command::Chat(ChatCommand::Send {
-                                chat_id: macro_chat_title(date),
-                                text: run_command(active, date),
+                            events.push(ScreenEvent::Chat(ChatAction::Run {
+                                window: active,
+                                date,
                             }));
                         }
                     }
@@ -705,6 +750,35 @@ fn agent_strip(
                     }
                 });
             });
+            // While the review is being written (and after), the agent's last
+            // word: the end of it, in a short box that follows the stream.
+            match last {
+                Some(ChatItem::Assistant { text: s, live, .. }) if !s.trim().is_empty() => {
+                    ui.add_space(space::S4);
+                    egui::ScrollArea::vertical()
+                        .id_salt(("agent-last", date))
+                        .max_height(160.0)
+                        .stick_to_bottom(true)
+                        .auto_shrink([false, true])
+                        .show(ui, |ui| {
+                            let blocks = chat.md.get(&s, live);
+                            crate::chat::markdown::show(ui, p, &blocks);
+                        });
+                }
+                Some(ChatItem::Notice { key, vars }) => {
+                    ui.add_space(space::S4);
+                    let fg = if key.starts_with("chat.error") {
+                        p.err
+                    } else {
+                        p.warn
+                    };
+                    kit::para(
+                        ui,
+                        txt(crate::chat::view::notice_text(&key, &vars), text::MD, fg),
+                    );
+                }
+                _ => {}
+            }
         });
 }
 
