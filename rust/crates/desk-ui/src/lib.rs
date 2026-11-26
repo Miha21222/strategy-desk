@@ -8,6 +8,7 @@ pub mod fonts;
 pub mod gauge;
 pub mod i18n;
 mod i18n_ru;
+pub mod opts;
 pub mod perf;
 pub mod screen;
 pub mod settings;

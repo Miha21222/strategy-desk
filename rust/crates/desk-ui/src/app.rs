@@ -3,6 +3,7 @@
 //! desk-app wakes the window with `request_repaint` when `rev` moves.
 
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use chrono::NaiveDate;
@@ -13,6 +14,7 @@ use crate::cli::WindowOpts;
 use crate::clock::{parse_now, Clock};
 use crate::fonts;
 use crate::i18n::t;
+use crate::opts::Opts;
 use crate::perf::Perf;
 use crate::screen::kit::{self, bold, txt};
 use crate::screen::shots::ShotTextures;
@@ -32,8 +34,12 @@ pub const DEMO_NOW: &str = "2026-10-26T09:40";
 /// Content column of the main area; wider screens get side margins.
 const MAIN_MAX_WIDTH: f32 = 1100.0;
 
-/// The clock and the window state change every 30 s even when nothing else does.
-const CLOCK_TICK: Duration = Duration::from_secs(30);
+/// Time to the next wall-clock minute (+ a margin so the frame lands after it).
+pub fn until_next_minute(now: chrono::DateTime<chrono::Utc>) -> Duration {
+    use chrono::Timelike;
+    let into = u64::from(now.second()) * 1000 + u64::from(now.timestamp_subsec_millis().min(999));
+    Duration::from_millis(60_000 - into + 50)
+}
 
 pub struct DeskApp {
     handle: Option<AppHandle>,
@@ -46,8 +52,39 @@ pub struct DeskApp {
     bench: Option<SwitchBench>,
     autochat: bool,
     theme: ThemePreference,
-    /// Commands sent without a handle (tests read them).
+    /// desk-app starting on a helper thread (`DESK_OPT` default): the
+    /// handle arrives here; commands wait in `sent` until it does.
+    pending: Option<mpsc::Receiver<std::io::Result<AppHandle>>>,
+    /// `DESK_OPT=app_late`: start desk-app once the first frame is out.
+    late_start: Option<Option<PathBuf>>,
+    frames: u64,
+    day_seen: bool,
+    /// Commands sent without a handle (tests read them; a starting app
+    /// gets them when its handle arrives).
     pub sent: Vec<Command>,
+}
+
+/// Start desk-app on its own thread so the window's creator returns at once.
+fn start_app_async(vault: Option<PathBuf>) -> mpsc::Receiver<std::io::Result<AppHandle>> {
+    let (tx, rx) = mpsc::channel();
+    let spawned = std::thread::Builder::new()
+        .name("desk-app-start".into())
+        .spawn(move || {
+            let _ = tx.send(start_app(vault));
+        });
+    if let Err(e) = spawned {
+        eprintln!("strategy-desk: could not start desk-app: {e}");
+    }
+    rx
+}
+
+fn start_app(vault: Option<PathBuf>) -> std::io::Result<AppHandle> {
+    let h = match vault {
+        Some(v) => AppHandle::new(v),
+        None => AppHandle::start(desk_app::AppConfig::default()),
+    };
+    crate::perf::trace::mark("app_handle_started");
+    h
 }
 
 impl DeskApp {
@@ -64,6 +101,10 @@ impl DeskApp {
             let ctx = ctx.clone();
             h.set_repaint(Box::new(move || ctx.request_repaint()));
         }
+        Self::with_parts(clock, handle, vault)
+    }
+
+    fn with_parts(clock: Clock, handle: Option<AppHandle>, vault: Option<PathBuf>) -> Self {
         Self {
             handle,
             snap: Snapshot::default(),
@@ -75,8 +116,24 @@ impl DeskApp {
             bench: None,
             autochat: false,
             theme: ThemePreference::System,
+            pending: None,
+            late_start: None,
+            frames: 0,
+            day_seen: false,
             sent: Vec::new(),
         }
+    }
+
+    /// The handle arrived from the helper thread: wire the repaint and hand
+    /// over the commands the first frames queued.
+    fn adopt(&mut self, ctx: &egui::Context, h: AppHandle) {
+        let c = ctx.clone();
+        h.set_repaint(Box::new(move || c.request_repaint()));
+        for cmd in self.sent.drain(..) {
+            h.send(cmd);
+        }
+        self.handle = Some(h);
+        ctx.request_repaint();
     }
 
     /// The snapshot on screen.
@@ -156,7 +213,17 @@ impl DeskApp {
             }
         }
         if self.clock == Clock::Real {
-            ui.ctx().request_repaint_after(CLOCK_TICK);
+            // Window states and «сегодня» move with the minute; nothing else
+            // on screen depends on the clock.
+            ui.ctx()
+                .request_repaint_after(until_next_minute(self.clock.now()));
+        }
+        if self.screen.drew_day && !self.day_seen {
+            self.day_seen = true;
+            crate::perf::trace::mark("day_drawn");
+            if let Some(perf) = &mut self.perf {
+                perf.day_drawn(ui.ctx());
+            }
         }
         if let Some(b) = &mut self.bench {
             b.after_draw(self.screen.shown_date(), &self.snap);
@@ -166,6 +233,30 @@ impl DeskApp {
 
 impl eframe::App for DeskApp {
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.frames += 1;
+        if self.frames == 2 {
+            if let Some(v) = self.late_start.take() {
+                self.pending = Some(start_app_async(v));
+            }
+        }
+        if let Some(rx) = &self.pending {
+            match rx.try_recv() {
+                Ok(Ok(h)) => {
+                    self.pending = None;
+                    self.adopt(ctx, h);
+                }
+                Ok(Err(e)) => {
+                    self.pending = None;
+                    eprintln!("strategy-desk: background thread: {e}");
+                }
+                Err(mpsc::TryRecvError::Empty) => {
+                    // Not there yet: look again soon (the helper thread
+                    // cannot wake us before the handle exists).
+                    ctx.request_repaint_after(Duration::from_millis(5));
+                }
+                Err(mpsc::TryRecvError::Disconnected) => self.pending = None,
+            }
+        }
         if let Some(h) = &self.handle {
             self.snap = h.snapshot();
         }
@@ -187,7 +278,14 @@ impl eframe::App for DeskApp {
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        let first = self.frames == 1;
+        if first {
+            crate::perf::trace::mark("first_update_begin");
+        }
         self.draw(ui);
+        if first {
+            crate::perf::trace::mark("first_update_end");
+        }
     }
 
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
@@ -240,32 +338,61 @@ pub fn resolve_clock(opts: &WindowOpts) -> anyhow::Result<Clock> {
 pub fn run(started: Instant, opts: WindowOpts) -> anyhow::Result<()> {
     let frame_stats = std::env::var_os("DESK_FRAME_STATS").is_some_and(|v| v == "1");
     let autochat = std::env::var_os("DESK_BENCH_AUTOCHAT").is_some_and(|v| v == "1");
+    let o = Opts::from_env();
     let clock = resolve_clock(&opts)?;
     let vault = resolve_vault(&opts);
-    let perf = (opts.bench_first_frame || frame_stats)
-        .then(|| Perf::new(started, opts.bench_first_frame, frame_stats));
+    let benching = opts.bench_first_frame || opts.bench_data_ready;
+    let perf = (benching || frame_stats || crate::perf::trace::enabled()).then(|| {
+        Perf::new(
+            started,
+            opts.bench_first_frame,
+            opts.bench_data_ready,
+            frame_stats,
+        )
+    });
     let bench = opts.bench_switch.map(SwitchBench::new);
-    let options = eframe::NativeOptions {
+    #[allow(unused_mut)] // only the glow build has a vsync switch here
+    let mut options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title(t("app.title"))
             .with_app_id("strategy-desk")
             .with_inner_size([1280.0, 860.0])
             .with_min_inner_size([820.0, 560.0]),
+        // Defaults kept on purpose (checked 26.11): no MSAA, no depth or
+        // stencil buffer, the window created hidden and shown after the
+        // first painted frame (eframe/glow), no persistence feature.
         ..Default::default()
     };
+    #[cfg(feature = "glow")]
+    {
+        options.glow_options.vsync = o.vsync;
+    }
+    crate::perf::trace::mark_with(
+        "before_run_native",
+        &format!(", \"opts\": \"{}\"", o.label()),
+    );
     eframe::run_native(
         t("app.title"),
         options,
         Box::new(move |cc| {
-            // The background thread starts here, after the window exists: no
-            // disk before the first frame. Without a vault desk-app still runs
-            // and reports `no-vault`.
-            let handle = match &vault {
-                Some(v) => AppHandle::new(v.clone()),
-                None => AppHandle::start(desk_app::AppConfig::default()),
+            crate::perf::trace::mark("creator_entered");
+            if o.inter {
+                fonts::install(&cc.egui_ctx);
             }
-            .map_err(|e| anyhow::anyhow!("background thread: {e}"))?;
-            let mut app = DeskApp::new(&cc.egui_ctx, clock, Some(handle), vault);
+            theme::apply(&cc.egui_ctx, ThemePreference::System);
+            crate::perf::trace::mark("fonts_installed");
+            let mut app = DeskApp::with_parts(clock, None, vault.clone());
+            // desk-app (tokio runtime, watcher, the first index read) never
+            // starts on this thread by default: the creator returns at once.
+            if o.app_late {
+                app.late_start = Some(vault);
+            } else if o.app_async {
+                app.pending = Some(start_app_async(vault));
+            } else {
+                let h = start_app(vault).map_err(|e| anyhow::anyhow!("background thread: {e}"))?;
+                app.adopt(&cc.egui_ctx, h);
+            }
+            app.tex.full_everywhere = o.shots_full;
             app.perf = perf;
             app.bench = bench;
             app.autochat = autochat;
@@ -421,5 +548,23 @@ impl SwitchBench {
                 self.drawn = true;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn repaint_lands_just_after_the_minute() {
+        let t = chrono::Utc
+            .with_ymd_and_hms(2026, 11, 26, 9, 15, 42)
+            .unwrap();
+        assert_eq!(until_next_minute(t), Duration::from_millis(18_050));
+        let t = chrono::Utc
+            .with_ymd_and_hms(2026, 11, 26, 9, 15, 0)
+            .unwrap();
+        assert_eq!(until_next_minute(t), Duration::from_millis(60_050));
     }
 }

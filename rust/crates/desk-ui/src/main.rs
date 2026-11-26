@@ -9,6 +9,8 @@ use desk_ui::cli::{self, Cli, USAGE};
 fn main() -> ExitCode {
     // First thing: the clock `--bench-first-frame` measures from.
     let started = Instant::now();
+    desk_ui::perf::trace::init(started);
+    desk_ui::perf::trace::mark("main");
 
     match cli::parse(std::env::args_os().skip(1)) {
         Ok(Cli::Window(opts)) => match desk_ui::app::run(started, opts) {
