@@ -50,6 +50,8 @@ pub struct ScreenState {
     pub errors_seen: usize,
     /// The last day asked of desk-app.
     requested: Option<NaiveDate>,
+    /// This frame drew the open day (not «Загружаю день…»).
+    pub drew_day: bool,
 }
 
 impl ScreenState {
@@ -173,6 +175,7 @@ pub fn show(
         return events;
     }
     let day = snap.day.as_deref().filter(|d| d.date == date);
+    st.drew_day = day.is_some();
     let days: Vec<NaiveDate> = snap.days_index.iter().map(|m| m.date).collect();
     let (prev, next) = neighbours(&days, date, today);
 
@@ -255,6 +258,7 @@ pub fn show(
         let keep = list.is_some_and(|s| shots::lightbox(ui.ctx(), &p, lb, tex, snap, s, out));
         if !keep {
             st.lightbox = None;
+            tex.release_full();
         }
     }
     events

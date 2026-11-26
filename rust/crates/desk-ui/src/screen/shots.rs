@@ -39,8 +39,23 @@ enum Tex {
 
 type Decoded = (String, usize, Option<ColorImage>);
 
+/// The widest preview kept as a texture: about twice the on-screen width of
+/// a picture in a card, so it stays sharp at 150 % scaling. The magnifier
+/// loads the full picture on demand and drops it when it closes.
+pub const PREVIEW_MAX_W: usize = 1280;
+
+/// Which texture of a picture.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    /// Downscaled to ≤ [`PREVIEW_MAX_W`], with mipmaps (cards).
+    Preview,
+    /// Full size, no mipmaps (the magnifier).
+    Full,
+}
+
 /// The texture cache. `usize` = address of the PNG bytes' `Arc`, so a new
-/// file under the same path (a re-run) is decoded again.
+/// file under the same path (a re-run) is decoded again. Keys: the path for
+/// a preview, `full:<path>` for a full-size picture.
 pub struct ShotTextures {
     map: HashMap<String, Tex>,
     requested: HashSet<String>,
@@ -48,6 +63,9 @@ pub struct ShotTextures {
     rx: mpsc::Receiver<Decoded>,
     /// Decode on the calling thread (tests and snapshots: deterministic).
     pub sync: bool,
+    /// `DESK_OPT=shots_full`: full size with mipmaps everywhere, kept for
+    /// the session (the b8d06cb behaviour, for A/B runs).
+    pub full_everywhere: bool,
     /// How many PNGs were decoded (QA: «декодируется один раз»).
     pub decoded: usize,
 }
@@ -61,6 +79,7 @@ impl Default for ShotTextures {
             tx,
             rx,
             sync: false,
+            full_everywhere: false,
             decoded: 0,
         }
     }
@@ -68,6 +87,13 @@ impl Default for ShotTextures {
 
 /// PNG → RGBA. `None` for anything the decoder refuses.
 pub fn decode_png(bytes: &[u8]) -> Option<ColorImage> {
+    decode_png_max(bytes, None)
+}
+
+/// PNG → RGBA, box-downscaled by a whole factor until it is at most
+/// `max_w` wide (the CPU image is dropped right after upload, so only the
+/// smaller texture stays).
+pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
     dec.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = dec.read_info().ok()?;
@@ -93,20 +119,72 @@ pub fn decode_png(bytes: &[u8]) -> Option<ColorImage> {
         // normalize_to_color8 expands palettes, so this is not reached.
         png::ColorType::Indexed => return None,
     };
-    (rgba.len() == w * h * 4).then(|| ColorImage::from_rgba_unmultiplied([w, h], &rgba))
+    if rgba.len() != w * h * 4 {
+        return None;
+    }
+    let k = max_w.map_or(1, |m| w.div_ceil(m.max(1)).max(1));
+    if k == 1 {
+        return Some(ColorImage::from_rgba_unmultiplied([w, h], &rgba));
+    }
+    let (sw, sh) = ((w / k).max(1), (h / k).max(1));
+    Some(ColorImage::from_rgba_unmultiplied(
+        [sw, sh],
+        &box_down(&rgba, w, k, sw, sh),
+    ))
 }
 
-fn texture_options() -> TextureOptions {
+/// Average k×k blocks of an RGBA image `w` wide into `sw` × `sh`.
+fn box_down(rgba: &[u8], w: usize, k: usize, sw: usize, sh: usize) -> Vec<u8> {
+    let mut out = vec![0u8; sw * sh * 4];
+    let n = (k * k) as u32;
+    for y in 0..sh {
+        for x in 0..sw {
+            let mut acc = [0u32; 4];
+            for dy in 0..k {
+                let row = ((y * k + dy) * w + x * k) * 4;
+                for px in rgba[row..row + k * 4].as_chunks::<4>().0 {
+                    for (a, &v) in acc.iter_mut().zip(px) {
+                        *a += u32::from(v);
+                    }
+                }
+            }
+            let o = (y * sw + x) * 4;
+            for c in 0..4 {
+                out[o + c] = ((acc[c] + n / 2) / n) as u8;
+            }
+        }
+    }
+    out
+}
+
+fn texture_options(mipmaps: bool) -> TextureOptions {
     TextureOptions {
-        mipmap_mode: Some(egui::TextureFilter::Linear),
+        mipmap_mode: mipmaps.then_some(egui::TextureFilter::Linear),
         ..TextureOptions::LINEAR
     }
 }
 
 impl ShotTextures {
-    /// The day changed: desk-app keeps only the open day's pictures, so ask again.
+    /// The day changed: desk-app keeps only the open day's pictures, so ask
+    /// again; and the old day's textures go (GPU and driver memory).
     pub fn forget_requests(&mut self) {
         self.requested.clear();
+        if !self.full_everywhere {
+            self.map.clear();
+        }
+    }
+
+    /// The magnifier closed: drop the full-size pictures.
+    pub fn release_full(&mut self) {
+        self.map.retain(|k, _| !k.starts_with("full:"));
+    }
+
+    /// How many textures are alive (tests).
+    pub fn live_textures(&self) -> usize {
+        self.map
+            .values()
+            .filter(|t| matches!(t, Tex::Ready(..)))
+            .count()
     }
 
     /// Upload what the workers finished. Call once per frame.
@@ -116,25 +194,68 @@ impl ShotTextures {
         }
     }
 
-    fn finish(&mut self, ctx: &egui::Context, path: String, key: usize, img: Option<ColorImage>) {
+    fn finish(
+        &mut self,
+        ctx: &egui::Context,
+        map_key: String,
+        key: usize,
+        img: Option<ColorImage>,
+    ) {
         // A newer file may have replaced this one meanwhile.
-        if !matches!(self.map.get(&path), Some(Tex::Decoding(k)) if *k == key) {
+        if !matches!(self.map.get(&map_key), Some(Tex::Decoding(k)) if *k == key) {
             return;
         }
+        let mipmaps = self.full_everywhere || !map_key.starts_with("full:");
         let tex = match img {
-            Some(img) => Tex::Ready(key, ctx.load_texture(&path, img, texture_options())),
+            Some(img) => {
+                let h = ctx.load_texture(&map_key, img, texture_options(mipmaps));
+                crate::perf::trace::mark("first_shot_uploaded");
+                Tex::Ready(key, h)
+            }
             None => Tex::Failed(key),
         };
-        self.map.insert(path, tex);
+        self.map.insert(map_key, tex);
     }
 
-    /// The picture at `path`, asking desk-app for it the first time.
+    /// The picture at `path` for a card, asking desk-app for it the first time.
     pub fn view(
         &mut self,
         ctx: &egui::Context,
         snap: &Snapshot,
         path: &str,
         out: &mut Vec<Command>,
+    ) -> ShotView {
+        self.view_kind(ctx, snap, path, out, Kind::Preview)
+    }
+
+    /// The picture at full size (the magnifier); the preview stands in while
+    /// it decodes.
+    pub fn view_full(
+        &mut self,
+        ctx: &egui::Context,
+        snap: &Snapshot,
+        path: &str,
+        out: &mut Vec<Command>,
+    ) -> ShotView {
+        if self.full_everywhere {
+            return self.view(ctx, snap, path, out);
+        }
+        match self.view_kind(ctx, snap, path, out, Kind::Full) {
+            ShotView::Loading => match self.view(ctx, snap, path, out) {
+                ShotView::Ready(t) => ShotView::Ready(t),
+                _ => ShotView::Loading,
+            },
+            v => v,
+        }
+    }
+
+    fn view_kind(
+        &mut self,
+        ctx: &egui::Context,
+        snap: &Snapshot,
+        path: &str,
+        out: &mut Vec<Command>,
+        kind: Kind,
     ) -> ShotView {
         let entry = snap
             .shots
@@ -150,8 +271,12 @@ impl ShotTextures {
             Some(ShotState::Refused(_)) => return ShotView::Missing,
             Some(ShotState::Ready(l)) => l,
         };
+        let map_key = match kind {
+            Kind::Preview => path.to_owned(),
+            Kind::Full => format!("full:{path}"),
+        };
         let key = Arc::as_ptr(&loaded.png) as *const u8 as usize;
-        match self.map.get(path) {
+        match self.map.get(&map_key) {
             Some(Tex::Ready(k, h)) if *k == key => {
                 return ShotView::Ready(SizedTexture::from_handle(h))
             }
@@ -159,31 +284,32 @@ impl ShotTextures {
             Some(Tex::Failed(k)) if *k == key => return ShotView::Missing,
             _ => {}
         }
-        self.map.insert(path.to_owned(), Tex::Decoding(key));
+        self.map.insert(map_key.clone(), Tex::Decoding(key));
         self.decoded += 1;
+        let max_w = (kind == Kind::Preview && !self.full_everywhere).then_some(PREVIEW_MAX_W);
         if self.sync {
-            let img = decode_png(&loaded.png);
-            self.finish(ctx, path.to_owned(), key, img);
-            return self.view(ctx, snap, path, out);
+            let img = decode_png_max(&loaded.png, max_w);
+            self.finish(ctx, map_key, key, img);
+            return self.view_kind(ctx, snap, path, out, kind);
         }
         let (tx, bytes, owned, repaint) = (
             self.tx.clone(),
             Arc::clone(&loaded.png),
-            path.to_owned(),
+            map_key.clone(),
             ctx.clone(),
         );
         let spawned = std::thread::Builder::new()
             .name("desk-png".into())
             .spawn(move || {
-                let img = decode_png(&bytes);
+                let img = decode_png_max(&bytes, max_w);
                 // The receiver lives as long as the app; a send after it is gone is moot.
                 let _ = tx.send((owned, key, img));
                 repaint.request_repaint();
             });
         if spawned.is_err() {
             // No thread to spare: decode here rather than show nothing.
-            let img = decode_png(&loaded.png);
-            self.finish(ctx, path.to_owned(), key, img);
+            let img = decode_png_max(&loaded.png, max_w);
+            self.finish(ctx, map_key, key, img);
         }
         ShotView::Loading
     }
@@ -587,7 +713,7 @@ pub fn lightbox(
                         CornerRadius::same(crate::theme::radius::SM),
                         Color32::from_rgb(0x13, 0x17, 0x22),
                     );
-                    match tex.view(ui.ctx(), snap, &shot.path, out) {
+                    match tex.view_full(ui.ctx(), snap, &shot.path, out) {
                         ShotView::Ready(tx) => {
                             // Fit, then zoom around the pointer.
                             let fit = (area.width() / tx.size.x)
@@ -673,6 +799,35 @@ mod tests {
         assert_eq!(lb.index, 0);
         lb.step(1, true);
         assert_eq!(lb.index, 0, "one picture: arrows do nothing");
+    }
+
+    #[test]
+    fn box_downscale_averages_blocks() {
+        // 4×2 image: left half white, right half black → 2×1 at k = 2.
+        let mut rgba = Vec::new();
+        for _ in 0..2 {
+            for x in 0..4 {
+                let v = if x < 2 { 255 } else { 0 };
+                rgba.extend([v, v, v, 255]);
+            }
+        }
+        assert_eq!(
+            box_down(&rgba, 4, 2, 2, 1),
+            vec![255, 255, 255, 255, 0, 0, 0, 255]
+        );
+    }
+
+    #[test]
+    fn previews_are_capped() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/golden/vault/indices-kb/shots");
+        let png = walk(&dir).into_iter().next().unwrap();
+        let bytes = std::fs::read(png).unwrap();
+        let full = decode_png(&bytes).unwrap();
+        let small = decode_png_max(&bytes, Some(full.size[0] / 2)).unwrap();
+        assert_eq!(small.size, [full.size[0] / 2, full.size[1] / 2]);
+        let same = decode_png_max(&bytes, Some(full.size[0])).unwrap();
+        assert_eq!(same.size, full.size);
     }
 
     #[test]
