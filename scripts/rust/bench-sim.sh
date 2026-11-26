@@ -14,8 +14,8 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 out="${1:-$tmp/sim-report.json}"
 mkdir -p "$tmp/vault/indices-kb/state" "$tmp/appdata" "$tmp/local"
-cp "$here/sim/fake-desk.py" "$tmp/strategy-desk"
-chmod +x "$tmp/strategy-desk"
+cp "$here/sim/fake-desk.py" "$tmp/sim-desk"
+chmod +x "$tmp/sim-desk"
 python3 - "$here/bench.ps1" "$tmp/bench.ps1" "$here/sim/FakeNative.cs" <<'PY'
 import sys
 src, dst, cs = sys.argv[1:]
@@ -30,9 +30,9 @@ s = s.replace("$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\\..')).Pat
 open(dst, "w", encoding="utf-8").write(s)
 PY
 APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
-  -Kind rust -Exe "$tmp/strategy-desk" -Vault "$tmp/vault" -Runs 3 -IdleRuns 1 -IdleSeconds 1 -SettleSeconds 0 \
+  -Kind rust -Exe "$tmp/sim-desk" -Vault "$tmp/vault" -Runs 3 -IdleRuns 1 -IdleSeconds 1 -SettleSeconds 0 \
   -Variants "base|DESK_OPT=base,all|DESK_OPT=all" -StreamFrames -SwitchCount 40 \
-  -FakeClaude "$tmp/strategy-desk" -TraceDir "$tmp/traces-v" -Commit sim -Label "bench-sim (not a measurement)" -Out "$out" -Force
+  -FakeClaude "$tmp/sim-desk" -TraceDir "$tmp/traces-v" -Commit sim -Label "bench-sim (not a measurement)" -Out "$out" -Force
 python3 - "$out" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8-sig"))
@@ -57,12 +57,12 @@ sys.exit(1 if bad else 0)
 PY
 # The owner's A/B matrix: two exes x options, cold only for default, idle
 # for default vs shots_full, traces into a folder, a day with a screenshot.
-cp "$tmp/strategy-desk" "$tmp/strategy-desk-wgpu"
+cp "$tmp/sim-desk" "$tmp/sim-desk-wgpu"
 echo '{"ok": true, "shots": []}' > "$tmp/vault/indices-kb/state/shots_2026-11-20_eu.json"
 echo '{"side": "LONG"}' > "$tmp/vault/indices-kb/state/human_read_2026-11-20_eu.json"
 echo '{"ok": true, "shots": []}' > "$tmp/vault/indices-kb/state/shots_2026-11-24_eu.json"
 APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
-  -Kind rust -Vault "$tmp/vault" -Exes "glow=$tmp/strategy-desk,wgpu=$tmp/strategy-desk-wgpu" \
+  -Kind rust -Vault "$tmp/vault" -Exes "glow=$tmp/sim-desk,wgpu=$tmp/sim-desk-wgpu" \
   -Opts "default,vsync0,shots_full" -Runs 2 -VariantRuns 2 -IdleRuns 1 -IdleSeconds 1 -SettleSeconds 0 \
   -TraceDir "$tmp/ab" -Commit sim-ab -Out "$tmp/ab.json" -Force > "$tmp/ab.log"
 grep -c '^\[' "$tmp/ab.log" >/dev/null
@@ -89,9 +89,33 @@ for ok, n in checks:
 sys.exit(0 if all(c for c, _ in checks) else 1)
 PY
 
+# Stage 5: autochat for real, the real fake-claude binary as claude (10k-ish
+# events, then a run where it dies mid-answer); frames + two app stress rows.
+fake="$here/../../rust/target/release/fake-claude"
+[ -x "$fake" ] || (cd "$here/../../rust" && cargo build -q --release -p desk-bench --bin fake-claude)
+SIM_AUTOCHAT=real APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
+  -Kind rust -Exe "$tmp/sim-desk" -Vault "$tmp/vault" -Runs 1 -SkipCold -SkipIdle -StreamFrames \
+  -FakeClaude "$fake" -StreamEvents 3000 -StreamRate 1000 -DieAfter 800 -SwitchCount 20 \
+  -TraceDir "$tmp/traces-chat" -Commit sim-chat -Out "$tmp/chat.json" -Force > "$tmp/chat.log"
+grep -q 'TIMED OUT' "$tmp/chat.log" && { echo "FAIL a launch timed out (lineKey \"\" bug?)"; exit 1; }
+python3 - "$tmp/chat.json" <<'PY'
+import json, sys
+r = json.load(open(sys.argv[1], encoding="utf-8-sig"))
+m = {x["id"]: x for x in r["metrics"]}
+st = {x["id"]: x for x in r.get("stress", [])}
+checks = [
+    (m["frame_p50_ms"]["status"] == "pass" and m["frame_p99_ms"]["value"] == 11.0, "stream frames measured"),
+    (st.get("chat_stream_10k", {}).get("status") == "pass", "stream: desk alive after the stream"),
+    (st.get("chat_claude_dies_mid_answer", {}).get("status") == "pass" and "exited after" in st["chat_claude_dies_mid_answer"]["detail"], "claude died mid-answer, desk alive"),
+]
+for ok, n in checks:
+    print(("ok   " if ok else "FAIL ") + n)
+sys.exit(0 if all(c for c, _ in checks) else 1)
+PY
+
 # An older build without --bench-data-ready: start falls back, data_ready says why.
 SIM_OLD_BUILD=1 APPDATA="$tmp/appdata" LOCALAPPDATA="$tmp/local" "$pwsh" -NoProfile -File "$tmp/bench.ps1" \
-  -Kind rust -Exe "$tmp/strategy-desk" -Vault "$tmp/vault" -Runs 2 -SkipIdle -TraceDir "$tmp/traces-old" -Commit sim-old -Out "$tmp/old.json" -Force >/dev/null
+  -Kind rust -Exe "$tmp/sim-desk" -Vault "$tmp/vault" -Runs 2 -SkipIdle -TraceDir "$tmp/traces-old" -Commit sim-old -Out "$tmp/old.json" -Force >/dev/null
 python3 - "$tmp/old.json" <<'PY'
 import json, sys
 r = json.load(open(sys.argv[1], encoding="utf-8-sig"))

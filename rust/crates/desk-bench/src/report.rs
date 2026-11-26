@@ -50,11 +50,13 @@ pub const METRICS: &[MetricDef] = &[
         target: Some(300.0),
         stat: Stat::Median,
     },
+    // 26.11 (TEAM.md): ~132 ms of a warm start is the window + OpenGL context
+    // in the driver, before our code runs; 150 was not reachable by us.
     MetricDef {
         id: "warm_start_ms",
         label: "Тёплый старт",
         unit: "ms",
-        target: Some(150.0),
+        target: Some(200.0),
         stat: Stat::Median,
     },
     // Start → the day's data drawn (`--bench-data-ready`): what the owner
@@ -73,18 +75,20 @@ pub const METRICS: &[MetricDef] = &[
         target: Some(300.0),
         stat: Stat::Median,
     },
+    // 26.11 (TEAM.md): ~81 MB Private is the OpenGL driver before our code;
+    // measured with a chart screenshot on screen.
     MetricDef {
         id: "idle_working_set_mb",
         label: "RAM в покое (Working Set)",
         unit: "MB",
-        target: Some(80.0),
+        target: Some(100.0),
         stat: Stat::Median,
     },
     MetricDef {
         id: "idle_private_mb",
         label: "RAM в покое (Private Bytes)",
         unit: "MB",
-        target: Some(80.0),
+        target: Some(100.0),
         stat: Stat::Median,
     },
     MetricDef {
@@ -417,7 +421,12 @@ mod tests {
         ids.dedup();
         assert_eq!(ids.len(), METRICS.len());
         assert_eq!(def("cold_start_ms").and_then(|d| d.target), Some(300.0));
-        assert_eq!(def("warm_start_ms").and_then(|d| d.target), Some(150.0));
+        assert_eq!(def("warm_start_ms").and_then(|d| d.target), Some(200.0));
+        assert_eq!(def("idle_private_mb").and_then(|d| d.target), Some(100.0));
+        assert_eq!(
+            def("idle_working_set_mb").and_then(|d| d.target),
+            Some(100.0)
+        );
         assert_eq!(def("frame_p99_ms").and_then(|d| d.target), Some(33.0));
         assert_eq!(def("installer_mb").and_then(|d| d.target), Some(20.0));
         assert_eq!(
