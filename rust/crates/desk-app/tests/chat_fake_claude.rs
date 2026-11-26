@@ -49,6 +49,18 @@ fn fake_main() -> ! {
             let _ = writeln!(f, "{}", serde_json::to_string(&argv).unwrap_or_default());
         }
     }
+    // FAKE_RESUME_MISSING: answer a --resume like claude 2.1.332 does for a
+    // conversation it does not have (recorded: a startup result, exit 1).
+    if std::env::var_os("FAKE_RESUME_MISSING").is_some() {
+        if let Some(id) =
+            std::env::args().find_map(|a| a.strip_prefix("--resume=").map(str::to_owned))
+        {
+            println!(
+                r#"{{"type":"result","subtype":"error_during_execution","is_error":true,"num_turns":0,"session_id":"{id}","total_cost_usd":0,"usage":{{"input_tokens":0,"output_tokens":0}},"errors":["No conversation found with session ID: {id}"]}}"#
+            );
+            std::process::exit(1);
+        }
+    }
     let spec = StreamSpec {
         events: env_num("FAKE_CLAUDE_EVENTS", 200) as usize,
         seed: SEED,
@@ -304,6 +316,65 @@ fn a_turn_streams_persists_and_resumes_after_a_restart() {
         argv[1].contains(&format!("--resume={sid}")),
         "{:?}",
         argv[1]
+    );
+}
+
+/// TEST_PLAN C3: a resume of a conversation the CLI no longer has is retried
+/// once without --resume; the owner sees the answer, not the error.
+#[test]
+fn a_lost_conversation_is_retried_once_without_resume() {
+    let r = rig(&[], None);
+    let id = new_chat(&r.app);
+    send_and_wait(&r.app, &id, "первый");
+    let data = r.data.clone();
+    drop(r);
+    let r = rig(&[("FAKE_RESUME_MISSING", "1".into())], Some(data));
+    wait_until(&r.app, T, "the stored chat", |s| {
+        s.chats.list.iter().any(|m| m.id == id)
+    });
+    r.app.send(Command::Chat(ChatCommand::Open {
+        chat_id: id.clone(),
+    }));
+    wait_until(&r.app, T, "the transcript", |s| !items(s, &id).is_empty());
+    send_and_wait(&r.app, &id, "второй");
+    // The failed turn and the retry are one busy span: busy=false comes after the retry.
+    let s = wait_until(&r.app, T, "the retried answer", |s| {
+        items(s, &id)
+            .iter()
+            .filter(|i| matches!(i, ChatItem::Assistant { .. }))
+            .count()
+            >= 2
+            && busy(s, &id) == Some(false)
+    });
+    let its = items(&s, &id);
+    assert!(
+        !its.iter().any(
+            |i| matches!(i, ChatItem::Notice { key, .. } if key == driver_keys::RESUME_MISSING)
+        ),
+        "{its:?}"
+    );
+    assert_eq!(
+        its.iter()
+            .filter(|i| matches!(i, ChatItem::User { .. }))
+            .count(),
+        2,
+        "the turn is not duplicated"
+    );
+    let argv = argv_lines(&r.argv);
+    assert_eq!(argv.len(), 3, "{argv:?}");
+    assert!(argv[1].iter().any(|a| a.starts_with("--resume=")));
+    assert!(
+        !argv[2].iter().any(|a| a.starts_with("--resume")),
+        "the retry starts fresh"
+    );
+    let sid = session_id(SEED);
+    assert_eq!(
+        s.chats
+            .list
+            .iter()
+            .find(|m| m.id == id)
+            .and_then(|m| m.session_id.as_deref()),
+        Some(sid.as_str())
     );
 }
 

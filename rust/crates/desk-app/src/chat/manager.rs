@@ -48,6 +48,12 @@ enum WriteOp {
 struct Live {
     session: ClaudeSession,
     gen: u64,
+    /// Started with `--resume`.
+    resumed: bool,
+    /// The turn in flight, for the one retry without `--resume` (C3).
+    last_text: String,
+    /// The CLI said the resumed conversation is gone: retry after its Done.
+    retry: bool,
 }
 
 pub struct Chats {
@@ -411,6 +417,9 @@ impl Chats {
                     return Ok(());
                 }
             }
+            if let Some(l) = self.sessions.get_mut(id) {
+                l.last_text = text.to_string();
+            }
             let sent = self.sessions.get(id).map(|l| l.session.send(text));
             match sent {
                 Some(Ok(())) => {
@@ -439,6 +448,7 @@ impl Chats {
         let Some(claude) = find_claude(&self.launch) else {
             return Err((keys::NO_CLAUDE, Vec::new()));
         };
+        let resumed = meta.session_id.is_some();
         let cfg = session_config(
             meta.kind,
             vault,
@@ -466,20 +476,47 @@ impl Chats {
             }
             forward(ChatMsg::Closed { chat, gen });
         });
-        self.sessions.insert(id.to_string(), Live { session, gen });
+        self.sessions.insert(
+            id.to_string(),
+            Live {
+                session,
+                gen,
+                resumed,
+                last_text: String::new(),
+                retry: false,
+            },
+        );
         Ok(())
     }
 
     /// Fold what a session or the writer reported. `Err` = for the error list.
-    pub fn on_msg(&mut self, msg: ChatMsg, now: DateTime<Utc>) -> Result<(), UserError> {
+    pub fn on_msg(
+        &mut self,
+        msg: ChatMsg,
+        vault: Option<&Path>,
+        now: DateTime<Utc>,
+    ) -> Result<(), UserError> {
         match msg {
             ChatMsg::StoreFailed { detail } => {
                 return Err(UserError::new(keys::STORE).var("detail", detail))
             }
             ChatMsg::Event { chat, gen, ev } => {
-                if self.sessions.get(&chat).map(|l| l.gen) != Some(gen) {
+                let Some(live) = self.sessions.get_mut(&chat).filter(|l| l.gen == gen) else {
                     return Ok(()); // a stopped session's leftovers, or a deleted chat
+                };
+                // C3 (TEST_PLAN): the resumed conversation is gone on the CLI's
+                // side. Forget the id and run the same turn once more without
+                // --resume, instead of showing the error and failing again.
+                let resume_gone = matches!(&ev, DriverEvent::Error { key, .. } if key == driver_keys::RESUME_MISSING);
+                if resume_gone && live.resumed && !live.retry {
+                    live.retry = true;
+                    if let Some(m) = self.metas.iter_mut().find(|m| m.id == chat) {
+                        m.session_id = None;
+                    }
+                    self.persist(&chat);
+                    return Ok(());
                 }
+                let retry = live.retry && matches!(ev, DriverEvent::Done { .. });
                 let (Some(meta), Some(t)) = (
                     self.metas.iter_mut().find(|m| m.id == chat),
                     self.transcripts.get_mut(&chat),
@@ -488,13 +525,16 @@ impl Chats {
                 };
                 let applied = apply_event(meta, Arc::make_mut(t), ev, now);
                 if applied.resume_missing {
-                    // The conversation is gone on the CLI's side: next turn starts fresh.
+                    // Not resumable and already retried: next turn starts fresh.
                     meta.session_id = None;
                 }
                 if applied.persist || applied.resume_missing {
                     self.persist(&chat);
                 }
                 self.dirty = true;
+                if retry {
+                    self.retry_fresh(&chat, vault);
+                }
             }
             ChatMsg::Closed { chat, gen } => {
                 if self.sessions.get(&chat).map(|l| l.gen) == Some(gen) {
@@ -511,5 +551,33 @@ impl Chats {
             }
         }
         Ok(())
+    }
+
+    /// The retry of C3: a new process without `--resume`, the same text.
+    fn retry_fresh(&mut self, id: &str, vault: Option<&Path>) {
+        let Some(old) = self.sessions.remove(id) else {
+            return;
+        };
+        old.session.shutdown();
+        let Some(vault) = vault else {
+            self.notice(id, keys::NO_VAULT, Vec::new());
+            return;
+        };
+        if let Err((key, vars)) = self.spawn(id, vault) {
+            self.notice(id, key, vars);
+            return;
+        }
+        let sent = self.sessions.get_mut(id).map(|l| {
+            l.last_text = old.last_text.clone();
+            l.session.send(old.last_text.clone())
+        });
+        if matches!(sent, Some(Ok(()))) {
+            if let Some(m) = self.meta_mut(id) {
+                m.busy = true;
+            }
+            self.dirty = true;
+        } else {
+            self.notice(id, driver_keys::PROCESS_DIED, Vec::new());
+        }
     }
 }

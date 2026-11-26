@@ -357,8 +357,9 @@ impl Actor {
                     None => break,
                     Some(Msg::Cmd(c)) => self.command(c).await,
                     Some(Msg::Chat(m)) => {
+                        let vault = self.vault.clone();
                         if let Some(chats) = self.chats.as_mut() {
-                            if let Err(e) = chats.on_msg(m, Utc::now()) {
+                            if let Err(e) = chats.on_msg(m, vault.as_deref(), Utc::now()) {
                                 self.error(e);
                             }
                         }
@@ -785,12 +786,20 @@ mod tests {
         put("human_read_2026-11-25_eu.json", READ_SHORT);
         let s2 = wait_until(&app, "the change", |s| side(s) == Some(HumanSide::Short));
 
-        // A rewrite with the same bytes and another day's file: no new rev.
+        // A rewrite with the same bytes and another day's file: the day and
+        // the strip are not republished. (Compared by pointer, not by `rev`:
+        // other parts of the snapshot, the chat list, have revs of their own.)
         put("human_read_2026-11-25_eu.json", READ_SHORT);
         put("drift_2026-11-20_eu.json", "{}");
         // An absence: this window can only fail when a no-op IS published.
         std::thread::sleep(Duration::from_millis(800));
-        assert_eq!(app.snapshot().rev, s2.rev, "no change, no rev");
+        let s3 = app.snapshot();
+        let same = |a: &Option<Arc<Day>>, b: &Option<Arc<Day>>| matches!((a, b), (Some(a), Some(b)) if Arc::ptr_eq(a, b));
+        assert!(same(&s3.day, &s2.day), "no change, no new day");
+        assert!(
+            Arc::ptr_eq(&s3.days_index, &s2.days_index),
+            "no change, no new strip"
+        );
         drop(app);
     }
 
@@ -821,13 +830,16 @@ mod tests {
             ShotState::Refused(ShotRefused::Missing)
         );
         // Asking again for the same bytes changes nothing.
-        let rev = s.rev;
+        let shots_before = Arc::clone(&s.shots);
         app.send(Command::LoadShot(
             "indices-kb/shots/2026-11-25/eu_h1.png".into(),
         ));
-        app.send(Command::CheckStatus); // a marker: one more rev, from the error
+        app.send(Command::CheckStatus); // a marker: commands are handled in order
         let s = wait_until(&app, "the marker", |s| !s.errors.is_empty());
-        assert_eq!(s.rev, rev + 1);
+        assert!(
+            Arc::ptr_eq(&s.shots, &shots_before),
+            "same bytes: shots not republished"
+        );
         // Opening a day that names none of them drops them.
         app.send(Command::OpenDay(d("2026-11-25")));
         wait_until(&app, "eviction", |s| s.day.is_some() && s.shots.is_empty());

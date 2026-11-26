@@ -123,7 +123,6 @@ fn a_state_file_written_into_the_open_day_is_on_screen_within_a_second() {
     // No settling wait: the watcher is armed before AppHandle::start's actor
     // handles its first command, and the day above was such a command.
 
-    let rev = app.snapshot().rev;
     let t0 = Instant::now();
     desk_app::vault_write::write_human_read(
         tmp.path(),
@@ -134,7 +133,10 @@ fn a_state_file_written_into_the_open_day_is_on_screen_within_a_second() {
         Utc::now(),
     )
     .expect("write");
-    let s = wait_until(&app, Duration::from_secs(1), "the new rev", |s| s.rev > rev);
+    // The day itself must change: `rev` alone also moves for the chat list.
+    let s = wait_until(&app, Duration::from_secs(1), "the read on screen", |s| {
+        s.day.as_ref().is_some_and(|x| x.eu.human.is_some())
+    });
     let took = t0.elapsed();
     let human = s
         .day

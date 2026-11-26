@@ -61,6 +61,9 @@ pub struct Translator {
     /// whole-message twin, and a synthetic message (API error) that was never
     /// streamed comes with nothing pending, so its text is shown.
     pending_text: bool,
+    /// An `assistant` frame already reported this turn's error: the error
+    /// `result` that follows is the same failure, shown once (TEST_PLAN C1).
+    turn_error: bool,
     interrupted: bool,
     warned: HashSet<String>,
 }
@@ -198,6 +201,7 @@ impl Translator {
             }
         }
         if let Some(code) = v.get("error").and_then(Value::as_str) {
+            self.turn_error = true;
             out.push(DriverEvent::Error {
                 key: keys::API.into(),
                 detail: code.to_string(),
@@ -234,6 +238,8 @@ impl Translator {
                 detail: subtype.into(),
             });
             StopReason::MaxTurns
+        } else if is_error && self.turn_error {
+            StopReason::Error
         } else if is_error {
             let key = if resume_missing(v) {
                 keys::RESUME_MISSING
@@ -252,6 +258,7 @@ impl Translator {
         // Per-turn state.
         self.interrupted = false;
         self.pending_text = false;
+        self.turn_error = false;
         Parsed {
             turn_done: true,
             control_request: None,
@@ -496,10 +503,7 @@ mod tests {
                     detail: "authentication_failed".into()
                 },
                 DriverEvent::Usage { input: 0, output: 0, cost_usd: Some(0.0) },
-                DriverEvent::Error {
-                    key: keys::RESULT.into(),
-                    detail: "success: Authentication error · This may be a temporary network issue, please try again".into()
-                },
+                // C1: the result repeats the assistant frame's failure; one Error.
                 DriverEvent::Done { stop: StopReason::Error },
             ]
         );
