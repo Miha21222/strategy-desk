@@ -1,0 +1,78 @@
+{
+ "case": "auth_error",
+ "about": "Not logged in: the CLI sends the error as plain assistant TEXT (no stream_event) and a result with subtype success + is_error. The old translate reads neither: the screen shows NOTHING but the user message (quirk C1, a silent failure — Rust must show an error).",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/auth_error.jsonl",
+   "sha256": "e407f3011f663684bbec22048a31623fc312dbace5ee83d6f4533348002487c5"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "Привет"
+ ],
+ "skipped_non_json_lines": 0,
+ "specs": [
+  {
+   "resume": null,
+   "text": "Привет",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "54eb4b92-1c55-4682-9c37-40ce7e9dd2be",
+  "cost_usd": 0,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "Привет"
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "Привет"
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-opus-5-5",
+    "engineVersion": "2.1.332",
+    "mcpServers": [],
+    "toolCount": 1,
+    "sessionId": "54eb4b92-1c55-4682-9c37-40ce7e9dd2be"
+   }
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 0,
+    "out": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0
+   },
+   "costUsd": 0,
+   "sessionId": "54eb4b92-1c55-4682-9c37-40ce7e9dd2be",
+   "turns": 1,
+   "stopped": false
+  }
+ ]
+}

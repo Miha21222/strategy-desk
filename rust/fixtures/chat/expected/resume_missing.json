@@ -1,0 +1,77 @@
+{
+ "case": "resume_missing",
+ "about": "--resume names a conversation the CLI does not have: result error_during_execution with the reason in errors[] → «Ошибка: error_during_execution: No conversation found …»; no retry, session id kept (quirk C3).",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/resume_missing.jsonl",
+   "sha256": "0644e3e4b88e45562cd21f6c4819c1f2a532ae35b0f636fa33a546c9fab6ba2e"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "Продолжим"
+ ],
+ "skipped_non_json_lines": 0,
+ "specs": [
+  {
+   "resume": null,
+   "text": "Продолжим",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "00000000-0000-4000-8000-000000000000",
+  "cost_usd": 0,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "Продолжим"
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "Продолжим"
+  },
+  {
+   "role": "notice",
+   "level": "error",
+   "text": "Ошибка: error_during_execution: No conversation found with session ID: 00000000-0000-4000-8000-000000000000"
+  }
+ ],
+ "events": [
+  {
+   "kind": "error",
+   "message": "error_during_execution: No conversation found with session ID: 00000000-0000-4000-8000-000000000000"
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 0,
+    "out": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0
+   },
+   "costUsd": 0,
+   "sessionId": "00000000-0000-4000-8000-000000000000",
+   "turns": 0,
+   "stopped": false
+  }
+ ]
+}
