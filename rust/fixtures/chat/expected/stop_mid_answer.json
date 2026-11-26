@@ -1,0 +1,114 @@
+{
+ "case": "stop_mid_answer",
+ "about": "«Стоп» after the first delta. The CLI answers the interrupt with a control_response and an error_during_execution result: the old app shows BOTH «Ошибка: error_during_execution» and «Остановлено.» (quirk C2), and keeps the partial text.",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/interrupted.jsonl",
+   "sha256": "1c78ef9146692de524c06155b394418d4feb3fa2c8f32f9d7ac7d23107b632b4"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "/macro-review eu 2026-11-25"
+ ],
+ "skipped_non_json_lines": 0,
+ "specs": [
+  {
+   "resume": null,
+   "text": "/macro-review eu 2026-11-25",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "5f0c2a8e-3333-4c1e-9a55-000000000003",
+  "cost_usd": 0.004,
+  "tokens": {
+   "in": 20780,
+   "out": 5
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "Начинаю обзор",
+   "tools": [],
+   "thinking": false
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "Начинаю обзор",
+   "live": true,
+   "thinking": false,
+   "tools": []
+  },
+  {
+   "role": "notice",
+   "level": "error",
+   "text": "Ошибка: error_during_execution"
+  },
+  {
+   "role": "notice",
+   "level": "info",
+   "text": "Остановлено."
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-opus-5-5",
+    "engineVersion": "2.1.332",
+    "mcpServers": [
+     {
+      "name": "tradingview",
+      "status": "connected"
+     }
+    ],
+    "toolCount": 12,
+    "sessionId": "5f0c2a8e-3333-4c1e-9a55-000000000003"
+   }
+  },
+  {
+   "kind": "text",
+   "delta": "Начинаю обзор"
+  },
+  {
+   "kind": "error",
+   "message": "error_during_execution"
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 300,
+    "out": 5,
+    "cacheRead": 20480,
+    "cacheWrite": 0
+   },
+   "costUsd": 0.004,
+   "sessionId": "5f0c2a8e-3333-4c1e-9a55-000000000003",
+   "turns": 1,
+   "stopped": true
+  }
+ ]
+}
