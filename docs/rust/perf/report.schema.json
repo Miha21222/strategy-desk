@@ -3,84 +3,343 @@
   "$id": "desk-perf/1",
   "title": "Strategy Desk perf report (docs/rust/PERF.md)",
   "type": "object",
-  "required": ["schema", "representative", "created_at", "date", "machine", "build", "harness", "metrics"],
+  "required": [
+    "schema",
+    "representative",
+    "created_at",
+    "date",
+    "machine",
+    "build",
+    "harness",
+    "metrics"
+  ],
   "properties": {
-    "schema": { "const": "desk-perf/1" },
-    "representative": { "type": "boolean", "description": "true only for a bench.ps1 run on the owner's laptop" },
-    "label": { "type": "string" },
-    "created_at": { "type": "string", "description": "UTC, RFC 3339" },
-    "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+    "schema": {
+      "const": "desk-perf/1"
+    },
+    "representative": {
+      "type": "boolean",
+      "description": "true only for a bench.ps1 run on the owner's laptop"
+    },
+    "label": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "description": "UTC, RFC 3339"
+    },
+    "date": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+    },
     "machine": {
       "type": "object",
-      "required": ["os", "cpu", "logical_cpus", "ram_gb", "power"],
+      "required": [
+        "os",
+        "cpu",
+        "logical_cpus",
+        "ram_gb",
+        "power"
+      ],
       "properties": {
-        "os": { "type": "string" },
-        "cpu": { "type": "string" },
-        "logical_cpus": { "type": "integer" },
-        "ram_gb": { "type": "number" },
-        "power": { "enum": ["ac", "battery", "unknown"] },
-        "power_plan": { "type": "string" },
-        "noise": { "type": "array", "items": { "type": "string" } }
+        "os": {
+          "type": "string"
+        },
+        "cpu": {
+          "type": "string"
+        },
+        "logical_cpus": {
+          "type": "integer"
+        },
+        "ram_gb": {
+          "type": "number"
+        },
+        "power": {
+          "enum": [
+            "ac",
+            "battery",
+            "unknown"
+          ]
+        },
+        "power_plan": {
+          "type": "string"
+        },
+        "noise": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "build": {
       "type": "object",
-      "required": ["kind", "version", "commit", "exe"],
+      "required": [
+        "kind",
+        "version",
+        "commit",
+        "exe"
+      ],
       "properties": {
-        "kind": { "enum": ["rust", "electron", "synthetic"] },
-        "version": { "type": "string" },
-        "commit": { "type": "string" },
-        "exe": { "type": "string", "description": "file name only, never a path (it would carry the account name)" },
-        "profile": { "type": "string" }
+        "kind": {
+          "enum": [
+            "rust",
+            "electron",
+            "synthetic"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "commit": {
+          "type": "string"
+        },
+        "exe": {
+          "type": "string",
+          "description": "file name only, never a path (it would carry the account name)"
+        },
+        "profile": {
+          "type": "string"
+        }
       }
     },
     "harness": {
       "type": "object",
-      "required": ["script", "runs"],
+      "required": [
+        "script",
+        "runs"
+      ],
       "properties": {
-        "script": { "type": "string" },
-        "runs": { "type": "integer" },
-        "cold_method": { "enum": ["", "admin", "pressure", "none"] },
-        "idle_seconds": { "type": "integer" },
-        "settle_seconds": { "type": "integer" }
+        "script": {
+          "type": "string"
+        },
+        "runs": {
+          "type": "integer"
+        },
+        "cold_method": {
+          "enum": [
+            "",
+            "admin",
+            "pressure",
+            "none"
+          ]
+        },
+        "idle_seconds": {
+          "type": "integer"
+        },
+        "settle_seconds": {
+          "type": "integer"
+        },
+        "vault": {
+          "type": "string",
+          "description": "where the Rust build's DESK_VAULT came from: -Vault | env DESK_VAULT | electron settings | documents default | none; never the path"
+        },
+        "desk_now": {
+          "type": "string",
+          "description": "DESK_NOW given to every Rust launch (a trading date + Kyiv time)"
+        },
+        "now_source": {
+          "type": "string"
+        }
       }
     },
-    "metrics": { "type": "array", "items": { "$ref": "#/$defs/metric" } },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metric"
+      }
+    },
     "stress": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["id", "status", "detail"],
+        "required": [
+          "id",
+          "status",
+          "detail"
+        ],
         "properties": {
-          "id": { "type": "string" },
-          "status": { "enum": ["pass", "fail"] },
-          "scope": { "enum": ["harness", "app"] },
-          "detail": { "type": "string" }
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "harness",
+              "app"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
         }
       }
     },
-    "notes": { "type": "array", "items": { "type": "string" } }
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "variants": {
+      "type": "array",
+      "description": "bench.ps1 -Variants: one entry per column, the first one is also `metrics`'s start rows",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "env",
+          "exe",
+          "metrics"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "env": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "exe": {
+            "type": "string",
+            "description": "file name only"
+          },
+          "mode": {
+            "enum": [
+              "data-ready",
+              "first-frame",
+              "window",
+              ""
+            ],
+            "description": "start protocol the build spoke"
+          },
+          "metrics": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/metric"
+            }
+          },
+          "build": {
+            "type": "string",
+            "description": "-Exes name (glow, wgpu)"
+          },
+          "opt": {
+            "type": "string",
+            "description": "-Opts name; DESK_OPT is in env"
+          },
+          "phases": {
+            "type": "object",
+            "description": "DESK_STARTUP_TRACE medians: warm|cold|idle -> phase -> {n, ms, private_mb, ws_mb}"
+          }
+        }
+      }
+    }
   },
   "$defs": {
     "metric": {
       "type": "object",
-      "required": ["id", "unit", "samples", "target", "stat", "value", "status", "method"],
+      "required": [
+        "id",
+        "unit",
+        "samples",
+        "target",
+        "stat",
+        "value",
+        "status",
+        "method"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "label": { "type": "string" },
-        "unit": { "type": "string" },
-        "samples": { "type": "array", "items": { "type": "number" } },
-        "median": { "type": ["number", "null"] },
-        "p95": { "type": ["number", "null"], "description": "nearest rank" },
-        "min": { "type": ["number", "null"] },
-        "max": { "type": ["number", "null"] },
-        "target": { "type": ["number", "null"], "description": "pass when value <= target" },
-        "stat": { "enum": ["median", "p95", "p99", "max", "mean"] },
-        "value": { "type": ["number", "null"], "description": "stat(samples), the number judged" },
-        "status": { "enum": ["pass", "fail", "skip", "info"] },
-        "method": { "type": "string" },
-        "note": { "type": "string" },
-        "extra": { "type": "object" }
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "samples": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "median": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "p95": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "nearest rank"
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "target": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "pass when value <= target"
+        },
+        "stat": {
+          "enum": [
+            "median",
+            "p95",
+            "p99",
+            "max",
+            "mean"
+          ]
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "stat(samples), the number judged"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "fail",
+            "skip",
+            "info"
+          ]
+        },
+        "method": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "extra": {
+          "type": "object"
+        }
       }
     }
   }

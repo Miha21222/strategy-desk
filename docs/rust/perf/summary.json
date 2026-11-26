@@ -1,6 +1,6 @@
 {
  "schema": "desk-perf-summary/1",
- "generated_at": "2026-11-25T17:18:54Z",
+ "generated_at": "2026-11-26T10:46:44Z",
  "before": {
   "file": "2026-11-25-electron-0.2.3.0.json",
   "label": "electron 0.2.3.0",
@@ -202,6 +202,12 @@
    "trend": [
     {
      "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 0.327,
+     "representative": false
+    },
+    {
+     "date": "2026-11-25",
      "commit": "b8d06cb",
      "value": 7.657,
      "representative": true
@@ -260,5 +266,7 @@
    "reason": "median 91.3 MB > цель 80 MB"
   }
  ],
- "stress": []
+ "stress": [],
+ "variants": [],
+ "vault": ""
 }

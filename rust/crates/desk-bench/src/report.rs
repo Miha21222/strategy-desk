@@ -57,6 +57,22 @@ pub const METRICS: &[MetricDef] = &[
         target: Some(150.0),
         stat: Stat::Median,
     },
+    // Start → the day's data drawn (`--bench-data-ready`): what the owner
+    // feels as «долгая загрузка», as opposed to the first (possibly empty) frame.
+    MetricDef {
+        id: "data_ready_cold_ms",
+        label: "Данные дня на экране, холодный старт",
+        unit: "ms",
+        target: Some(500.0),
+        stat: Stat::Median,
+    },
+    MetricDef {
+        id: "data_ready_warm_ms",
+        label: "Данные дня на экране, тёплый старт",
+        unit: "ms",
+        target: Some(300.0),
+        stat: Stat::Median,
+    },
     MetricDef {
         id: "idle_working_set_mb",
         label: "RAM в покое (Working Set)",
@@ -105,6 +121,29 @@ pub const METRICS: &[MetricDef] = &[
         unit: "ms",
         target: Some(33.0),
         stat: Stat::Median,
+    },
+    // Same per-window rule, while `--bench-switch` flips days as fast as it
+    // can: the stand-in for scrolling until the chat stream (stage 5) exists.
+    MetricDef {
+        id: "switch_frame_p50_ms",
+        label: "Кадр p50 при переключении дней",
+        unit: "ms",
+        target: Some(8.0),
+        stat: Stat::Median,
+    },
+    MetricDef {
+        id: "switch_frame_p95_ms",
+        label: "Кадр p95 при переключении дней",
+        unit: "ms",
+        target: Some(16.0),
+        stat: Stat::Max,
+    },
+    MetricDef {
+        id: "switch_frame_p99_ms",
+        label: "Кадр p99 при переключении дней",
+        unit: "ms",
+        target: Some(33.0),
+        stat: Stat::Max,
     },
     MetricDef {
         id: "day_load_ms",
@@ -310,6 +349,34 @@ pub struct Harness {
     pub cold_method: String,
     pub idle_seconds: u64,
     pub settle_seconds: u64,
+    /// Where the vault of the run came from ("-Vault", "env DESK_VAULT",
+    /// "electron settings", "none"), never the path itself.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub vault: String,
+}
+
+/// One column of an A/B run (`bench.ps1 -Variants`): the same start metrics
+/// under other environment switches or another exe.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Variant {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub env: serde_json::Map<String, serde_json::Value>,
+    /// File name only, like `Build::exe`.
+    pub exe: String,
+    /// The start protocol the build spoke: "data-ready" | "first-frame" | "window".
+    #[serde(default)]
+    pub mode: String,
+    /// Matrix runs (`-Exes` × `-Opts`): which build and which `DESK_OPT`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub build: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub opt: String,
+    pub metrics: Vec<Metric>,
+    /// `DESK_STARTUP_TRACE` medians: run kind → phase → {n, ms, private_mb, ws_mb}.
+    #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
+    pub phases: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -323,7 +390,11 @@ pub struct Report {
     pub machine: Machine,
     pub build: Build,
     pub harness: Harness,
+    /// For a variant run: the first variant's numbers (the reference column).
     pub metrics: Vec<Metric>,
+    /// Every variant, the first one included; empty without `-Variants`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<Variant>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
 }
@@ -349,6 +420,14 @@ mod tests {
         assert_eq!(def("warm_start_ms").and_then(|d| d.target), Some(150.0));
         assert_eq!(def("frame_p99_ms").and_then(|d| d.target), Some(33.0));
         assert_eq!(def("installer_mb").and_then(|d| d.target), Some(20.0));
+        assert_eq!(
+            def("data_ready_cold_ms").and_then(|d| d.target),
+            Some(500.0)
+        );
+        assert_eq!(
+            def("data_ready_warm_ms").and_then(|d| d.target),
+            Some(300.0)
+        );
     }
 
     #[test]
@@ -376,6 +455,17 @@ mod tests {
             build: Build::default(),
             harness: Harness::default(),
             metrics: vec![Metric::measured("exe_mb", vec![3.0], "size")],
+            variants: vec![Variant {
+                id: "v1".into(),
+                label: "base".into(),
+                env: serde_json::Map::new(),
+                exe: "strategy-desk.exe".into(),
+                mode: "data-ready".into(),
+                build: "glow".into(),
+                opt: "default".into(),
+                metrics: vec![Metric::measured("data_ready_warm_ms", vec![250.0], "t")],
+                phases: serde_json::json!({"warm": {"day_presented": {"n": 5, "ms": 240.0}}}),
+            }],
             notes: vec![],
         };
         let v = serde_json::to_value(&r).unwrap_or_default();
@@ -391,6 +481,7 @@ mod tests {
         }
         assert_eq!(v["metrics"][0]["status"], "pass");
         assert_eq!(v["metrics"][0]["stat"], "max");
+        assert_eq!(v["variants"][0]["metrics"][0]["status"], "pass");
         let back: Report = serde_json::from_value(v).expect("round trip");
         assert_eq!(back.summary_counts(), (1, 0, 0));
     }
