@@ -57,6 +57,62 @@ LABELS = {
     "soak_private_growth_pct": "Рост Private Bytes за сутки",
 }
 ORDER = list(LABELS)
+
+# Current targets (target, stat) — the same as METRICS in report.rs and
+# $Catalog in bench.ps1. A report keeps the target it was judged by; the
+# summary re-judges every value by these, so an old report reads honestly
+# after a target changes (the old one stays as `target_in_report`).
+TARGETS = {
+    "cold_start_ms": (300.0, "median"),
+    "warm_start_ms": (200.0, "median"),
+    "data_ready_cold_ms": (500.0, "median"),
+    "data_ready_warm_ms": (300.0, "median"),
+    "idle_working_set_mb": (100.0, "median"),
+    "idle_private_mb": (100.0, "median"),
+    "idle_cpu_pct": (1.0, "median"),
+    "idle_frames_per_min": (None, "median"),
+    "frame_p50_ms": (8.0, "median"),
+    "frame_p95_ms": (16.0, "median"),
+    "frame_p99_ms": (33.0, "median"),
+    "switch_frame_p50_ms": (8.0, "median"),
+    "switch_frame_p95_ms": (16.0, "max"),
+    "switch_frame_p99_ms": (33.0, "max"),
+    "day_load_ms": (30.0, "median"),
+    "day_load_real_size_ms": (30.0, "median"),
+    "vault_x10_parse_ms": (None, "median"),
+    "vault_x10_list_days_ms": (None, "median"),
+    "stream_parse_10k_ms": (None, "median"),
+    "stream_pipe_10k_ms": (None, "median"),
+    "watch_latency_ms": (350.0, "p95"),
+    "switch_ms": (100.0, "p95"),
+    "exe_mb": (15.0, "max"),
+    "install_dir_mb": (None, "max"),
+    "installer_mb": (20.0, "max"),
+    "soak_private_growth_pct": (5.0, "max"),
+}
+# Why a target differs from the first TEAM.md table: one line each.
+TARGET_WHY = {
+    "warm_start_ms": "цель 150 → 200 мс (26.11): ~132 мс тёплого старта — окно и контекст OpenGL в драйвере, до нашего кода",
+    "idle_working_set_mb": "цель 80 → 100 МБ (26.11): ~81 МБ берёт драйвер OpenGL до нашего кода; замер со снимком графика на экране",
+    "idle_private_mb": "цель 80 → 100 МБ (26.11): ~81 МБ Private — драйвер OpenGL до нашего кода; замер со снимком графика на экране",
+}
+
+
+def rejudge(m: dict) -> dict:
+    """Judge a metric by today's target (pass/fail only; skip/info stay)."""
+    cur = TARGETS.get(m.get("id"))
+    if cur is None:
+        return m
+    target = cur[0]
+    if m.get("target") != target:
+        m["target_in_report"] = m.get("target")
+        m["target"] = target
+        if m["id"] in TARGET_WHY:
+            m["target_why"] = TARGET_WHY[m["id"]]
+    v = m.get("value")
+    if m.get("status") in ("pass", "fail") and isinstance(v, (int, float)) and target is not None:
+        m["status"] = "pass" if v <= target else "fail"
+    return m
 STATUS_RU = {"pass": "ок", "fail": "ПРОВАЛ", "skip": "нет данных", "info": "инфо"}
 
 
@@ -79,6 +135,11 @@ def load(path: Path) -> dict:
         if key not in r:
             raise ValueError(f"{path}: missing {key!r}")
     r["_file"] = str(path)
+    for m in r["metrics"]:
+        rejudge(m)
+    for v in r.get("variants", []) or []:
+        for m in v.get("metrics", []):
+            rejudge(m)
     r["_metrics"] = {m["id"]: m for m in r["metrics"]}
     return r
 
@@ -152,6 +213,8 @@ def summarize(reports: list[dict], before: dict | None, after: dict | None) -> d
             "id": i, "label": LABELS.get(i, ref.get("label", i)), "unit": unit, "target": ref.get("target"),
             "stat": ref.get("stat"), "before": vb, "after": va, "status": status, "delta_pct": delta,
             "note": (ma or {}).get("note", ""),
+            "target_in_report": (ma or {}).get("target_in_report"),
+            "target_why": TARGET_WHY.get(i, ""),
             "trend": [{"date": r.get("date", ""), "commit": r["build"].get("commit", ""),
                        "value": r["_metrics"][i].get("value"), "representative": bool(r.get("representative"))}
                       for r in trend_src if i in r["_metrics"] and r["_metrics"][i].get("value") is not None],
@@ -222,6 +285,10 @@ def table(summary: dict) -> str:
             env = ", ".join(f"{k}={x}" for k, x in (v["env"] or {}).items()) or "без переменных"
             out.append(f"  {v['label']}: {v['exe']}, {env}, протокол {v['mode']}")
         out += phase_table(vs, "warm") + phase_table(vs, "idle")
+    changed = [m for m in summary["metrics"] if m.get("target_why")]
+    if changed:
+        out.append("")
+        out += [f"  * {m['label']}: {m['target_why']}" for m in changed]
     tail = [f"провалы: {len(summary['failed'])}"] + [f"  · {f['label']}: {f['reason']}" for f in summary["failed"]]
     return "\n".join(top + [""] + out + [""] + tail)
 
@@ -286,6 +353,9 @@ def self_test() -> int:
             ([v["metrics"]["data_ready_warm_ms"]["value"] for v in s["variants"]] == [250.0, 180.0], "variant columns"),
             ("Данные дня на экране, тёплый старт" in table(s), "variant table"),
             ("240 / 91" in table(s), "phase table"),
+            (rejudge({"id": "warm_start_ms", "value": 189.0, "target": 150.0, "status": "fail"})["status"] == "pass", "re-judged by today's target"),
+            (rejudge({"id": "idle_private_mb", "value": 115.0, "target": 80.0, "status": "fail"})["target_in_report"] == 80.0, "old target kept"),
+            (rejudge({"id": "cold_start_ms", "value": None, "target": 300.0, "status": "skip"})["status"] == "skip", "skip stays skip"),
         ]
         for c, name in checks:
             print(("ok   " if c else "FAIL ") + name)

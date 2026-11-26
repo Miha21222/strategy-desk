@@ -17,6 +17,9 @@ chrono-tz.workspace = true
 tokio = { version = "1", features = ["rt-multi-thread", "process", "io-util", "sync", "time", "macros", "fs"] }
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 tracing = "0.1"
+dirs = "6"
 
 [dev-dependencies]
 tempfile = "3"
+# The chat integration test runs a fake claude built from QA's stream generator.
+desk-bench = { path = "../desk-bench" }

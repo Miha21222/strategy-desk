@@ -54,6 +54,7 @@ param(
     [string]$FakeClaude = '',
     [int]$StreamEvents = 10000,
     [double]$StreamRate = 200,
+    [int]$DieAfter = 2000,
     [double]$SoakHours = 0,
     [int]$SoakIntervalMinutes = 5,
     [switch]$Force,
@@ -65,7 +66,7 @@ $ErrorActionPreference = 'Stop'
 # PowerShell 5.1 serializes some arrays as {"value": [...], "Count": n}
 # because of the ETS Count alias on System.Array; without it they stay arrays.
 Remove-TypeData -TypeName System.Array -ErrorAction SilentlyContinue
-$ScriptVersion = '3'
+$ScriptVersion = '4'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 # ---------------------------------------------------------------- catalog
@@ -73,11 +74,13 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 # Russian labels live in the Rust catalog and report.py; this file stays ASCII.
 $Catalog = @{
     'cold_start_ms'           = @('ms', 300, 'median', 'Cold start to first frame')
-    'warm_start_ms'           = @('ms', 150, 'median', 'Warm start to first frame')
+    # 26.11 owner decision (TEAM.md): ~132 ms of a warm start is the window +
+    # OpenGL context and ~81 MB Private is the GL driver before our code.
+    'warm_start_ms'           = @('ms', 200, 'median', 'Warm start to first frame')
     'data_ready_cold_ms'      = @('ms', 500, 'median', 'Cold start to the day data drawn')
     'data_ready_warm_ms'      = @('ms', 300, 'median', 'Warm start to the day data drawn')
-    'idle_working_set_mb'     = @('MB', 80, 'median', 'Idle RAM, Working Set')
-    'idle_private_mb'         = @('MB', 80, 'median', 'Idle RAM, Private Bytes')
+    'idle_working_set_mb'     = @('MB', 100, 'median', 'Idle RAM, Working Set')
+    'idle_private_mb'         = @('MB', 100, 'median', 'Idle RAM, Private Bytes')
     'idle_cpu_pct'            = @('%', 1, 'median', 'Idle CPU')
     'idle_frames_per_min'     = @('1/min', $null, 'median', 'Frames per minute when idle')
     'frame_p50_ms'            = @('ms', 8, 'median', 'Frame p50 while streaming')
@@ -317,10 +320,11 @@ public static class DeskBenchNative {
         return found;
     }
 
-    // lineKey: the stdout line to wait for (null = none); its arrival time is LineMs.
+    // lineKey: the stdout line to wait for (null or "" = none); its arrival time is LineMs.
+    // PowerShell hands $null to a string parameter as "", hence IsNullOrEmpty.
     public static DeskStartResult Start(string exe, string args, string[] env, string lineKey, bool waitWindow,
                                         bool waitExit, int timeoutMs, StringBuilder stderr) {
-        bool wantLine = lineKey != null;
+        bool wantLine = !string.IsNullOrEmpty(lineKey);
         var r = new DeskStartResult();
         var psi = new ProcessStartInfo(exe, args);
         psi.UseShellExecute = false;
@@ -812,6 +816,9 @@ if ($SelfTest) {
     Assert-Eq (Get-Percentile @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) 95) 10 'p95 nearest rank'
     Assert-Eq (Get-Percentile @(1, 2, 3, 4, 5, 6, 7, 8, 9, 10) 50) 5 'p50 nearest rank'
     Assert-Eq (New-Metric 'warm_start_ms' @(100, 120, 400) 't').status 'pass' 'median judged'
+    Assert-Eq (New-Metric 'warm_start_ms' @(180, 190, 195) 't').status 'pass' 'warm target 200 (26.11)'
+    Assert-Eq (New-Metric 'idle_private_mb' @(95, 97, 99) 't').status 'pass' 'idle target 100 (26.11)'
+    Assert-Eq (New-Metric 'idle_working_set_mb' @(101, 102, 99) 't').status 'fail' 'idle above 100 fails'
     Assert-Eq (New-Metric 'frame_p95_ms' @(10, 12, 40) 't').status 'fail' 'worst window judged'
     Assert-Eq (New-Metric 'switch_ms' @(10, 20, 30, 40, 50, 60, 70, 80, 90, 120) 't').status 'fail' 'switch p95'
     Assert-Eq (New-Metric 'data_ready_cold_ms' @(450, 480, 700) 't').status 'pass' 'data ready cold'
@@ -965,7 +972,7 @@ $est = $nv * 4
 if (-not $SkipCold) { $est += $coldVariants.Count * $Runs * $coldPer }
 if (-not $SkipWarm) { $est += $nv * ($VR + 1) * 4 }
 if (-not $SkipIdle) { $est += $idleList.Count * $IdleRuns * ($IdleSeconds + $SettleSeconds + 15) }
-if ($StreamFrames) { $est += 90 }
+if ($StreamFrames) { $est += 90 + 2 * 45 + [int]($StreamEvents / [math]::Max($StreamRate, 1)) + [int]($DieAfter / [math]::Max($StreamRate, 1)) }
 if ($SoakHours -gt 0) { $est = [int]($SoakHours * 3600) }
 Write-Host (Fmt 'bench.ps1: about {0:F0} min: {1} variant(s) x {2} warm, {3} x {4} cold ({5}), idle {6} x {7}' ($est / 60.0) $nv $VR $coldVariants.Count $Runs $ColdMethod $idleList.Count $IdleRuns)
 if ($ColdMethod -eq 'pressure' -and $est -gt 1200) { Write-Host 'NOTE: without admin each cold launch first squeezes memory (~45 s). An elevated PowerShell makes this run much shorter.' }
@@ -1284,43 +1291,96 @@ if (-not $SkipIdle -and -not $aborted) {
 }
 foreach ($o in $variantsOut) { $o.metrics = @($o.metrics.ToArray()) }
 
+# One chat run under DESK_BENCH_AUTOCHAT: wait for fake-claude to appear in
+# the tree, then for it to exit, then 10 s more; frame-stats lines stamped in
+# that span count. state: stub | no-chat | streamed | stuck.
+function Invoke-ChatRun($v, [string]$run, [string[]]$fakeEnv) {
+    $err = New-Object System.Text.StringBuilder
+    $extraEnv = [string[]](@('DESK_FRAME_STATS', '1', 'DESK_CLAUDE_BIN', $FakeClaude, 'DESK_BENCH_AUTOCHAT', '1') + $fakeEnv)
+    $r = [DeskBenchNative]::Start($v.exe, '', (Get-EnvPairs $v $extraEnv), $null, $true, $false, $timeoutMs, $err)
+    $res = @{ state = 'no-chat'; rows = @(); seconds = 0.0; fakeExit = $null; alive = $false; responding = $false; why = '' }
+    $fake = $null
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt 30) {
+        Start-Sleep -Milliseconds 250
+        if ($err.ToString() -match 'DESK_BENCH_AUTOCHAT=1 ignored') { $res.state = 'stub'; break }
+        $kids = @([DeskBenchNative]::Tree($r.Pid))
+        $f = @(Get-Process -Id $kids -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like 'fake-claude*' })
+        if ($f.Count -gt 0) { $fake = $f[0]; break }
+    }
+    if ($null -ne $fake) {
+        $t0 = [DateTime]::UtcNow
+        $cap = $StreamEvents / [math]::Max($StreamRate, 1) + 90
+        $res.state = 'stuck'
+        while (([DateTime]::UtcNow - $t0).TotalSeconds -lt $cap) {
+            if ($fake.HasExited) { $res.state = 'streamed'; break }
+            Start-Sleep -Milliseconds 250
+        }
+        $t1 = [DateTime]::UtcNow
+        $res.seconds = ($t1 - $t0).TotalSeconds
+        $res.fakeExit = '?'   # unknown when the OS no longer has it
+        if ($fake.HasExited) { try { $res.fakeExit = [string]$fake.ExitCode } catch { } }
+        Start-Sleep -Seconds 11   # one more DESK_FRAME_STATS window, and time to fall over if it would
+        $me = Get-Process -Id $r.Pid -ErrorAction SilentlyContinue
+        $res.alive = ($null -ne $me -and -not $me.HasExited)
+        # Responding = the main window answers messages within 5 s (a hang shows here).
+        if ($res.alive) { $me.Refresh(); try { $res.responding = [bool]$me.Responding } catch { $res.responding = $res.alive } }
+        $inWin = New-Object System.Text.StringBuilder
+        foreach ($line in ($err.ToString() -split "`n")) {
+            if ($line.Length -lt 28) { continue }
+            $ts = [DateTime]::MinValue
+            if ([DateTime]::TryParse($line.Substring(0, 28), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$ts)) {
+                $ts = $ts.ToUniversalTime()
+                if ($ts -ge $t0 -and $ts -le $t1.AddSeconds(11)) { [void]$inWin.Append($line).Append("`n") }
+            }
+        }
+        $res.rows = Get-FrameStats $inWin.ToString()
+    }
+    [DeskBenchNative]::CloseTree($r.Pid, 5000)
+    Start-Sleep -Seconds 2
+    Save-Trace $v $run $err.ToString()
+    switch ($res.state) {
+        'stub' { $res.why = 'waits for stage 5: DESK_BENCH_AUTOCHAT is still a stub in this build, so no chat is sent (see switch_frame_* for frames under load)' }
+        'no-chat' { $res.why = 'fake-claude never started within 30 s: the build sent no chat message (DESK_BENCH_AUTOCHAT / DESK_CLAUDE_BIN)' }
+        'stuck' { $res.why = 'fake-claude did not finish its stream in time' }
+        default { if ($res.rows.Count -eq 0) { $res.why = 'the chat streamed but no DESK_FRAME_STATS line fell inside it' } }
+    }
+    Write-Host (Fmt '{0}: {1}, {2:F0} s, desk alive {3}, responding {4}, {5} stats windows' $run $res.state $res.seconds $res.alive $res.responding @($res.rows).Count)
+    return $res
+}
+
+$stress = New-Object System.Collections.ArrayList
+
 # ---------------------------------------------------------------- frames
 $frameIds = @('frame_p50_ms', 'frame_p95_ms', 'frame_p99_ms')
 $switchIds = @('switch_frame_p50_ms', 'switch_frame_p95_ms', 'switch_frame_p99_ms', 'switch_ms')
 if ($StreamFrames -and $Kind -eq 'rust' -and -not $aborted) {
-    # (a) The chat stream: fake-claude as claude (desk-app honours
-    # DESK_CLAUDE_BIN) and one message sent by desk-ui itself
-    # (DESK_BENCH_AUTOCHAT). Until stage 5 that second hook is a stub that
-    # says so on stderr; then this part is reported as waiting, not guessed.
+    # (a) The chat stream (stage 5): desk-app runs DESK_CLAUDE_BIN instead of
+    # claude, desk-ui sends one chat message by itself (DESK_BENCH_AUTOCHAT),
+    # fake-claude answers with FAKE_CLAUDE_* from the inherited environment.
+    # Two runs: 10k events at -StreamRate (frames), and the same stream with
+    # claude dying mid-answer (-DieAfter): the desk must stay up and responsive.
     if (-not $FakeClaude) { $FakeClaude = Join-Path $RepoRoot 'rust\target\release\fake-claude.exe' }
     if (-not (Test-Path -LiteralPath $FakeClaude)) {
         foreach ($id in $frameIds) { [void]$metrics.Add((New-Skip $id ('fake-claude not found: {0} (cargo build --release -p desk-bench)' -f (Split-Path -Leaf $FakeClaude)))) }
     } else {
-        $err = New-Object System.Text.StringBuilder
-        $extraEnv = [string[]]@('DESK_FRAME_STATS', '1', 'DESK_CLAUDE_BIN', $FakeClaude, 'DESK_BENCH_AUTOCHAT', '1',
-            'FAKE_CLAUDE_EVENTS', [string]$StreamEvents, 'FAKE_CLAUDE_RATE', (Fmt '{0}' $StreamRate))
-        $r = [DeskBenchNative]::Start($ref.exe, '', (Get-EnvPairs $ref $extraEnv), $null, $true, $false, $timeoutMs, $err)
-        $sw = [Diagnostics.Stopwatch]::StartNew()
-        $state = 'waiting'
-        while ($sw.Elapsed.TotalSeconds -lt 20 -and $state -eq 'waiting') {
-            Start-Sleep -Milliseconds 500
-            if ($err.ToString() -match 'DESK_BENCH_AUTOCHAT=1 ignored') { $state = 'stub'; break }
-            $kids = @([DeskBenchNative]::Tree($r.Pid))
-            if (@(Get-Process -Id $kids -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like 'fake-claude*' }).Count -gt 0) { $state = 'streaming' }
-        }
-        if ($state -eq 'streaming') {
-            Start-Sleep -Seconds ([int]($StreamEvents / [math]::Max($StreamRate, 1)) + 25)
-        }
-        [DeskBenchNative]::CloseTree($r.Pid, 5000)
-        Save-Trace $ref 'stream' $err.ToString()
-        $rows = Get-FrameStats $err.ToString()
-        if ($state -eq 'streaming' -and $rows.Count -gt 0) {
-            Add-FrameMetrics $metrics 'frame_' $rows ('DESK_FRAME_STATS=1 per-10-s windows while fake-claude streams {0} events at {1}/s; p95/p99 judged on the worst window' -f $StreamEvents, $StreamRate)
+        $FakeClaude = (Resolve-Path -LiteralPath $FakeClaude).Path
+        Write-Host ('-- chat stream: fake-claude, {0} events at {1}/s, then a run that dies after {2}' -f $StreamEvents, $StreamRate, $DieAfter)
+        $s10k = Invoke-ChatRun $ref 'stream 10k' ([string[]]@('FAKE_CLAUDE_EVENTS', [string]$StreamEvents, 'FAKE_CLAUDE_RATE', (Fmt '{0}' $StreamRate)))
+        if ($s10k.state -eq 'streamed' -and $s10k.rows.Count -gt 0) {
+            Add-FrameMetrics $metrics 'frame_' $s10k.rows ((Fmt 'variant {0}; DESK_FRAME_STATS=1 per-10-s windows from fake-claude start to its exit + 10 s, {1} events at {2}/s (stream took {3:F0} s); p95/p99 judged on the worst window' $ref.label $StreamEvents $StreamRate $s10k.seconds))
         } else {
-            $why = 'waits for stage 5: DESK_BENCH_AUTOCHAT is still a stub in this build, so no chat is sent (see switch_frame_* for frames under load)'
-            if ($state -eq 'waiting') { $why = 'fake-claude never started within 20 s: the build sent no chat message' }
-            if ($state -eq 'streaming') { $why = 'fake-claude ran but no DESK_FRAME_STATS line came out' }
-            foreach ($id in $frameIds) { [void]$metrics.Add((New-Skip $id $why)) }
+            foreach ($id in $frameIds) { [void]$metrics.Add((New-Skip $id $s10k.why)) }
+        }
+        if ($s10k.state -ne 'stub' -and $s10k.state -ne 'no-chat') {
+            [void]$stress.Add([ordered]@{ id = 'chat_stream_10k'; status = $(if ($s10k.alive -and $s10k.responding -and $s10k.state -eq 'streamed') { 'pass' } else { 'fail' }); scope = 'app'
+                    detail = (Fmt '{0} events at {1}/s: stream {2:F0} s, fake-claude exit {3}, desk alive {4}, responding {5}' $StreamEvents $StreamRate $s10k.seconds $s10k.fakeExit $s10k.alive $s10k.responding) })
+            $die = Invoke-ChatRun $ref 'stream die-after' ([string[]]@('FAKE_CLAUDE_EVENTS', [string]$StreamEvents, 'FAKE_CLAUDE_RATE', (Fmt '{0}' $StreamRate), 'FAKE_CLAUDE_DIE_AFTER', [string]$DieAfter))
+            $worst = '-'
+            $p99s = @($die.rows | Where-Object { $null -ne $_.p99 } | ForEach-Object { $_.p99 })
+            if ($p99s.Count -gt 0) { $worst = Fmt '{0:F1} ms' (Get-Percentile $p99s 100) }
+            [void]$stress.Add([ordered]@{ id = 'chat_claude_dies_mid_answer'; status = $(if ($die.alive -and $die.responding -and $die.state -eq 'streamed') { 'pass' } else { 'fail' }); scope = 'app'
+                    detail = (Fmt 'fake-claude --die-after {0}: it exited after {1:F0} s (code {2}); 10 s later desk alive {3}, responding {4}; worst p99 {5}' $DieAfter $die.seconds $die.fakeExit $die.alive $die.responding $worst) })
         }
     }
 
@@ -1455,6 +1515,7 @@ if ($Kind -eq 'rust' -and $traceOut) {
 $variantsForReport = $null
 if ($Variants.Count -gt 0 -or $matrix) { $variantsForReport = $variantsOut.ToArray() }
 $report = New-Report $Kind $machine $build $metrics.ToArray() $notes.ToArray() $ColdMethod $variantsForReport $vaultSource
+if ($stress.Count -gt 0) { $report.stress = @($stress.ToArray()) }
 if ($deskNow) { $report.harness.desk_now = $deskNow }
 if ($nowSource) { $report.harness.now_source = $nowSource }
 Write-Report $report $Out

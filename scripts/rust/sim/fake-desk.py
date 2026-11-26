@@ -21,7 +21,30 @@ def trace(phase, ms, pm=60.0):
         print(json.dumps({"trace": phase, "ms": ms, "private_mb": pm, "ws_mb": pm - 10}), file=sys.stderr, flush=True)
 
 vault = os.environ.get("DESK_VAULT", "")
+import subprocess
+
+
+def autochat():
+    """Stage 5 stand-in: send one message to DESK_CLAUDE_BIN, read the stream,
+    log frame stats meanwhile, and stay up whatever claude does."""
+    cmd = [os.environ["DESK_CLAUDE_BIN"], "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
+    p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    p.stdin.write(b'{"type":"user","message":{"role":"user","content":"bench"}}\n')
+    p.stdin.close()
+    last = time.monotonic()
+    for _ in p.stdout:
+        if time.monotonic() - last > 0.5:
+            print("frame_stats n=30 p50=2.00ms p95=6.00ms p99=11.00ms max=14.00ms", file=sys.stderr, flush=True)
+            last = time.monotonic()
+    p.wait()
+    print("frame_stats n=5 p50=1.00ms p95=1.50ms p99=2.00ms max=2.00ms", file=sys.stderr, flush=True)
+
+
 if os.environ.get("DESK_BENCH_AUTOCHAT") == "1":
+    if os.environ.get("SIM_AUTOCHAT") == "real" and not any(a.startswith("--bench") for a in args):
+        trace("first_frame_presented", 100.0, 70.0)
+        autochat()
+        time.sleep(3600)
     print("strategy-desk: DESK_BENCH_AUTOCHAT=1 ignored — the chat arrives in stage 5", file=sys.stderr, flush=True)
 if "--bench-data-ready" in args:
     if os.environ.get("SIM_OLD_BUILD") == "1":

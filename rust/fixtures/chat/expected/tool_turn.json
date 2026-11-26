@@ -1,0 +1,173 @@
+{
+ "case": "tool_turn",
+ "about": "Text, a Bash call that succeeds, a Read that fails, a subagent frame (ignored: parent_tool_use_id), more text. One assistant message per turn on the old screen, tools inside it.",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/tool_turn.jsonl",
+   "sha256": "adfdeeea3f63be24b6857d1ae99fbdaf81f7f78ed58c2c5c5b88fa3b4875a9bf"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "/macro-review eu 2026-11-25"
+ ],
+ "skipped_non_json_lines": 0,
+ "specs": [
+  {
+   "resume": null,
+   "text": "/macro-review eu 2026-11-25",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "5f0c2a8e-2222-4c1e-9a55-000000000002",
+  "cost_usd": 0.0911,
+  "tokens": {
+   "in": 22880,
+   "out": 120
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "Смотрю шкалу. Шкала: слабый лонг.",
+   "tools": [
+    {
+     "id": "toolu_01",
+     "name": "Bash",
+     "input": "{\"command\":\"python indices-kb/tools/scale.py show --date 2026-11-25 --region eu\",\"description\":\"Show the scale\"}",
+     "ok": true,
+     "result": "scale: +12 (weak long)"
+    },
+    {
+     "id": "toolu_02",
+     "name": "Read",
+     "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-25_eu.json\"}",
+     "ok": false,
+     "result": "<tool_use_error>File does not exist.</tool_use_error>"
+    }
+   ],
+   "thinking": false
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "Смотрю шкалу. Шкала: слабый лонг.",
+   "live": false,
+   "thinking": false,
+   "tools": [
+    {
+     "id": "toolu_01",
+     "name": "Bash",
+     "input": "{\"command\":\"python indices-kb/tools/scale.py show --date 2026-11-25 --region eu\",\"description\":\"Show the scale\"}",
+     "ok": true,
+     "result": "scale: +12 (weak long)"
+    },
+    {
+     "id": "toolu_02",
+     "name": "Read",
+     "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-25_eu.json\"}",
+     "ok": false,
+     "result": "<tool_use_error>File does not exist.</tool_use_error>"
+    }
+   ]
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-opus-5-5",
+    "engineVersion": "2.1.332",
+    "mcpServers": [
+     {
+      "name": "tradingview",
+      "status": "connected"
+     }
+    ],
+    "toolCount": 12,
+    "sessionId": "5f0c2a8e-2222-4c1e-9a55-000000000002"
+   }
+  },
+  {
+   "kind": "text",
+   "delta": "Смотрю шкалу. "
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_01",
+   "name": "Bash",
+   "input": "{\"command\":\"python indices-kb/tools/scale.py show --date 2026-11-25 --region eu\",\"description\":\"Show the scale\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_01",
+   "ok": true,
+   "text": "scale: +12 (weak long)"
+  },
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-opus-5-5",
+    "engineVersion": "2.1.332",
+    "mcpServers": [
+     {
+      "name": "tradingview",
+      "status": "connected"
+     }
+    ],
+    "toolCount": 12,
+    "sessionId": "5f0c2a8e-2222-4c1e-9a55-000000000002"
+   }
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_02",
+   "name": "Read",
+   "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-25_eu.json\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_02",
+   "ok": false,
+   "text": "<tool_use_error>File does not exist.</tool_use_error>"
+  },
+  {
+   "kind": "text",
+   "delta": "Шкала: слабый лонг."
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 2400,
+    "out": 120,
+    "cacheRead": 20480,
+    "cacheWrite": 0
+   },
+   "costUsd": 0.0911,
+   "sessionId": "5f0c2a8e-2222-4c1e-9a55-000000000002",
+   "turns": 3,
+   "stopped": false
+  }
+ ]
+}

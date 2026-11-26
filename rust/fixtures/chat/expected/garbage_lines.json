@@ -1,0 +1,223 @@
+{
+ "case": "garbage_lines",
+ "about": "Broken lines inserted every 5th real line (fake-claude --garbage-every 5): skipped like the SDK does, the answer is whole.",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/fake_garbage.jsonl",
+   "sha256": "cf9dc8fcdec486fb310e0fcad3108ab8b56c07c93356c03b20e2e4530215fef7"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "/macro-review eu 2026-11-25"
+ ],
+ "skipped_non_json_lines": 5,
+ "specs": [
+  {
+   "resume": null,
+   "text": "/macro-review eu 2026-11-25",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "6c376dc2-5489-474f-8de7-b94bee5e6d23",
+  "cost_usd": 0.01234,
+  "tokens": {
+   "in": 26000,
+   "out": 174
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "argument. the +7 б.п. the Bund −18 after argument. открылось ниже; и — стрелка Европы The окно `scale.py` — открылось ночь moved и вчерашний шорт. открылось 0.37 ночь The argument. `scale.py` ночного максимум \n\n минимума, IB1 ### Итог **Почему так:** ночного вернулась argument. сняла ниже \n\n-  окно after ADR Европы DAX растёт минимума, открылось ADR минимума, after +7 б.п. the ниже ### Итог Bund — VIX \n\n ночь открылось moved **Почему так:** и argument. вчерашний 0.37 ",
+   "tools": [],
+   "thinking": false
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "argument. the +7 б.п. the Bund −18 after argument. открылось ниже; и — стрелка Европы The окно `scale.py` — открылось ночь moved и вчерашний шорт. открылось 0.37 ночь The argument. `scale.py` ночного максимум \n\n минимума, IB1 ### Итог **Почему так:** ночного вернулась argument. сняла ниже \n\n-  окно after ADR Европы DAX растёт минимума, открылось ADR минимума, after +7 б.п. the ниже ### Итог Bund — VIX \n\n ночь открылось moved **Почему так:** и argument. вчерашний 0.37 ",
+   "live": false,
+   "thinking": false,
+   "tools": []
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-fake",
+    "engineVersion": "0.0.0-fake",
+    "mcpServers": [],
+    "toolCount": 7,
+    "sessionId": "6c376dc2-5489-474f-8de7-b94bee5e6d23"
+   }
+  },
+  {
+   "kind": "text",
+   "delta": "argument. "
+  },
+  {
+   "kind": "text",
+   "delta": "the +7 б.п. "
+  },
+  {
+   "kind": "text",
+   "delta": "the Bund "
+  },
+  {
+   "kind": "text",
+   "delta": "−18 after argument. "
+  },
+  {
+   "kind": "text",
+   "delta": "открылось ниже; и "
+  },
+  {
+   "kind": "text",
+   "delta": "— стрелка "
+  },
+  {
+   "kind": "text",
+   "delta": "Европы The окно "
+  },
+  {
+   "kind": "text",
+   "delta": "`scale.py` "
+  },
+  {
+   "kind": "text",
+   "delta": "— "
+  },
+  {
+   "kind": "text",
+   "delta": "открылось ночь moved "
+  },
+  {
+   "kind": "text",
+   "delta": "и вчерашний "
+  },
+  {
+   "kind": "text",
+   "delta": "шорт. открылось 0.37 "
+  },
+  {
+   "kind": "text",
+   "delta": "ночь "
+  },
+  {
+   "kind": "text",
+   "delta": "The argument. "
+  },
+  {
+   "kind": "text",
+   "delta": "`scale.py` ночного "
+  },
+  {
+   "kind": "text",
+   "delta": "максимум \n\n минимума, "
+  },
+  {
+   "kind": "text",
+   "delta": "IB1 ### Итог **Почему так:** "
+  },
+  {
+   "kind": "text",
+   "delta": "ночного вернулась argument. "
+  },
+  {
+   "kind": "text",
+   "delta": "сняла "
+  },
+  {
+   "kind": "text",
+   "delta": "ниже \n\n-  "
+  },
+  {
+   "kind": "text",
+   "delta": "окно after "
+  },
+  {
+   "kind": "text",
+   "delta": "ADR Европы "
+  },
+  {
+   "kind": "text",
+   "delta": "DAX растёт "
+  },
+  {
+   "kind": "text",
+   "delta": "минимума, открылось "
+  },
+  {
+   "kind": "text",
+   "delta": "ADR "
+  },
+  {
+   "kind": "text",
+   "delta": "минимума, "
+  },
+  {
+   "kind": "text",
+   "delta": "after +7 б.п. the "
+  },
+  {
+   "kind": "text",
+   "delta": "ниже "
+  },
+  {
+   "kind": "text",
+   "delta": "### Итог Bund "
+  },
+  {
+   "kind": "text",
+   "delta": "— VIX \n\n "
+  },
+  {
+   "kind": "text",
+   "delta": "ночь открылось "
+  },
+  {
+   "kind": "text",
+   "delta": "moved **Почему так:** и "
+  },
+  {
+   "kind": "text",
+   "delta": "argument. вчерашний 0.37 "
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 1200,
+    "out": 174,
+    "cacheRead": 24000,
+    "cacheWrite": 800
+   },
+   "costUsd": 0.01234,
+   "sessionId": "6c376dc2-5489-474f-8de7-b94bee5e6d23",
+   "turns": 1,
+   "stopped": false
+  }
+ ]
+}
