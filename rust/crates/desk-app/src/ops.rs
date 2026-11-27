@@ -17,8 +17,10 @@ use crate::runtime::{self, RuntimePaths};
 use crate::secrets::{self, SecretStore};
 use crate::settings_store::SettingsStore;
 use crate::tasks::{self, After, PlanCtx, TaskEvent, TaskId, TasksView};
+use desk_core::preflight::Check;
 use desk_core::schedule::planned_runs;
 use desk_core::settings::Settings;
+use desk_core::wizard::{self, StepId};
 
 pub mod keys {
     pub const SETTINGS_READ: &str = "error.settings.read";
@@ -140,6 +142,55 @@ impl Ops {
         let mut s = self.settings.clone();
         s.tv_session_verified_at = None;
         self.save_settings(s)
+    }
+
+    /// What the diagnosis probes need, taken now (the probes run off the loop).
+    pub fn diagnose_inputs(
+        &self,
+        vault: Option<&Path>,
+        now: DateTime<Utc>,
+    ) -> crate::diagnose::Inputs {
+        crate::diagnose::Inputs {
+            settings: self.settings.clone(),
+            vault: vault.map(Path::to_path_buf),
+            runtime: self.runtime.clone(),
+            claude: self.claude_bin(),
+            has_tv_session: self.has_tv_session(),
+            exe: self.exe.clone(),
+            has_template: !crate::vault_template::builtin().is_empty(),
+            now,
+        }
+    }
+
+    /// «Пропустить» on a wizard page.
+    pub fn skip_step(&mut self, id: StepId) -> Result<(), UserError> {
+        let mut s = self.settings.clone();
+        s.setup_skipped = wizard::apply_skip(&s.setup_skipped, id, true);
+        self.save_if_changed(s)
+    }
+
+    /// «Готово»: the wizard is not opened by itself again.
+    pub fn finish_wizard(&mut self, now: DateTime<Utc>) -> Result<(), UserError> {
+        let s = wizard::finish(&self.settings, &self.settings.setup_skipped, now);
+        self.save_settings(s)
+    }
+
+    /// A skipped page that is green now is no longer skipped. `Ok(true)` = saved.
+    pub fn reconcile_skips(&mut self, checks: &[Check]) -> Result<bool, UserError> {
+        let kept = wizard::reconcile_skips(&self.settings.setup_skipped, checks);
+        if kept == self.settings.setup_skipped {
+            return Ok(false);
+        }
+        let mut s = self.settings.clone();
+        s.setup_skipped = kept;
+        self.save_settings(s).map(|()| true)
+    }
+
+    fn save_if_changed(&mut self, next: Settings) -> Result<(), UserError> {
+        if next == self.settings {
+            return Ok(());
+        }
+        self.save_settings(next)
     }
 
     /// «Очистить рантайм»: refused while a task could be using it.

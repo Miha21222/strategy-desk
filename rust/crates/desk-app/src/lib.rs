@@ -7,6 +7,7 @@ pub mod app;
 pub mod chat;
 pub mod claude;
 pub mod day;
+pub mod diagnose;
 pub mod macro_env;
 pub mod ops;
 pub mod paths;
