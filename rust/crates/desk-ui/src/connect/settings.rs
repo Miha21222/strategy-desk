@@ -2,12 +2,14 @@
 //! review's TradingView server, the schedule, «Очистить рантайм», the
 //! wizard — and «Диагностика» as the second tab.
 
+use desk_app::Command;
+use desk_core::windows::{window_times, WindowId};
 use eframe::egui::{self, Ui};
 
-use super::diag::{self, say};
+use super::diag::{self, detail};
 use super::{
-    fmt_time, kyiv_dm_hm, parse_time, CheckId, ConnAction, ConnUi, ConnView, MacroMcp, Schedule,
-    SettingsTab, TaskId, Theme,
+    kyiv_dm_hm, CheckId, CheckState, ConnUi, ConnView, MacroMcp, PickField, SettingsTab, TaskId,
+    Theme,
 };
 use crate::i18n::t;
 use crate::screen::kit::{self, bold, txt, CardKind, Tone};
@@ -27,7 +29,7 @@ pub fn page(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) -> Option<SettingsEvent> {
     let mut event = None;
     ui.label(bold(t("tabs.settings"), text::TITLE, p.fg));
@@ -45,8 +47,8 @@ pub fn page(
         } else {
             SettingsTab::Diagnostics
         };
-        if st.tab == SettingsTab::Diagnostics && conn.checked_at.is_none() && !conn.checking {
-            out.push(ConnAction::RunPreflight);
+        if st.tab == SettingsTab::Diagnostics && conn.checks_at == 0 {
+            out.push(Command::RunPreflight);
         }
     }
     match st.tab {
@@ -71,14 +73,9 @@ pub fn vault_field(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
-    let current = conn
-        .settings
-        .vault
-        .as_ref()
-        .map(|v| v.display().to_string())
-        .unwrap_or_default();
+    let current = conn.settings.vault.clone().unwrap_or_default();
     let mut field = st.vault_field.take().unwrap_or_else(|| current.clone());
     let mut pick = false;
     let picking = st.picker.is_some();
@@ -91,7 +88,8 @@ pub fn vault_field(
         );
         let changed = !field.trim().is_empty() && field.trim() != current;
         if kit::button(ui, p, t("conn.set.apply"), changed, changed).clicked() {
-            out.push(ConnAction::SetVault(field.trim().into()));
+            let v = field.trim().to_owned();
+            out.push(Command::SaveSettings(conn.edited(|s| s.vault = Some(v))));
         }
         if super::HAS_PICKER && kit::button(ui, p, t("conn.set.pick"), false, !picking).clicked() {
             pick = true;
@@ -99,18 +97,12 @@ pub fn vault_field(
     });
     st.vault_field = Some(field);
     if pick {
-        st.pick_folder();
+        st.pick_folder(PickField::Vault);
     }
-    st.poll_picker(out);
+    st.poll_picker(conn, out);
 }
 
-fn vault_card(
-    ui: &mut Ui,
-    p: &Palette,
-    st: &mut ConnUi,
-    conn: &ConnView,
-    out: &mut Vec<ConnAction>,
-) {
+fn vault_card(ui: &mut Ui, p: &Palette, st: &mut ConnUi, conn: &ConnView, out: &mut Vec<Command>) {
     kit::card(ui, p, Some(t("conn.set.vault")), CardKind::Plain, |ui| {
         kit::para(ui, txt(t("conn.set.vaultHint"), text::MD, p.fg_muted));
         vault_field(ui, p, st, conn, out);
@@ -120,7 +112,7 @@ fn vault_card(
     });
 }
 
-fn look_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<ConnAction>) {
+fn look_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<Command>) {
     kit::card(ui, p, Some(t("conn.set.look")), CardKind::Plain, |ui| {
         kit::grid2_cells(ui, |ui, col| {
             if col == 0 {
@@ -133,7 +125,8 @@ fn look_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<ConnAction
                 let themes = [Theme::System, Theme::Light, Theme::Dark];
                 let sel = themes.iter().position(|x| *x == conn.settings.theme);
                 if let Some(i) = kit::seg(ui, p, &items, sel, false) {
-                    out.push(ConnAction::SetTheme(themes[i]));
+                    let th = themes[i];
+                    out.push(Command::SaveSettings(conn.edited(|s| s.theme = th)));
                 }
             } else {
                 ui.label(bold(t("conn.set.scale"), text::MD, p.fg));
@@ -147,7 +140,8 @@ fn look_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<ConnAction
                     .iter()
                     .position(|s| (s - conn.settings.scale).abs() < 0.01);
                 if let Some(i) = kit::seg(ui, p, &items, sel, false) {
-                    out.push(ConnAction::SetScale(SCALES[i]));
+                    let z = SCALES[i];
+                    out.push(Command::SaveSettings(conn.edited(|s| s.scale = z)));
                 }
             }
         });
@@ -161,10 +155,10 @@ pub fn session_field(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
     let s = &conn.settings;
-    let (status, color) = match (s.has_tv_session, s.tv_session_verified_at) {
+    let (status, color) = match (conn.has_tv_session, s.tv_session_verified_at) {
         (true, Some(at)) => (
             crate::i18n::tf("conn.set.sessionOk", &[("time", &kyiv_dm_hm(at))]),
             p.ok,
@@ -183,10 +177,10 @@ pub fn session_field(
         );
         let can_save = !st.session_field.trim().is_empty();
         if kit::button(ui, p, t("conn.set.save"), can_save, can_save).clicked() {
-            out.push(ConnAction::SetTvSession(
+            out.push(Command::SetTvSession(
                 std::mem::take(&mut st.session_field).trim().to_owned(),
             ));
-            out.push(ConnAction::RunTask(TaskId::SessionCheck));
+            out.push(Command::RunTask(TaskId::SessionCheck));
         }
         let checking = conn.running(TaskId::SessionCheck);
         if kit::button(
@@ -194,16 +188,19 @@ pub fn session_field(
             p,
             t("conn.set.check"),
             false,
-            s.has_tv_session && !checking,
+            conn.has_tv_session && !checking,
         )
         .clicked()
         {
-            out.push(ConnAction::RunTask(TaskId::SessionCheck));
+            out.push(Command::RunTask(TaskId::SessionCheck));
+        }
+        if conn.has_tv_session && kit::link(ui, p, t("conn.set.forget")).clicked() {
+            out.push(Command::ClearTvSession);
         }
     });
     kit::para(ui, txt(t("conn.set.sessionStored"), text::SM, p.fg_muted));
     if let Some(tv) = conn.task(TaskId::SessionCheck) {
-        diag::task_box(ui, p, st, tv, out);
+        diag::task_box(ui, p, st, TaskId::SessionCheck, tv, out);
     }
 }
 
@@ -212,7 +209,7 @@ fn session_card(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
     kit::card(ui, p, Some(t("conn.set.session")), CardKind::Plain, |ui| {
         kit::para(ui, txt(t("conn.set.sessionHint"), text::MD, p.fg_muted));
@@ -220,7 +217,7 @@ fn session_card(
     });
 }
 
-fn mcp_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<ConnAction>) {
+fn mcp_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<Command>) {
     kit::card(ui, p, Some(t("conn.set.mcp")), CardKind::Plain, |ui| {
         let items = [
             (t("conn.set.mcpBundled"), Tone::Accent),
@@ -237,104 +234,81 @@ fn mcp_card(ui: &mut Ui, p: &Palette, conn: &ConnView, out: &mut Vec<ConnAction>
                 MacroMcp::User
             };
             if v != conn.settings.macro_mcp {
-                out.push(ConnAction::SetMacroMcp(v));
+                out.push(Command::SaveSettings(conn.edited(|s| s.macro_mcp = v)));
             }
         }
         kit::para(ui, txt(t("conn.set.mcpHint"), text::MD, p.fg_muted));
     });
 }
 
-/// The three times and on/off. Saving re-registers the tasks when on.
+/// The three runs (their times come from the exchanges' clocks, so they
+/// are shown, not edited) and on/off. A change re-registers the jobs when
+/// the schedule is on; off removes them.
 pub fn schedule_editor(
     ui: &mut Ui,
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
     let cur = conn.settings.schedule;
-    let times = st
-        .times
-        .get_or_insert_with(|| [fmt_time(cur.eu), fmt_time(cur.us), fmt_time(cur.review)]);
-    let mut bad = false;
-    egui::Grid::new("schedule-times")
+    let busy = conn.running(TaskId::SchedulerRegister) || conn.running(TaskId::SchedulerUnregister);
+    egui::Grid::new("schedule-runs")
         .spacing(egui::vec2(space::S8, space::S3))
         .show(ui, |ui| {
-            for (i, key) in ["conn.set.eu", "conn.set.us", "conn.set.review"]
-                .iter()
-                .enumerate()
-            {
-                let l = ui.label(txt(t(key), text::BASE, p.fg));
-                let ok = parse_time(&times[i]).is_some();
-                bad |= !ok;
-                let r = ui
-                    .add_sized([72.0, 26.0], egui::TextEdit::singleline(&mut times[i]))
-                    .labelled_by(l.id);
-                if !ok {
-                    ui.painter().rect_stroke(
-                        r.rect,
-                        egui::CornerRadius::same(2),
-                        egui::Stroke::new(1.0, p.err),
-                        egui::StrokeKind::Outside,
-                    );
+            for (id, key) in [
+                (WindowId::Eu, "conn.set.eu"),
+                (WindowId::Us, "conn.set.us"),
+                (WindowId::Review, "conn.set.review"),
+            ] {
+                let on = match id {
+                    WindowId::Eu => cur.eu,
+                    WindowId::Us => cur.us,
+                    WindowId::Review => cur.review,
+                };
+                let mut v = on;
+                let at = window_times(id, conn.today).at.format("%H:%M").to_string();
+                let label = format!("{} · {at}", t(key));
+                if ui
+                    .add_enabled(
+                        !busy,
+                        egui::Checkbox::new(&mut v, txt(label, text::BASE, p.fg)),
+                    )
+                    .changed()
+                {
+                    out.push(Command::SaveSettings(conn.edited(|s| match id {
+                        WindowId::Eu => s.schedule.eu = v,
+                        WindowId::Us => s.schedule.us = v,
+                        WindowId::Review => s.schedule.review = v,
+                    })));
+                    if cur.enabled {
+                        out.push(Command::RunTask(TaskId::SchedulerRegister));
+                    }
                 }
                 ui.end_row();
             }
         });
-    if bad {
-        ui.label(txt(t("conn.set.timeBad"), text::SM, p.err));
+    ui.label(txt(t("conn.set.scheduleTimes"), text::SM, p.fg_muted));
+    let items = [
+        (t("conn.set.scheduleOff"), Tone::Bad),
+        (t("conn.set.scheduleOn"), Tone::Good),
+    ];
+    if let Some(i) = kit::seg(ui, p, &items, Some(usize::from(cur.enabled)), false) {
+        let on = i == 1;
+        if on != cur.enabled && !busy {
+            out.push(Command::SaveSettings(
+                conn.edited(|s| s.schedule.enabled = on),
+            ));
+            out.push(Command::RunTask(if on {
+                TaskId::SchedulerRegister
+            } else {
+                TaskId::SchedulerUnregister
+            }));
+        }
     }
-    let parsed = |i: usize| parse_time(&times[i]);
-    let new = match (parsed(0), parsed(1), parsed(2)) {
-        (Some(eu), Some(us), Some(review)) => Some(Schedule {
-            eu,
-            us,
-            review,
-            enabled: cur.enabled,
-        }),
-        _ => None,
-    };
-    let busy = conn.running(TaskId::SchedulerRegister) || conn.running(TaskId::SchedulerUnregister);
-    ui.horizontal(|ui| {
-        let items = [
-            (t("conn.set.scheduleOff"), Tone::Bad),
-            (t("conn.set.scheduleOn"), Tone::Good),
-        ];
-        if let Some(i) = kit::seg(ui, p, &items, Some(usize::from(cur.enabled)), false) {
-            let on = i == 1;
-            if on != cur.enabled && !busy {
-                if let Some(mut s) = new {
-                    s.enabled = on;
-                    out.push(ConnAction::SetSchedule(s));
-                    out.push(ConnAction::RunTask(if on {
-                        TaskId::SchedulerRegister
-                    } else {
-                        TaskId::SchedulerUnregister
-                    }));
-                }
-            }
-        }
-        let changed = new.is_some_and(|s| s != cur);
-        if kit::button(
-            ui,
-            p,
-            t("conn.set.scheduleApply"),
-            changed,
-            changed && !busy,
-        )
-        .clicked()
-        {
-            if let Some(s) = new {
-                out.push(ConnAction::SetSchedule(s));
-                if s.enabled {
-                    out.push(ConnAction::RunTask(TaskId::SchedulerRegister));
-                }
-            }
-        }
-    });
     for id in [TaskId::SchedulerRegister, TaskId::SchedulerUnregister] {
         if let Some(tv) = conn.task(id) {
-            diag::task_box(ui, p, st, tv, out);
+            diag::task_box(ui, p, st, id, tv, out);
         }
     }
 }
@@ -344,14 +318,14 @@ fn schedule_card(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
     kit::card(ui, p, Some(t("conn.set.schedule")), CardKind::Plain, |ui| {
         kit::para(ui, txt(t("conn.set.scheduleHint"), text::MD, p.fg_muted));
         schedule_editor(ui, p, st, conn, out);
         if let Some(c) = conn.check(CheckId::Timezone) {
-            if c.state != super::State::Ok {
-                kit::para(ui, txt(say(&c.detail_key, &c.vars), text::SM, p.warn));
+            if c.state != CheckState::Ok {
+                kit::para(ui, txt(detail(c), text::SM, p.warn));
             }
         }
     });
@@ -363,7 +337,7 @@ fn runtime_card(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) -> bool {
     let mut wizard = false;
     kit::card(ui, p, Some(t("conn.set.more")), CardKind::Plain, |ui| {
@@ -384,11 +358,11 @@ fn runtime_card(
             } else {
                 t("conn.set.clearRuntime")
             };
-            let busy = conn.running(TaskId::ProvisionRuntime);
+            let busy = conn.tasks.tasks.values().any(|t| t.running);
             if kit::button(ui, p, label, confirming, !busy).clicked() {
                 if confirming {
                     st.confirm_clear = None;
-                    out.push(ConnAction::ClearRuntime);
+                    out.push(Command::ClearRuntime);
                 } else {
                     st.confirm_clear = Some(now);
                     ui.ctx()
@@ -397,9 +371,6 @@ fn runtime_card(
             }
             ui.add(egui::Label::new(txt(t("conn.set.clearNote"), text::SM, p.fg_muted)).wrap());
         });
-        if let Some(dir) = &conn.settings.runtime_dir {
-            ui.label(txt(dir.display().to_string(), text::XS, p.fg_muted));
-        }
     });
     wizard
 }

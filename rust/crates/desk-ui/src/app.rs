@@ -14,8 +14,8 @@ use crate::chat::{self, view as chat_view, AutoChat, ChatAction, ChatUi, ChatsVi
 use crate::cli::WindowOpts;
 use crate::clock::{parse_now, Clock};
 use crate::connect::{
-    self, lights::LightsEvent, settings::SettingsEvent, wizard::WizardEvent, ConnAction, ConnUi,
-    ConnView, SettingsTab,
+    self, lights::LightsEvent, settings::SettingsEvent, wizard::WizardEvent, ConnUi, ConnView,
+    SettingsTab,
 };
 use crate::fonts;
 use crate::i18n::t;
@@ -221,9 +221,10 @@ impl DeskApp {
     }
 
     fn refresh_conn(&mut self) {
+        let today = desk_core::windows::kyiv_now(self.clock.now()).date;
         let mut c = match &self.conn_override {
             Some(c) => c.clone(),
-            None => connect::conn_of(&self.snap),
+            None => connect::conn_of(&self.snap, today),
         };
         let look = (c.settings.theme, c.settings.scale);
         if self.seen_look != Some(look) {
@@ -231,26 +232,29 @@ impl DeskApp {
             self.theme = theme_pref(look.0);
             self.scale = if look.1 > 0.0 { look.1 } else { 1.0 };
         }
-        // What is applied is what the page shows.
-        c.settings.theme = match self.theme {
+        // What is applied is what the page shows (a pick shows before the
+        // snapshot brings it back).
+        let theme = match self.theme {
             ThemePreference::Light => connect::Theme::Light,
             ThemePreference::Dark => connect::Theme::Dark,
             ThemePreference::System => connect::Theme::System,
         };
-        c.settings.scale = self.scale;
+        if c.settings.theme != theme || c.settings.scale != self.scale {
+            let s = std::sync::Arc::make_mut(&mut c.settings);
+            s.theme = theme;
+            s.scale = self.scale;
+        }
         self.conn = c;
     }
 
     /// Apply what is the UI's own (theme, scale), then hand the rest to desk-app.
-    fn send_conn(&mut self, actions: Vec<ConnAction>) {
-        let mut cmds = Vec::new();
-        for a in actions {
-            match &a {
-                ConnAction::SetTheme(th) => self.theme = theme_pref(*th),
-                ConnAction::SetScale(z) => self.scale = *z,
-                _ => {}
+    fn send_conn(&mut self, cmds: Vec<Command>) {
+        // Theme and scale take effect here and now; desk-app stores them.
+        for c in &cmds {
+            if let Command::SaveSettings(next) = c {
+                self.theme = theme_pref(next.theme);
+                self.scale = next.scale;
             }
-            cmds.extend(connect::to_commands(a));
         }
         self.send(cmds);
         self.refresh_conn();
@@ -283,7 +287,7 @@ impl DeskApp {
             ui.ctx().set_zoom_factor(self.scale);
         }
         // The first run opens the wizard, once.
-        if self.conn.settings.first_run && !self.cui.wizard_shown {
+        if self.conn.first_run && !self.cui.wizard_shown {
             self.cui.wizard_shown = true;
             self.chat.page = Page::Wizard;
         }
@@ -296,7 +300,7 @@ impl DeskApp {
         let now_s = ui.input(|i| i.time);
         if focused && self.focus_probe.is_none_or(|t0| now_s - t0 > 30.0) {
             self.focus_probe = Some(now_s);
-            conn_actions.push(ConnAction::CheckStatus);
+            conn_actions.push(Command::CheckStatus);
         }
         egui::Panel::left("sidebar")
             .resizable(false)
@@ -320,8 +324,8 @@ impl DeskApp {
                 if ev == Some(LightsEvent::OpenDiagnostics) {
                     self.chat.page = Page::Settings;
                     self.cui.tab = SettingsTab::Diagnostics;
-                    if self.conn.checked_at.is_none() && !self.conn.checking {
-                        conn_actions.push(ConnAction::RunPreflight);
+                    if self.conn.checks_at == 0 {
+                        conn_actions.push(Command::RunPreflight);
                     }
                 }
             });
@@ -641,7 +645,7 @@ fn sidebar(
     conn: &ConnView,
     today: NaiveDate,
     actions: &mut Vec<ChatAction>,
-    conn_actions: &mut Vec<ConnAction>,
+    conn_actions: &mut Vec<Command>,
 ) -> Option<LightsEvent> {
     ui.spacing_mut().item_spacing.y = space::S3;
     ui.add_space(space::S2);

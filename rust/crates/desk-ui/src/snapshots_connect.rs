@@ -2,7 +2,10 @@
 //! against a hand-made `ConnView`: desk-core and desk-app are building the
 //! real one next door.
 
-use chrono::{TimeZone, Utc};
+use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
+
+use chrono::{NaiveDate, TimeZone, Utc};
 use desk_app::Command;
 use desk_core::WindowId;
 use eframe::egui::{self, Theme};
@@ -12,17 +15,19 @@ use egui_kittest::Harness;
 use crate::app::DeskApp;
 use crate::chat::Page;
 use crate::connect::{
-    Check, CheckId, ConnView, Fix, Light, SettingsTab, State, StatusLights, TaskId, TaskState,
-    TaskView,
+    Check, CheckId, CheckState, ConnView, Fix, Light, LightState, Settings, SettingsTab,
+    StatusLights, StepId, TaskId, TaskState, TasksView,
 };
 use crate::snapshots::{has, screen_sized, TODAY};
 #[cfg(target_os = "linux")]
 use crate::snapshots::{snapshot_options, theme_name};
 
-fn light(state: State, key: &str, vars: &[(&str, &str)]) -> Light {
+const VAULT: &str = "C:\\Users\\Michael\\Documents\\Strategy Desk";
+
+fn light(state: LightState, key: &str, vars: &[(&str, &str)]) -> Light {
     Light {
         state,
-        detail_key: key.into(),
+        key: key.into(),
         vars: vars
             .iter()
             .map(|(k, v)| ((*k).into(), (*v).into()))
@@ -30,7 +35,13 @@ fn light(state: State, key: &str, vars: &[(&str, &str)]) -> Light {
     }
 }
 
-fn check(id: CheckId, state: State, key: &str, vars: &[(&str, &str)], fix: Option<Fix>) -> Check {
+fn check(
+    id: CheckId,
+    state: CheckState,
+    key: &str,
+    vars: &[(&str, &str)],
+    fix: Option<Fix>,
+) -> Check {
     Check {
         id,
         state,
@@ -38,130 +49,156 @@ fn check(id: CheckId, state: State, key: &str, vars: &[(&str, &str)], fix: Optio
         vars: vars
             .iter()
             .map(|(k, v)| ((*k).into(), (*v).into()))
-            .collect(),
+            .collect::<BTreeMap<_, _>>(),
         fix,
         fix_label_key: None,
         note_key: None,
     }
 }
 
-/// A PC halfway through setup: vault and Claude Code there, no login, the
-/// runtime being built, TradingView closed, no sessionid, no schedule.
+fn ms(h: u32, m: u32) -> i64 {
+    Utc.with_ymd_and_hms(2026, 11, 27, h, m, 0)
+        .unwrap()
+        .timestamp_millis()
+}
+
+/// A PC halfway through setup, as desk-app publishes it: vault and Claude
+/// Code there, no login, the runtime being built, TradingView closed, no
+/// sessionid, no schedule.
 pub(crate) fn sample_conn() -> ConnView {
-    let at = Utc.with_ymd_and_hms(2026, 11, 27, 7, 31, 0).unwrap();
-    let mut c = ConnView {
-        lights: StatusLights {
-            tradingview: light(State::Fail, "status.tv.stopped", &[]),
-            cdp: light(State::Fail, "status.cdp.down", &[("port", "9222")]),
-            claude: light(State::Warn, "status.claude.logged_out", &[]),
-            vault: light(State::Ok, "status.vault.ok", &[]),
-            checked_at: Some(at),
+    use CheckState::{Fail, Ok, Warn};
+    let mut login = check(
+        CheckId::ClaudeAuth,
+        Fail,
+        "preflight.claude.none",
+        &[],
+        Some(Fix::Task(TaskId::ClaudeLogin)),
+    );
+    login.fix_label_key = Some("preflight.fix.claudeLogin".into());
+    login.note_key = Some("preflight.claude.note".into());
+    let mut runtime = check(
+        CheckId::Tvmcp,
+        Fail,
+        "preflight.runtime.missing",
+        &[],
+        Some(Fix::Task(TaskId::ProvisionRuntime)),
+    );
+    runtime.fix_label_key = Some("preflight.fix.provision".into());
+    runtime.note_key = Some("preflight.runtime.note".into());
+    let mut session = check(
+        CheckId::TvSession,
+        Fail,
+        "preflight.tvSession.none",
+        &[],
+        None,
+    );
+    session.note_key = Some("preflight.tvSession.howNote".into());
+    let mut sched = check(
+        CheckId::Scheduler,
+        Warn,
+        "preflight.scheduler.none",
+        &[],
+        Some(Fix::Task(TaskId::SchedulerRegister)),
+    );
+    sched.fix_label_key = Some("preflight.fix.schedulerRegister".into());
+    let settings = Settings {
+        vault: Some(VAULT.into()),
+        ..Settings::default()
+    };
+    let mut tasks = TasksView::default();
+    tasks.tasks.insert(
+        TaskId::ProvisionRuntime,
+        TaskState {
+            running: true,
+            ok: None,
+            command: "uv sync --frozen --project C:\\Program Files\\Strategy Desk\\resources\\tvmcp".into(),
+            lines: VecDeque::from(vec![
+                "Using CPython 3.12.8".to_owned(),
+                "Creating virtual environment at: C:\\Users\\Michael\\AppData\\Roaming\\strategy-desk-rs\\py\\venv".into(),
+                "Resolved 94 packages in 2ms".into(),
+                "Prepared 31 packages in 41.2s".into(),
+            ]),
+            error_key: String::new(),
+            error_detail: String::new(),
         },
-        checks: vec![
+    );
+    ConnView {
+        settings: Arc::new(settings),
+        lights: Arc::new(StatusLights {
+            tradingview: light(LightState::Warn, "status.tv.stopped", &[]),
+            cdp: light(LightState::Fail, "status.cdp.down", &[("port", "9222")]),
+            claude: light(
+                LightState::Warn,
+                "status.claude.logged_out",
+                &[("version", "2.1.340")],
+            ),
+            vault: light(LightState::Ok, "status.vault.ok", &[]),
+            checked_at: ms(7, 31),
+        }),
+        checks: Arc::new(vec![
             check(
                 CheckId::Vault,
-                State::Ok,
+                Ok,
                 "preflight.vault.ok",
-                &[("path", "C:\\Users\\Michael\\Documents\\Strategy Desk")],
+                &[("path", VAULT)],
                 None,
             ),
             check(
                 CheckId::Claude,
-                State::Ok,
+                Ok,
                 "preflight.claude.found",
                 &[("version", "2.1.340")],
                 None,
             ),
-            check(
-                CheckId::ClaudeAuth,
-                State::Fail,
-                "preflight.claude.none",
-                &[],
-                Some(Fix::Task(TaskId::ClaudeLogin)),
-            ),
-            check(
-                CheckId::Uv,
-                State::Ok,
-                "preflight.uv.ok",
-                &[("version", "0.9.2")],
-                None,
-            ),
-            check(
-                CheckId::Tvmcp,
-                State::Fail,
-                "preflight.runtime.missing",
-                &[],
-                Some(Fix::Task(TaskId::ProvisionRuntime)),
-            ),
+            login,
+            runtime,
             check(
                 CheckId::Tradingview,
-                State::Fail,
+                Fail,
                 "preflight.tv.notRunning",
                 &[],
                 Some(Fix::LaunchTradingView),
             ),
             check(
                 CheckId::Cdp,
-                State::Ok,
+                Ok,
                 "preflight.port.free",
                 &[("port", "9222")],
                 None,
             ),
-            check(
-                CheckId::TvSession,
-                State::Fail,
-                "preflight.tvSession.none",
-                &[],
-                None,
-            ),
-            check(
-                CheckId::Scheduler,
-                State::Warn,
-                "preflight.scheduler.none",
-                &[],
-                Some(Fix::Task(TaskId::SchedulerRegister)),
-            ),
+            session,
+            sched,
             check(
                 CheckId::Timezone,
-                State::Ok,
+                Ok,
                 "preflight.timezone.ok",
-                &[],
+                &[("tz", "Europe/Kyiv")],
                 None,
             ),
-        ],
-        checked_at: Some(at),
-        ..ConnView::default()
-    };
-    c.settings.scale = 1.0;
-    c.settings.vault = Some("C:\\Users\\Michael\\Documents\\Strategy Desk".into());
-    c.tasks = vec![TaskView {
-        id: TaskId::ProvisionRuntime,
-        state: TaskState::Running,
-        lines: vec![
-            "uv sync --frozen --project C:\\Program Files\\Strategy Desk\\resources\\tvmcp".into(),
-            "Using CPython 3.12.8".into(),
-            "Creating virtual environment at: C:\\Users\\Michael\\AppData\\Roaming\\strategy-desk-rs\\py\\venv".into(),
-            "Resolved 94 packages in 2ms".into(),
-            "Prepared 31 packages in 41.2s".into(),
-        ],
-        wants_input: false,
-    }];
-    c
+        ]),
+        checks_at: ms(7, 31),
+        tasks: Arc::new(tasks),
+        first_run: false,
+        has_tv_session: false,
+        today: NaiveDate::from_ymd_opt(2026, 10, 26).unwrap(),
+    }
 }
 
 /// A fresh PC: the vault folder is not there yet.
 fn fresh_conn() -> ConnView {
     let mut c = sample_conn();
-    let path = "C:\\Users\\Michael\\Documents\\Strategy Desk";
-    c.lights.vault = light(State::Fail, "status.vault.missing", &[]);
-    c.checks[0] = check(
+    Arc::make_mut(&mut c.lights).vault = light(LightState::Fail, "status.vault.missing", &[]);
+    let mut v = check(
         CheckId::Vault,
-        State::Warn,
+        CheckState::Warn,
         "preflight.vault.missing",
-        &[("path", path)],
+        &[("path", VAULT)],
         Some(Fix::Task(TaskId::VaultCreate)),
     );
-    c.tasks.clear();
+    v.fix_label_key = Some("preflight.fix.vaultCreate".into());
+    v.note_key = Some("preflight.vault.createNote".into());
+    Arc::make_mut(&mut c.checks)[0] = v;
+    c.tasks = Arc::default();
     c
 }
 
@@ -172,12 +209,16 @@ fn harness(theme: Theme, conn: ConnView, page: Page, height: f32) -> Harness<'st
     h
 }
 
-fn tasks_sent(h: &Harness<'_, DeskApp>) -> Vec<String> {
+fn sent(h: &Harness<'_, DeskApp>) -> Vec<Command> {
+    h.state().sent.clone()
+}
+
+fn tasks_sent(h: &Harness<'_, DeskApp>) -> Vec<TaskId> {
     h.state()
         .sent
         .iter()
         .filter_map(|c| match c {
-            Command::RunTask(id) => Some(id.0.clone()),
+            Command::RunTask(id) => Some(*id),
             _ => None,
         })
         .collect()
@@ -205,6 +246,7 @@ fn lights_say_what_is_wrong_and_a_red_one_opens_diagnostics() {
     assert_eq!(h.state_mut().chat_mut().page, Page::Settings);
     assert_eq!(h.state_mut().conn_ui_mut().tab, SettingsTab::Diagnostics);
     assert!(has(&h, "Требует внимания: 5"));
+    assert!(sent(&h).contains(&Command::LaunchTradingView));
 }
 
 #[test]
@@ -232,13 +274,13 @@ fn every_problem_has_one_fix_and_it_runs_its_task() {
     assert_eq!(disabled, 1);
     h.query_all_by_label("Исправить").next().unwrap().click();
     h.run();
-    assert_eq!(tasks_sent(&h), vec!["claude-login".to_owned()]);
+    assert_eq!(tasks_sent(&h), vec![TaskId::ClaudeLogin]);
 }
 
 #[test]
 fn the_wizard_presses_its_task_once_and_skipping_says_what_weakens() {
     let mut conn = sample_conn();
-    conn.tasks.clear();
+    conn.tasks = Arc::default();
     let mut h = harness(Theme::Light, conn, Page::Wizard, 1200.0);
     // Page 2 «Claude»: the login waits for the button.
     h.state_mut().conn_ui_mut().wizard.step = 1;
@@ -249,8 +291,9 @@ fn the_wizard_presses_its_task_once_and_skipping_says_what_weakens() {
     h.get_by_label("Пропустить шаг").click();
     h.run();
     h.run();
+    assert!(sent(&h).contains(&Command::SkipStep(StepId::Claude)));
     assert!(has(&h, "Шаг 3 из 6 · Рынок"));
-    assert_eq!(tasks_sent(&h), vec!["provision-runtime".to_owned()]);
+    assert_eq!(tasks_sent(&h), vec![TaskId::ProvisionRuntime]);
     assert!(has(&h, "Запущено само: Среда Python"));
     h.run();
     assert_eq!(tasks_sent(&h).len(), 1, "never a retry loop");
@@ -277,14 +320,15 @@ fn the_sessionid_is_sent_once_and_never_kept() {
     h.get_by_label("Сохранить").click();
     h.run();
     assert!(h.state_mut().conn_ui_mut().session_field.is_empty());
-    assert_eq!(tasks_sent(&h), vec!["session-check".to_owned()]);
+    assert_eq!(tasks_sent(&h), vec![TaskId::SessionCheck]);
+    assert!(sent(&h).contains(&Command::SetTvSession("abc123secret".into())));
     assert!(!has(&h, "abc123secret"));
 }
 
 #[test]
 fn a_first_run_opens_the_wizard_once() {
     let mut conn = sample_conn();
-    conn.settings.first_run = true;
+    conn.first_run = true;
     let mut h = harness(Theme::Light, conn, Page::Day, 1000.0);
     h.run();
     assert_eq!(h.state_mut().chat_mut().page, Page::Wizard);
@@ -314,6 +358,22 @@ fn settings_change_theme_and_scale_here_and_now() {
     h.get_by_label("Тёмная").click();
     h.run();
     assert_eq!(h.ctx.theme(), Theme::Dark);
+    // Every change goes to desk-app as the whole settings.
+    let saved: Vec<_> = sent(&h)
+        .into_iter()
+        .filter_map(|c| match c {
+            Command::SaveSettings(s) => Some(s),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(saved.len(), 2);
+    assert!((saved[0].scale - 1.1).abs() < 1e-6);
+    assert_eq!(saved[1].theme, crate::connect::Theme::Dark);
+    assert_eq!(saved[1].vault.as_deref(), Some(VAULT));
+    // The schedule: on = saved + registered.
+    h.get_by_label("Включено").click();
+    h.run();
+    assert!(tasks_sent(&h).contains(&TaskId::SchedulerRegister));
 }
 
 /// Wizard pages 1 and 5, settings, diagnostics with failing checks (the

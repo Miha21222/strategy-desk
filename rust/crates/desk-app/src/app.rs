@@ -26,19 +26,25 @@ use crate::chat::manager::{ChatMsg, Chats, Forward};
 use crate::chat::store::{default_data_dir, ChatStore};
 use crate::chat::{ChatCommand, ChatsView, ClaudeLaunch};
 use crate::day::{self, DayMark};
+use crate::diagnose;
+use crate::ops::{next_prewindow, Ops};
+use crate::paths;
+use crate::secrets::{KeyringStore, SecretStore};
 use crate::shots::{self, LoadedShot, ShotRefused};
+use crate::status::{self, StatusLights};
+use crate::tasks::{Forward as TaskForward, TaskEvent, TaskId, TasksView};
+use crate::tv_launch::{self, LaunchError, Launched};
 use crate::vault_write::{self, WriteError};
 use crate::watch::{Changed, StateWatcher, WatchOptions};
+use desk_core::preflight::{build_checks, Check};
+use desk_core::settings::Settings;
+use desk_core::wizard::{should_open_wizard, StepId};
 
 /// How many errors the snapshot keeps (oldest dropped first).
 pub const ERRORS_KEPT: usize = 20;
 
 /// Bench hook (CONTRACTS «Хуки для замеров»): one stderr JSON line per new rev.
 pub const BENCH_WATCH_ENV: &str = "DESK_BENCH_WATCH";
-
-/// A task id from a fixed list — never a command line (rule of the old app).
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TaskId(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -63,9 +69,30 @@ pub enum Command {
     /// Read another vault: watcher, day strip and the open day follow.
     SetVault(PathBuf),
     Chat(ChatCommand),
+    /// Refresh the lights (on focus, on the button).
     CheckStatus,
     LaunchTradingView,
+    /// Ids, never commands (rule of the old app).
     RunTask(TaskId),
+    /// One line into a running `claude_login` (the code from the login page).
+    TaskInput {
+        id: TaskId,
+        text: String,
+    },
+    StopTask(TaskId),
+    /// «Настройки»: the whole settings; a changed vault is opened.
+    SaveSettings(Box<Settings>),
+    /// The TradingView sessionid, into the Credential Manager only.
+    SetTvSession(String),
+    ClearTvSession,
+    /// «Очистить рантайм» (after the UI asked).
+    ClearRuntime,
+    /// «Проверить заново»: the whole check list (`Snapshot::checks`).
+    RunPreflight,
+    /// «Пропустить» on a wizard page (saved in the settings).
+    SkipStep(StepId),
+    /// «Готово»: the wizard does not open by itself again.
+    FinishWizard,
 }
 
 /// A screenshot as the UI may find it in the snapshot.
@@ -75,14 +102,6 @@ pub enum ShotState {
     /// Not shown (missing, not a PNG, outside `indices-kb/shots/`); the tile stays empty.
     Refused(ShotRefused),
 }
-
-/// TODO(stage 6): TradingView / CDP / Claude lights.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct StatusLights {}
-
-/// TODO(stage 6): running and finished tasks.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct TasksView {}
 
 /// An error for the UI: an i18n key plus variables, never a sentence.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +137,15 @@ pub struct Snapshot {
     pub chats: Arc<ChatsView>,
     pub status: Arc<StatusLights>,
     pub tasks: Arc<TasksView>,
+    pub settings: Arc<Settings>,
+    /// «Диагностика» / the wizard's list, from `desk_core::preflight::build_checks`.
+    pub checks: Arc<Vec<Check>>,
+    /// When `checks` was gathered (ms); 0 = not yet.
+    pub checks_at: i64,
+    /// The wizard was never finished: open it by itself.
+    pub first_run: bool,
+    /// The only thing about the sessionid that leaves desk-app.
+    pub has_tv_session: bool,
     pub errors: Arc<Vec<UserError>>,
     /// Bumps on every change.
     pub rev: u64,
@@ -133,6 +161,11 @@ impl Default for Snapshot {
             chats: Arc::default(),
             status: Arc::default(),
             tasks: Arc::default(),
+            settings: Arc::default(),
+            checks: Arc::default(),
+            checks_at: 0,
+            first_run: false,
+            has_tv_session: false,
             errors: Arc::default(),
             rev: 0,
         }
@@ -161,6 +194,15 @@ pub struct AppConfig {
     pub data_dir: Option<PathBuf>,
     /// How a chat's `claude` is started (tests and benches; empty in production).
     pub claude: ClaudeLaunch,
+    /// The credential store; `None` = the OS one (keyring). Tests pass a
+    /// `MemoryStore`.
+    pub secrets: Option<Arc<dyn SecretStore>>,
+    /// `strategy-desk.exe` for the scheduled jobs; `None` = this process's exe.
+    pub exe: Option<PathBuf>,
+    /// The Electron `config.json` imported on the first start. `None` = the
+    /// platform's one when `data_dir` is the default, nothing otherwise (a
+    /// test's temp data dir must not read the owner's real config).
+    pub import_from: Option<PathBuf>,
 }
 
 /// Chat snapshots are published at most this often (≤ 30/s, CONTRACTS).
@@ -215,6 +257,10 @@ fn bench_line(rev: u64, t_unix_ms: u128) -> String {
 enum Msg {
     Cmd(Command),
     Chat(ChatMsg),
+    Status(StatusLights),
+    Preflight(Vec<Check>, i64),
+    Task(TaskEvent),
+    TvLaunched(Result<Launched, LaunchError>),
     /// A watcher's report; `gen` names the vault it watched.
     Changed(u64, Changed),
 }
@@ -252,10 +298,25 @@ impl AppHandle {
             .max_blocking_threads(4)
             .enable_all()
             .build()?;
+        let vault_override = cfg.vault.is_some();
         let actor = Actor {
             shared: Arc::clone(&shared),
             vault: cfg.vault,
             watch_opts: cfg.watch,
+            vault_override,
+            import_from: cfg.import_from.or_else(|| {
+                cfg.data_dir
+                    .is_none()
+                    .then(paths::electron_config)
+                    .flatten()
+            }),
+            secrets: cfg.secrets,
+            exe: cfg.exe,
+            ops: None,
+            status_busy: false,
+            status_again: false,
+            preflight_busy: false,
+            preflight_again: false,
             data_dir: cfg.data_dir,
             launch: cfg.claude,
             chats: None,
@@ -323,6 +384,17 @@ struct Actor {
     watch_opts: WatchOptions,
     data_dir: Option<PathBuf>,
     launch: ClaudeLaunch,
+    /// `AppConfig::vault` was given: the settings' vault does not apply.
+    vault_override: bool,
+    import_from: Option<PathBuf>,
+    secrets: Option<Arc<dyn SecretStore>>,
+    exe: Option<PathBuf>,
+    /// Settings, secrets, tasks, runtime; built at the start of the loop.
+    ops: Option<Ops>,
+    status_busy: bool,
+    status_again: bool,
+    preflight_busy: bool,
+    preflight_again: bool,
     /// Built inside the runtime (its writer is a task).
     chats: Option<Chats>,
     weak: mpsc::WeakUnboundedSender<Msg>,
@@ -339,22 +411,31 @@ struct Actor {
 
 impl Actor {
     async fn run(mut self, mut rx: mpsc::UnboundedReceiver<Msg>) {
+        self.start_ops();
         self.start_watcher();
         self.refresh_index().await;
         self.start_chats().await;
+        // The lights and the checks: once at start, then on events (no polling loop).
+        self.refresh_all();
         let mut last_chat_publish = tokio::time::Instant::now() - CHAT_FRAME;
         loop {
-            let due = self
-                .chats
-                .as_ref()
-                .filter(|c| c.is_dirty())
-                .map(|_| (last_chat_publish + CHAT_FRAME).max(tokio::time::Instant::now()));
+            let dirty = self.chats.as_ref().is_some_and(|c| c.is_dirty())
+                || self.ops.as_ref().is_some_and(|o| o.tasks_dirty);
+            let due =
+                dirty.then(|| (last_chat_publish + CHAT_FRAME).max(tokio::time::Instant::now()));
+            let prewindow = self.prewindow_instant();
             tokio::select! {
                 // Biased: under a flood of driver events the frame still comes.
                 biased;
                 _ = async { tokio::time::sleep_until(due.unwrap_or_else(tokio::time::Instant::now)).await }, if due.is_some() => {
                     self.publish_chats();
+                    self.publish_tasks();
                     last_chat_publish = tokio::time::Instant::now();
+                }
+                _ = async { tokio::time::sleep_until(prewindow.unwrap_or_else(tokio::time::Instant::now)).await }, if prewindow.is_some() => {
+                    self.refresh_status();
+                    // Past the minute, so the next one is the next window's.
+                    tokio::time::sleep(Duration::from_secs(1)).await;
                 }
                 msg = rx.recv() => match msg {
                     None => break,
@@ -369,6 +450,15 @@ impl Actor {
                     }
                     Some(Msg::Changed(g, names)) if g == self.watch_gen => self.changed(names).await,
                     Some(Msg::Changed(..)) => {}
+                    Some(Msg::Status(lights)) => self.on_status(lights),
+                    Some(Msg::Preflight(checks, at)) => self.on_preflight(checks, at),
+                    Some(Msg::Task(ev)) => self.on_task(ev),
+                    Some(Msg::TvLaunched(r)) => {
+                        if let Err(e) = r {
+                            self.error(UserError::new(e.key()));
+                        }
+                        self.refresh_all();
+                    }
                 },
             }
         }
@@ -432,7 +522,10 @@ impl Actor {
                 self.open_day(today).await;
             }
             Command::LoadShot(rel) => self.load_shot(rel).await,
-            Command::SetVault(v) => self.set_vault(v).await,
+            Command::SetVault(v) => {
+                self.set_vault(v).await;
+                self.refresh_all();
+            }
             Command::WriteHumanRead {
                 date,
                 region,
@@ -475,17 +568,259 @@ impl Actor {
                     self.error(e);
                 }
             }
-            // TODO(stage 6): status probes (sysinfo, CDP with a 1.5 s timeout).
-            Command::CheckStatus => self.todo("check_status"),
-            // TODO(stage 6): tv-launch port.
-            Command::LaunchTradingView => self.todo("launch_tradingview"),
-            // TODO(stage 6): task runner.
-            Command::RunTask(_) => self.todo("run_task"),
+            Command::CheckStatus => self.refresh_status(),
+            Command::LaunchTradingView => self.launch_tv(),
+            Command::RunTask(id) => {
+                let (vault, fwd) = (self.vault.clone(), self.task_forward());
+                if let Some(o) = self.ops.as_mut() {
+                    o.run_task(id, vault.as_deref(), fwd);
+                }
+            }
+            Command::TaskInput { id, text } => {
+                if let Some(o) = self.ops.as_ref() {
+                    o.task_input(id, &text);
+                }
+            }
+            Command::StopTask(id) => {
+                if let Some(o) = self.ops.as_ref() {
+                    o.stop_task(id);
+                }
+            }
+            Command::SaveSettings(next) => self.save_settings(*next).await,
+            Command::SetTvSession(v) => {
+                let r = self.ops.as_mut().map(|o| o.set_tv_session(&v));
+                self.after_ops(r);
+            }
+            Command::ClearTvSession => {
+                let r = self.ops.as_mut().map(Ops::clear_tv_session);
+                self.after_ops(r);
+            }
+            Command::ClearRuntime => {
+                let r = self.ops.as_mut().map(Ops::clear_runtime);
+                self.after_ops(r);
+            }
+            Command::RunPreflight => self.refresh_preflight(),
+            Command::SkipStep(id) => {
+                let r = self.ops.as_mut().map(|o| o.skip_step(id));
+                self.after_ops(r);
+            }
+            Command::FinishWizard => {
+                let r = self.ops.as_mut().map(|o| o.finish_wizard(Utc::now()));
+                self.after_ops(r);
+            }
         }
     }
 
-    fn todo(&mut self, what: &str) {
-        self.error(UserError::new(keys::NOT_IMPLEMENTED).var("command", what));
+    // ------------------------------------------------------------ stage 6
+
+    fn start_ops(&mut self) {
+        let Some(dir) = paths::data_dir(self.data_dir.as_deref()) else {
+            return;
+        };
+        let secrets = self
+            .secrets
+            .clone()
+            .unwrap_or_else(|| Arc::new(KeyringStore::new()));
+        let exe = self.exe.clone().or_else(|| std::env::current_exe().ok());
+        // Documents\Strategy Desk only for the real data dir: a test's temp
+        // data dir must never point the desk at the owner's documents.
+        let default_vault = self.data_dir.is_none().then(paths::default_vault).flatten();
+        let (ops, err) = Ops::new(
+            dir,
+            self.import_from.clone(),
+            default_vault,
+            secrets,
+            exe,
+            self.launch.clone(),
+        );
+        if !self.vault_override {
+            self.vault = ops.settings_vault();
+        }
+        self.ops = Some(ops);
+        self.publish_settings();
+        if let Some(e) = err {
+            self.error(e);
+        }
+    }
+
+    fn publish_settings(&self) {
+        if let Some(o) = self.ops.as_ref() {
+            let (s, has) = (Arc::new(o.settings.clone()), o.has_tv_session());
+            let first_run = should_open_wizard(&s);
+            self.shared.publish(|snap| {
+                snap.settings = s;
+                snap.has_tv_session = has;
+                snap.first_run = first_run;
+            });
+        }
+    }
+
+    fn after_ops(&mut self, r: Option<Result<(), UserError>>) {
+        if let Some(Err(e)) = r {
+            self.error(e);
+        }
+        self.publish_settings();
+        self.refresh_all();
+    }
+
+    async fn save_settings(&mut self, next: Settings) {
+        let vault_changed = self
+            .ops
+            .as_ref()
+            .is_some_and(|o| o.settings.vault != next.vault);
+        let r = self.ops.as_mut().map(|o| o.save_settings(next));
+        if let Some(Err(e)) = r {
+            self.error(e);
+            return;
+        }
+        self.publish_settings();
+        if vault_changed && !self.vault_override {
+            if let Some(v) = self.ops.as_ref().and_then(Ops::settings_vault) {
+                self.set_vault(v).await;
+            }
+        }
+        self.refresh_all();
+    }
+
+    fn task_forward(&self) -> TaskForward {
+        let weak = self.weak.clone();
+        Arc::new(move |ev| {
+            if let Some(tx) = weak.upgrade() {
+                let _ = tx.send(Msg::Task(ev));
+            }
+        })
+    }
+
+    fn on_task(&mut self, ev: TaskEvent) {
+        let ended = matches!(ev, TaskEvent::End { .. });
+        let r = self.ops.as_mut().map(|o| o.on_task(ev, Utc::now()));
+        match r {
+            Some(Ok(true)) => self.publish_settings(),
+            Some(Err(e)) => self.error(e),
+            _ => {}
+        }
+        if ended {
+            // The end of a task is shown at once, not at the next frame,
+            // and what it changed is looked at again.
+            self.publish_tasks();
+            self.refresh_all();
+        }
+    }
+
+    fn publish_tasks(&mut self) {
+        if let Some(o) = self.ops.as_mut().filter(|o| o.tasks_dirty) {
+            o.tasks_dirty = false;
+            let view = Arc::new(o.tasks.clone());
+            self.shared.publish(|s| s.tasks = view);
+        }
+    }
+
+    /// Probe in the background; one probe at a time, a request during one
+    /// runs once more after it.
+    fn refresh_status(&mut self) {
+        if self.status_busy {
+            self.status_again = true;
+            return;
+        }
+        let Some(o) = self.ops.as_ref() else { return };
+        self.status_busy = true;
+        let (port, claude, vault, weak) = (
+            o.settings.cdp_port,
+            o.claude_bin(),
+            self.vault.clone(),
+            self.weak.clone(),
+        );
+        tokio::spawn(async move {
+            let facts = status::probe(port, claude, vault).await;
+            let lights = status::lights(&facts, Utc::now().timestamp_millis());
+            if let Some(tx) = weak.upgrade() {
+                let _ = tx.send(Msg::Status(lights));
+            }
+        });
+    }
+
+    fn refresh_all(&mut self) {
+        self.refresh_status();
+        self.refresh_preflight();
+    }
+
+    /// The check list in the background, one gathering at a time (like the
+    /// lights); nothing is cached, so «Проверить заново» means it.
+    fn refresh_preflight(&mut self) {
+        if self.preflight_busy {
+            self.preflight_again = true;
+            return;
+        }
+        let Some(o) = self.ops.as_ref() else { return };
+        self.preflight_busy = true;
+        let inputs = o.diagnose_inputs(self.vault.as_deref(), Utc::now());
+        let weak = self.weak.clone();
+        tokio::spawn(async move {
+            let settings = inputs.settings.clone();
+            let facts = diagnose::facts(inputs).await;
+            let checks = build_checks(&settings, &facts);
+            if let Some(tx) = weak.upgrade() {
+                let _ = tx.send(Msg::Preflight(checks, Utc::now().timestamp_millis()));
+            }
+        });
+    }
+
+    fn on_preflight(&mut self, checks: Vec<Check>, at: i64) {
+        self.preflight_busy = false;
+        match self.ops.as_mut().map(|o| o.reconcile_skips(&checks)) {
+            Some(Ok(true)) => self.publish_settings(),
+            Some(Err(e)) => self.error(e),
+            _ => {}
+        }
+        let checks = Arc::new(checks);
+        self.shared.publish(|s| {
+            s.checks = checks;
+            s.checks_at = at;
+        });
+        if std::mem::take(&mut self.preflight_again) {
+            self.refresh_preflight();
+        }
+    }
+
+    fn on_status(&mut self, lights: StatusLights) {
+        self.status_busy = false;
+        let changed = self.shared.read(|s| {
+            s.status.tradingview != lights.tradingview
+                || s.status.cdp != lights.cdp
+                || s.status.claude != lights.claude
+                || s.status.vault != lights.vault
+                || s.status.checked_at == 0
+        });
+        if changed {
+            let l = Arc::new(lights);
+            self.shared.publish(|s| s.status = l);
+        }
+        if std::mem::take(&mut self.status_again) {
+            self.refresh_status();
+        }
+    }
+
+    fn launch_tv(&mut self) {
+        let Some(o) = self.ops.as_ref() else { return };
+        let (port, exe, weak) = (
+            o.settings.cdp_port,
+            o.settings.tv_desktop_exe.clone(),
+            self.weak.clone(),
+        );
+        tokio::spawn(async move {
+            let r = tv_launch::launch(port, &exe, Duration::from_secs(30)).await;
+            if let Some(tx) = weak.upgrade() {
+                let _ = tx.send(Msg::TvLaunched(r));
+            }
+        });
+    }
+
+    fn prewindow_instant(&self) -> Option<tokio::time::Instant> {
+        let o = self.ops.as_ref()?;
+        let now = Utc::now();
+        let at = next_prewindow(now, &o.settings)?;
+        let wait = (at - now).to_std().ok()?;
+        Some(tokio::time::Instant::now() + wait)
     }
 
     fn error(&mut self, e: UserError) {
@@ -691,7 +1026,14 @@ mod tests {
             vault,
             watch: fast(),
             data_dir: Some(tempfile::tempdir().unwrap().keep()),
-            claude: ClaudeLaunch::default(),
+            // A binary that is not there: no test starts the owner's claude.
+            claude: ClaudeLaunch {
+                program: Some(PathBuf::from("/nonexistent/desk-test/claude")),
+                ..ClaudeLaunch::default()
+            },
+            secrets: Some(Arc::new(crate::secrets::MemoryStore::default())),
+            exe: None,
+            import_from: None,
         }
     }
 
@@ -704,7 +1046,8 @@ mod tests {
     }
 
     fn wait_until(app: &AppHandle, what: &str, f: impl Fn(&Snapshot) -> bool) -> Snapshot {
-        let deadline = Instant::now() + Duration::from_secs(10);
+        // Generous: the check list runs real probes (PowerShell on Windows CI).
+        let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             let s = app.snapshot();
             if f(&s) {
@@ -837,7 +1180,10 @@ mod tests {
         app.send(Command::LoadShot(
             "indices-kb/shots/2026-11-25/eu_h1.png".into(),
         ));
-        app.send(Command::CheckStatus); // a marker: commands are handled in order
+        // A marker: commands are handled in order.
+        app.send(Command::Chat(ChatCommand::Open {
+            chat_id: "marker".into(),
+        }));
         let s = wait_until(&app, "the marker", |s| !s.errors.is_empty());
         assert!(
             Arc::ptr_eq(&s.shots, &shots_before),
@@ -870,29 +1216,115 @@ mod tests {
     }
 
     #[test]
-    fn unwired_commands_answer_with_a_user_error() {
+    fn unknown_chats_answer_with_a_user_error_and_errors_are_capped() {
         let app = AppHandle::start(test_cfg(None)).unwrap();
-        app.send(Command::Chat(ChatCommand::Send {
-            chat_id: "c1".into(),
-            text: "hi".into(),
-        }));
-        app.send(Command::CheckStatus);
-        app.send(Command::RunTask(TaskId("provision-runtime".into())));
-        let s = wait_until(&app, "three errors", |s| s.errors.len() == 3);
-        assert_eq!(
-            s.errors[0],
-            UserError::new(crate::chat::model::keys::UNKNOWN_CHAT)
-        );
-        assert!(s.errors[1..].iter().all(|e| e.key == keys::NOT_IMPLEMENTED));
         for _ in 0..(ERRORS_KEPT + 5) {
-            app.send(Command::LaunchTradingView);
+            app.send(Command::Chat(ChatCommand::Open {
+                chat_id: "nope".into(),
+            }));
         }
-        wait_until(&app, "the cap", |s| {
-            s.errors
-                .last()
-                .is_some_and(|e| e.vars[0].1 == "launch_tradingview")
-                && s.errors.len() == ERRORS_KEPT
+        let s = wait_until(&app, "the cap", |s| s.errors.len() == ERRORS_KEPT);
+        assert!(s
+            .errors
+            .iter()
+            .all(|e| e.key == crate::chat::model::keys::UNKNOWN_CHAT));
+    }
+
+    #[test]
+    fn stage6_settings_secrets_tasks_and_lights() {
+        let cfg = test_cfg(None);
+        let data = cfg.data_dir.clone().unwrap();
+        let app = AppHandle::start(cfg).unwrap();
+        // The lights come once at start, without asking.
+        let s = wait_until(&app, "the first lights", |s| s.status.checked_at > 0);
+        assert_eq!(
+            s.status.claude.key, "status.claude.missing",
+            "the test seam names no binary"
+        );
+        assert_eq!(s.status.vault.key, "status.vault.not_set");
+        // A task refused for want of a cookie ends with its key.
+        app.send(Command::RunTask(TaskId::SessionCheck));
+        let s = wait_until(&app, "the refusal", |s| {
+            s.tasks
+                .get(TaskId::SessionCheck)
+                .is_some_and(|t| t.ok == Some(false))
         });
+        assert_eq!(
+            s.tasks.get(TaskId::SessionCheck).unwrap().error_key,
+            "task.refused.no_session"
+        );
+        // The canary sessionid: stored, flagged, and nowhere else.
+        const CANARY: &str = "CANARYzz9f8e7d6c5b4a3f2e1d0c9b8a7";
+        app.send(Command::SetTvSession(CANARY.into()));
+        let s = wait_until(&app, "the flag", |s| s.has_tv_session);
+        assert!(
+            !format!("{s:?}").contains(CANARY),
+            "the snapshot never carries it"
+        );
+        let mut next = (*s.settings).clone();
+        next.cdp_port = 9300;
+        app.send(Command::SaveSettings(Box::new(next)));
+        wait_until(&app, "the saved port", |s| s.settings.cdp_port == 9300);
+        let text = std::fs::read_to_string(crate::paths::settings_file(&data)).unwrap();
+        assert!(text.contains("9300") && !text.contains(CANARY), "{text}");
+        app.send(Command::SetTvSession("bad".into()));
+        let s = wait_until(&app, "the bad shape", |s| !s.errors.is_empty());
+        assert_eq!(s.errors.last().unwrap().key, crate::ops::keys::SECRET_BAD);
+        app.send(Command::ClearTvSession);
+        wait_until(&app, "the flag off", |s| !s.has_tv_session);
+    }
+
+    #[test]
+    fn checks_and_the_wizard_state() {
+        use desk_core::preflight::{CheckId, CheckState};
+        let cfg = test_cfg(None);
+        let data = cfg.data_dir.clone().unwrap();
+        let app = AppHandle::start(cfg).unwrap();
+        // A fresh data dir: the wizard opens by itself, the checks come unasked.
+        let s = wait_until(&app, "the first checks", |s| s.checks_at > 0);
+        assert!(s.first_run);
+        let vault = s.checks.iter().find(|c| c.id == CheckId::Vault).unwrap();
+        assert_eq!(
+            (vault.state, vault.detail_key.as_str()),
+            (CheckState::Fail, "preflight.vault.unset")
+        );
+        const CANARY: &str = "CANARYzz9f8e7d6c5b4a3f2e1d0c9b8a7";
+        app.send(Command::SetTvSession(CANARY.into()));
+        // The cookie is a fact for the list (set, unverified), never its text.
+        let s = wait_until(&app, "the session check sees the cookie", |s| {
+            s.checks.iter().any(|c| {
+                c.id == CheckId::TvSession && c.detail_key == "preflight.tvSession.unverified"
+            })
+        });
+        assert!(!format!("{:?}", s.checks).contains(CANARY));
+        // «Пропустить»: saved, and kept while the page is not green.
+        app.send(Command::SkipStep(StepId::Schedule));
+        let s = wait_until(&app, "the skip", |s| {
+            s.settings.setup_skipped == [StepId::Schedule]
+        });
+        assert!(s.first_run, "skipping a page does not finish the wizard");
+        app.send(Command::RunPreflight);
+        let at = s.checks_at;
+        let s = wait_until(&app, "a new list", |s| s.checks_at > at);
+        assert_eq!(
+            s.settings.setup_skipped,
+            [StepId::Schedule],
+            "a red page stays skipped"
+        );
+        app.send(Command::FinishWizard);
+        let s = wait_until(&app, "finished", |s| !s.first_run);
+        assert!(s.settings.setup_completed_at.is_some());
+        let text = std::fs::read_to_string(crate::paths::settings_file(&data)).unwrap();
+        assert!(!text.contains(CANARY), "{text}");
+        drop(app);
+        // A second start on the same data dir: not a first run any more.
+        let mut cfg = test_cfg(None);
+        cfg.data_dir = Some(data.clone());
+        let app = AppHandle::start(cfg).unwrap();
+        let s = wait_until(&app, "the settings", |s| {
+            s.settings.setup_completed_at.is_some()
+        });
+        assert!(!s.first_run);
     }
 
     #[test]
@@ -900,7 +1332,7 @@ mod tests {
         let app = AppHandle::start(test_cfg(None)).unwrap();
         let t0 = Instant::now();
         for _ in 0..10_000 {
-            app.send(Command::CheckStatus);
+            app.send(Command::Today);
         }
         for _ in 0..10_000 {
             let _ = app.snapshot();

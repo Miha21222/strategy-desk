@@ -16,6 +16,10 @@
 //! | [`names`] | file names, `dateOfStateFile`, `isFriday`, `isShotPath`, `resolveNote` (pure half) |
 //! | [`shots`] | `legendColor`, `mainShot`, `shotTabLabel`, `shotsErrorText`, `readShot` (pure half) |
 //! | [`prompts`] | `runCommand`, `discussPrompt`, `macroChatTitle` |
+//! | [`settings`] | `DEFAULT_SETTINGS`, `macroMcpFor`, `legacyConfigPatch` of `src/shared/defaults.ts` |
+//! | [`preflight`] | `buildChecks` of `src/shared/preflight.ts` (no gt-rag, official MCP, Codex, legacy) |
+//! | [`schedule`] | the Task Scheduler jobs and which window a firing is for (TZ items 18, 21) |
+//! | [`wizard`] | `src/renderer/setup.ts`: pages, skips, limitation notes, auto-started tasks |
 //! | [`owner`] | `writeHumanRead` / `writeDayAnswers` (pure half: the record and its text) |
 //! | [`js`] | the JavaScript semantics the TS relied on (`String()`, `trim`, `Math.round`, …) |
 
@@ -25,11 +29,15 @@ pub mod js;
 pub mod names;
 pub mod normalize;
 pub mod owner;
+pub mod preflight;
 pub mod prompts;
+pub mod schedule;
+pub mod settings;
 pub mod shots;
 pub mod stats;
 pub mod vault;
 pub mod windows;
+pub mod wizard;
 pub mod zones;
 
 pub use day::{list_days, load_day, Day, DayInput, MacroIndex, RegionSnapshot};

@@ -2,26 +2,42 @@
 //! [`Fix`], and the output of the tasks those fixes start. The wizard draws
 //! the same rows for its page's checks.
 
+use std::collections::BTreeMap;
+
+use desk_app::Command;
 use eframe::egui::{self, Color32, CornerRadius, FontId, Frame, Margin, ScrollArea, Stroke, Ui};
 
 use super::{
-    Check, CheckId, ConnAction, ConnUi, ConnView, Fix, State, TaskId, TaskState, TaskView,
+    check_key, kyiv_hm_ms, Check, CheckId, CheckState, ConnUi, ConnView, Fix, TaskId, TaskState,
 };
 use crate::i18n::{t, tf};
 use crate::screen::kit::{self, bold, txt};
 use crate::theme::{radius, space, text, Palette};
 
+/// The column of the ✓ ⚠ ✗ marks, so the names line up.
+pub const MARK_W: f32 = 16.0;
+
 /// A key + vars through `tf`.
-pub fn say(key: &str, vars: &[(String, String)]) -> String {
+pub fn say<'a>(key: &str, vars: impl IntoIterator<Item = (&'a String, &'a String)>) -> String {
     let vars: Vec<(&str, &dyn std::fmt::Display)> = vars
-        .iter()
+        .into_iter()
         .map(|(k, v)| (k.as_str(), v as &dyn std::fmt::Display))
         .collect();
     tf(key, &vars)
 }
 
+/// A check's detail line.
+pub fn detail(c: &Check) -> String {
+    say(&c.detail_key, &c.vars)
+}
+
+/// A pairs list as `say` takes it.
+pub fn pairs(v: &[(String, String)]) -> impl Iterator<Item = (&String, &String)> {
+    v.iter().map(|(k, x)| (k, x))
+}
+
 pub fn check_title(id: CheckId) -> String {
-    t(&format!("conn.check.{}", id.as_str())).to_owned()
+    t(&format!("conn.check.{}", check_key(id))).to_owned()
 }
 
 pub fn task_title(id: TaskId) -> String {
@@ -29,12 +45,12 @@ pub fn task_title(id: TaskId) -> String {
 }
 
 /// The glyph and colour of a state.
-pub fn state_mark(p: &Palette, s: State) -> (&'static str, Color32) {
+pub fn state_mark(p: &Palette, s: CheckState) -> (&'static str, Color32) {
     match s {
-        State::Ok => ("✓", p.ok),
-        State::Warn => ("⚠", p.warn),
-        State::Fail => ("✗", p.err),
-        State::Unknown => ("–", p.fg_muted),
+        CheckState::Ok => ("✓", p.ok),
+        CheckState::Warn => ("⚠", p.warn),
+        CheckState::Fail => ("✗", p.err),
+        CheckState::Skipped => ("–", p.fg_muted),
     }
 }
 
@@ -44,31 +60,21 @@ pub fn diagnostics(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
     kit::para(ui, txt(t("conn.diag.intro"), text::BASE, p.fg_muted));
     ui.horizontal(|ui| {
-        let label = if conn.checking {
-            t("conn.diag.checking")
-        } else {
-            t("conn.diag.recheck")
-        };
-        if kit::button(ui, p, label, false, !conn.checking).clicked() {
-            out.push(ConnAction::RunPreflight);
+        if kit::button(ui, p, t("conn.diag.recheck"), false, true).clicked() {
+            out.push(Command::RunPreflight);
         }
-        let summary = match (conn.checked_at, conn.problems()) {
-            (None, _) => t("conn.diag.never").to_owned(),
-            (Some(_), 0) => t("conn.diag.allOk").to_owned(),
-            (Some(_), n) => tf("conn.diag.problems", &[("n", &n)]),
-        };
-        let color = if conn.problems() > 0 {
-            p.warn
-        } else {
-            p.fg_muted
+        let (summary, color) = match (conn.checks_at, conn.problems()) {
+            (0, _) => (t("conn.diag.checking").to_owned(), p.fg_muted),
+            (_, 0) => (t("conn.diag.allOk").to_owned(), p.ok),
+            (_, n) => (tf("conn.diag.problems", &[("n", &n)]), p.warn),
         };
         ui.label(bold(summary, text::MD, color));
-        if let Some(at) = conn.checked_at {
-            let time = super::kyiv_hm(at);
+        if conn.checks_at > 0 {
+            let time = kyiv_hm_ms(conn.checks_at);
             ui.label(txt(
                 tf("conn.diag.checkedAt", &[("time", &time)]),
                 text::SM,
@@ -83,21 +89,20 @@ pub fn diagnostics(
                 unknown_row(ui, p, id);
             }
         }
-        for c in &conn.checks {
+        for c in conn.checks.iter() {
             check_row(ui, p, st, conn, c, out);
         }
     });
 }
 
-/// The column of the ✓ ⚠ ✗ marks, so the names line up.
-pub const MARK_W: f32 = 16.0;
-
-fn unknown_row(ui: &mut Ui, p: &Palette, id: CheckId) {
+/// A check not gathered yet: its name and «проверяю…».
+pub fn unknown_row(ui: &mut Ui, p: &Palette, id: CheckId) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = space::S5;
-        let (g, c) = state_mark(p, State::Unknown);
+        let (g, c) = state_mark(p, CheckState::Skipped);
         ui.add_sized([MARK_W, 22.0], egui::Label::new(bold(g, text::LG, c)));
         ui.label(bold(check_title(id), text::BASE, p.fg_muted));
+        ui.label(txt(t("conn.diag.checking"), text::SM, p.fg_muted));
     });
 }
 
@@ -109,15 +114,15 @@ pub fn check_row(
     st: &mut ConnUi,
     conn: &ConnView,
     c: &Check,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) {
     let (glyph, color) = state_mark(p, c.state);
-    let problem = matches!(c.state, State::Fail | State::Warn);
+    let problem = matches!(c.state, CheckState::Fail | CheckState::Warn);
     let task = match &c.fix {
-        Some(Fix::Task(id)) => conn.task(*id),
+        Some(Fix::Task(id)) => conn.task(*id).map(|t| (*id, t)),
         _ => None,
     };
-    let busy = task.is_some_and(|t| t.state == TaskState::Running);
+    let busy = task.is_some_and(|(_, t)| t.running);
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = space::S5;
         ui.add_sized(
@@ -135,12 +140,12 @@ pub fn check_row(
                             r = r.on_hover_text(t(k));
                         }
                         if r.clicked() {
-                            run_fix(ui, st, c.id, fix, out);
+                            run_fix(ui, st, conn, c.id, fix, out);
                         }
                     });
                 }
             });
-            kit::para(ui, txt(say(&c.detail_key, &c.vars), text::MD, p.fg_muted));
+            kit::para(ui, txt(detail(c), text::MD, p.fg_muted));
             if let (true, Some(note)) = (problem, &c.note_key) {
                 kit::para(ui, txt(t(note), text::SM, p.fg_muted));
             }
@@ -165,28 +170,40 @@ pub fn check_row(
                     ui.label(txt(t("conn.fix.copied"), text::SM, p.ok));
                 }
             }
-            if let Some(tv) = task {
-                task_box(ui, p, st, tv, out);
+            if let Some((id, tv)) = task {
+                task_box(ui, p, st, id, tv, out);
             }
         });
     });
 }
 
-fn run_fix(ui: &Ui, st: &mut ConnUi, id: CheckId, fix: &Fix, out: &mut Vec<ConnAction>) {
+fn run_fix(
+    ui: &Ui,
+    st: &mut ConnUi,
+    conn: &ConnView,
+    id: CheckId,
+    fix: &Fix,
+    out: &mut Vec<Command>,
+) {
     match fix {
-        Fix::Task(task) => out.push(ConnAction::RunTask(*task)),
+        Fix::Task(task) => out.push(Command::RunTask(*task)),
         Fix::Copy { text, .. } => {
             ui.ctx().copy_text(text.clone());
             st.copied = Some((id, ui.input(|i| i.time)));
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_secs(3));
         }
-        Fix::LaunchTradingView => out.push(ConnAction::LaunchTradingView),
+        Fix::LaunchTradingView => out.push(Command::LaunchTradingView),
         Fix::PickFolder => {
-            st.tab = super::SettingsTab::Settings;
-            st.pick_folder();
+            if let Some(field) = desk_core::wizard::pick_field(id) {
+                st.pick_folder(field);
+            }
         }
-        Fix::SetCdpPort(port) => out.push(ConnAction::SetCdpPort(*port)),
+        Fix::SetCdpPort(port) => {
+            let port = *port;
+            out.push(Command::SaveSettings(conn.edited(|s| s.cdp_port = port)));
+            out.push(Command::RunPreflight);
+        }
     }
 }
 
@@ -207,14 +224,15 @@ fn code_line(ui: &mut Ui, p: &Palette, s: &str) {
         });
 }
 
-/// A task's name, state and output; a field for the browser code when the
-/// task waits for it.
+/// A task's name, state, the command it runs and its output; a field for
+/// the browser code while `claude-login` waits for it; «Остановить».
 pub fn task_box(
     ui: &mut Ui,
     p: &Palette,
     st: &mut ConnUi,
-    tv: &TaskView,
-    out: &mut Vec<ConnAction>,
+    id: TaskId,
+    tv: &TaskState,
+    out: &mut Vec<Command>,
 ) {
     Frame::new()
         .fill(p.bg_elev)
@@ -225,39 +243,46 @@ pub fn task_box(
             ui.set_width(ui.available_width());
             ui.spacing_mut().item_spacing.y = space::S3;
             ui.horizontal(|ui| {
-                ui.label(bold(task_title(tv.id), text::MD, p.fg));
-                let (s, c) = match &tv.state {
-                    TaskState::Running => (t("conn.task.running").to_owned(), p.accent),
-                    TaskState::Done => (t("conn.task.done").to_owned(), p.ok),
-                    TaskState::Failed { key, vars } => (say(key, vars), p.err),
-                };
+                ui.label(bold(task_title(id), text::MD, p.fg));
+                let (s, c) = task_status(p, tv);
                 ui.add(egui::Label::new(txt(s, text::SM, c)).wrap());
+                if tv.running {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if kit::link(ui, p, t("conn.task.stop")).clicked() {
+                            out.push(Command::StopTask(id));
+                        }
+                    });
+                }
             });
+            if !tv.command.is_empty() {
+                let cmd = format!("> {}", tv.command);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(cmd)
+                            .font(FontId::monospace(text::SM - 1.0))
+                            .color(p.fg),
+                    )
+                    .wrap(),
+                );
+            }
             if !tv.lines.is_empty() {
                 ScrollArea::vertical()
-                    .id_salt(("task-log", tv.id.as_str()))
+                    .id_salt(("task-log", id.as_str()))
                     .max_height(140.0)
                     .stick_to_bottom(true)
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
-                        // The last lines are what matters; a long log stays cheap.
-                        let from = tv.lines.len().saturating_sub(200);
                         let mut j = egui::text::LayoutJob::default();
-                        for l in &tv.lines[from..] {
-                            j.append(
-                                l,
-                                0.0,
-                                egui::TextFormat::simple(
-                                    FontId::monospace(text::SM - 1.0),
-                                    p.fg_muted,
-                                ),
-                            );
-                            j.append("\n", 0.0, egui::TextFormat::default());
+                        let fmt =
+                            egui::TextFormat::simple(FontId::monospace(text::SM - 1.0), p.fg_muted);
+                        for l in &tv.lines {
+                            j.append(l, 0.0, fmt.clone());
+                            j.append("\n", 0.0, fmt.clone());
                         }
                         ui.add(egui::Label::new(j).wrap());
                     });
             }
-            if tv.wants_input && tv.state == TaskState::Running {
+            if id.wants_stdin() && tv.running {
                 ui.horizontal(|ui| {
                     let r = ui.add(
                         egui::TextEdit::singleline(&mut st.task_input)
@@ -268,8 +293,8 @@ pub fn task_box(
                     let can = !st.task_input.trim().is_empty();
                     if (kit::button(ui, p, t("conn.task.send"), can, can).clicked() || enter) && can
                     {
-                        out.push(ConnAction::TaskInput {
-                            id: tv.id,
+                        out.push(Command::TaskInput {
+                            id,
                             text: std::mem::take(&mut st.task_input).trim().to_owned(),
                         });
                     }
@@ -278,7 +303,27 @@ pub fn task_box(
         });
 }
 
-/// Colour helper for the lights.
+/// «выполняю…», «готово», or the error with its detail.
+pub fn task_status(p: &Palette, tv: &TaskState) -> (String, Color32) {
+    if tv.running {
+        return (t("conn.task.running").to_owned(), p.accent);
+    }
+    match tv.ok {
+        Some(true) => (t("conn.task.done").to_owned(), p.ok),
+        Some(false) => {
+            let key = if tv.error_key.is_empty() {
+                "task.error.failed"
+            } else {
+                tv.error_key.as_str()
+            };
+            let vars = BTreeMap::from([("detail".to_owned(), tv.error_detail.clone())]);
+            (say(key, &vars), p.err)
+        }
+        None => (String::new(), p.fg_muted),
+    }
+}
+
+/// A coloured dot (the lights).
 pub fn dot(ui: &mut Ui, color: Color32) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(10.0, 10.0), egui::Sense::hover());
     ui.painter().circle_filled(rect.center(), 4.5, color);

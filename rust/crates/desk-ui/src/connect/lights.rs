@@ -3,8 +3,10 @@
 
 use eframe::egui::{self, CornerRadius, Frame, Margin, Sense, Ui};
 
-use super::diag::{dot, say};
-use super::{ConnAction, ConnView, Light, State};
+use desk_app::Command;
+
+use super::diag::{dot, pairs, say};
+use super::{ConnView, Light, LightState as State};
 use crate::i18n::t;
 use crate::screen::kit::{self, txt};
 use crate::theme::{radius, space, text, Palette};
@@ -26,10 +28,10 @@ fn light_color(p: &Palette, s: State) -> egui::Color32 {
 
 /// The short line under a light's name.
 fn line(l: &Light) -> String {
-    if l.detail_key.is_empty() {
+    if l.key.is_empty() {
         t("status.unknown").to_owned()
     } else {
-        say(&l.detail_key, &l.vars)
+        say(&l.key, pairs(&l.vars))
     }
 }
 
@@ -37,7 +39,7 @@ pub fn show(
     ui: &mut Ui,
     p: &Palette,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) -> Option<LightsEvent> {
     let mut event = None;
     ui.horizontal(|ui| {
@@ -46,7 +48,7 @@ pub fn show(
             let r = ui
                 .add(egui::Button::new(txt(t("sidebar.refresh"), text::SM, p.accent)).frame(false));
             if r.clicked() {
-                out.push(ConnAction::CheckStatus);
+                out.push(Command::CheckStatus);
             }
         });
     });
@@ -107,7 +109,7 @@ pub fn show(
     let tv_off = matches!(l.tradingview.state, State::Fail | State::Warn)
         || matches!(l.cdp.state, State::Fail);
     if tv_off && kit::button(ui, p, t("sidebar.launchTv"), false, true).clicked() {
-        out.push(ConnAction::LaunchTradingView);
+        out.push(Command::LaunchTradingView);
     }
     event
 }

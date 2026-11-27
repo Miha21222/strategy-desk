@@ -3,11 +3,15 @@
 //! the output of the tasks, a skip that says what weakens, and the old
 //! `AUTO_TASKS` rule: a page presses its own task once when it opens.
 
+use std::collections::BTreeMap;
+
+use desk_app::Command;
+use desk_core::wizard::{self as core_wizard, TaskRun};
 use eframe::egui::{self, CornerRadius, Ui};
 
 use super::diag::{self, state_mark};
 use super::settings::{schedule_editor, session_field, vault_field};
-use super::{CheckId, ConnAction, ConnUi, ConnView, Fix, State, StepId, TaskId};
+use super::{CheckId, CheckState, ConnUi, ConnView, StepId, TaskId};
 use crate::i18n::{t, tf};
 use crate::screen::kit::{self, bold, txt, CardKind};
 use crate::theme::{radius, space, text, Palette};
@@ -17,33 +21,42 @@ pub enum WizardEvent {
     Close,
 }
 
-/// A page is done when every one of its checks is green.
+/// The pages this diagnosis has something to say about (all six before it).
+pub fn steps(conn: &ConnView) -> Vec<StepId> {
+    core_wizard::visible_steps(&conn.checks)
+}
+
+/// Done = nothing on the page failed or is unchecked (a warning is enough).
 pub fn step_ok(conn: &ConnView, step: StepId) -> bool {
-    step.checks()
-        .iter()
-        .all(|id| conn.check(*id).is_some_and(|c| c.state == State::Ok))
+    conn.checks_at > 0 && core_wizard::step_done(step, &conn.checks)
 }
 
+/// Skipped in the settings, or just now (until the snapshot says so).
 pub fn skipped(st: &ConnUi, conn: &ConnView, step: StepId) -> bool {
-    st.wizard.skipped.contains(&step) || conn.settings.setup_skipped.contains(&step)
+    core_wizard::is_skipped(&conn.settings, step) || st.wizard.skipped.contains(&step)
 }
 
-/// The tasks a page presses by itself now: listed in its `auto_tasks`, asked
-/// for by one of its failing checks, not pressed before in this wizard
-/// session and not already running.
-pub fn auto_presses(st: &ConnUi, conn: &ConnView, step: StepId) -> Vec<TaskId> {
-    step.auto_tasks()
+/// The one task a page starts by itself now (`desk_core::wizard::auto_task`):
+/// provision-runtime or session-check, once per wizard session.
+pub fn auto_press(st: &ConnUi, conn: &ConnView, step: StepId) -> Option<TaskId> {
+    if conn.checks_at == 0 {
+        return None;
+    }
+    let runs: BTreeMap<TaskId, TaskRun> = conn
+        .tasks
+        .tasks
         .iter()
-        .copied()
-        .filter(|task| !st.wizard.auto_done.contains(task) && !conn.running(*task))
-        .filter(|task| {
-            step.checks().iter().any(|id| {
-                conn.check(*id).is_some_and(|c| {
-                    matches!(c.state, State::Fail | State::Warn) && c.fix == Some(Fix::Task(*task))
-                })
-            })
+        .map(|(id, t)| {
+            (
+                *id,
+                TaskRun {
+                    running: t.running,
+                    ok: t.ok,
+                },
+            )
         })
-        .collect()
+        .collect();
+    core_wizard::auto_task(step, &conn.checks, &runs, &st.wizard.auto_done, None)
 }
 
 pub fn page(
@@ -51,17 +64,22 @@ pub fn page(
     p: &Palette,
     st: &mut ConnUi,
     conn: &ConnView,
-    out: &mut Vec<ConnAction>,
+    out: &mut Vec<Command>,
 ) -> Option<WizardEvent> {
     let mut event = None;
-    let n = StepId::ALL.len();
-    st.wizard.step = st.wizard.step.min(n - 1);
-    let step = StepId::ALL[st.wizard.step];
+    let pages = steps(conn);
+    let n = pages.len();
+    st.wizard.step = st.wizard.step.min(n.saturating_sub(1));
+    let step = pages.get(st.wizard.step).copied().unwrap_or(StepId::Vault);
+    // A page that turned green is no longer «just skipped».
+    if step_ok(conn, step) {
+        st.wizard.skipped.retain(|s| *s != step);
+    }
 
-    for task in auto_presses(st, conn, step) {
+    if let Some(task) = auto_press(st, conn, step) {
         st.wizard.auto_done.insert(task);
         st.wizard.auto_shown.push((step, task));
-        out.push(ConnAction::RunTask(task));
+        out.push(Command::RunTask(task));
     }
 
     ui.horizontal(|ui| {
@@ -72,7 +90,7 @@ pub fn page(
             }
         });
     });
-    progress(ui, p, st, conn);
+    progress(ui, p, st, conn, &pages);
     let name = t(&format!("wiz.name.{}", step.as_str())).to_owned();
     ui.label(txt(
         tf(
@@ -120,11 +138,14 @@ pub fn page(
             );
         }
         ui.separator();
-        for id in step.checks() {
-            match conn.check(*id) {
-                Some(c) => diag::check_row(ui, p, st, conn, c, out),
-                None => unknown(ui, p, *id),
+        let own = core_wizard::checks_of_step(step, &conn.checks);
+        if own.is_empty() {
+            for id in step.checks() {
+                unknown(ui, p, *id);
             }
+        }
+        for c in own {
+            diag::check_row(ui, p, st, conn, c, out);
         }
     });
 
@@ -134,10 +155,6 @@ pub fn page(
         kit::tinted(ui, p.warn_soft, |ui| {
             let limited = t(&format!("setup.limited.{}", step.as_str())).to_owned();
             ui.add(egui::Label::new(txt(limited, text::MD, p.warn)).wrap());
-            if kit::link(ui, p, t("wiz.unskip")).clicked() {
-                st.wizard.skipped.retain(|s| *s != step);
-                out.push(ConnAction::SkipStep(step, false));
-            }
         });
     } else {
         let (line, color) = if ok {
@@ -159,7 +176,7 @@ pub fn page(
             // so every skip is remembered and said out loud later.
             if kit::button(ui, p, label, ok || is_skipped, ok || is_skipped).clicked() {
                 if last {
-                    out.push(ConnAction::FinishWizard);
+                    out.push(Command::FinishWizard);
                     event = Some(WizardEvent::Close);
                 } else {
                     st.wizard.step += 1;
@@ -167,7 +184,7 @@ pub fn page(
             }
             if !ok && !is_skipped && kit::button(ui, p, t("wiz.skip"), false, true).clicked() {
                 st.wizard.skipped.push(step);
-                out.push(ConnAction::SkipStep(step, true));
+                out.push(Command::SkipStep(step));
                 if !last {
                     st.wizard.step += 1;
                 }
@@ -188,22 +205,22 @@ pub fn page(
 fn unknown(ui: &mut Ui, p: &Palette, id: CheckId) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = space::S5;
-        let (g, c) = state_mark(p, State::Unknown);
+        let (g, c) = state_mark(p, CheckState::Skipped);
         ui.add_sized([diag::MARK_W, 22.0], egui::Label::new(bold(g, text::LG, c)));
         ui.label(bold(diag::check_title(id), text::BASE, p.fg_muted));
-        ui.label(txt(t("conn.diag.never"), text::SM, p.fg_muted));
+        ui.label(txt(t("conn.diag.checking"), text::SM, p.fg_muted));
     });
 }
 
 /// Six bars: green = done, amber = skipped, accent = here, grey = ahead.
 /// A bar is a button: the pages can be visited in any order.
-fn progress(ui: &mut Ui, p: &Palette, st: &mut ConnUi, conn: &ConnView) {
-    let n = StepId::ALL.len();
+fn progress(ui: &mut Ui, p: &Palette, st: &mut ConnUi, conn: &ConnView, pages: &[StepId]) {
+    let n = pages.len().max(1);
     let gap = space::S3;
     let w = ((ui.available_width() - gap * (n as f32 - 1.0)) / n as f32).max(20.0);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = gap;
-        for (i, step) in StepId::ALL.iter().enumerate() {
+        for (i, step) in pages.iter().enumerate() {
             let color = if i == st.wizard.step {
                 p.accent
             } else if step_ok(conn, *step) {

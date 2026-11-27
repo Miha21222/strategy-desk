@@ -47,6 +47,10 @@ echo "== helpers → expected/helpers/"
 bundle $TOOLS/capture-helpers.ts "$BUILD/helpers.cjs"
 node "$BUILD/helpers.cjs" "$ROOT/$GOLD/vault" "$GOLD/expected/helpers"
 
+echo "== stage 6 (preflight, wizard, settings import, schedule) → expected/stage6/"
+bundle $TOOLS/capture-stage6.ts "$BUILD/stage6.cjs"
+TZ=Europe/Kyiv node "$BUILD/stage6.cjs" "$GOLD/expected/stage6"
+
 echo "== edge vaults"
 python3 $TOOLS/make-edge.py "$FIX/edge"
 bundle $TOOLS/dump-edge.ts "$BUILD/dump-edge.cjs"
@@ -55,7 +59,8 @@ node "$BUILD/dump-edge.cjs" "$FIX/edge"
 echo "== size check (PNG ≤ 200 KB, no personal data)"
 big=$(find "$FIX" -name '*.png' -size +200k)
 [ -z "$big" ] || { echo "PNG over 200 KB: $big" >&2; exit 1; }
-if grep -rIl -i -E 'avitr|michael|mykhailo|vitryk|C:\\\\Users|/home/|sessionid=' "$FIX" --exclude-dir=tools; then
+# Placeholder users in the fixtures are «T» and «trader»; any other Windows user name is a leak.
+if grep -rIl -i -P 'avitr|michael|mykhailo|vitryk|C:\\\\+Users\\\\+(?!T\\|trader\\)|/home/|sessionid=' "$FIX" --exclude-dir=tools; then
   echo "personal data or a machine path in the fixtures (above)" >&2; exit 1
 fi
 echo "done: $(find "$GOLD/expected" -name '*.json' | wc -l) golden json, $(find "$FIX/edge" -name case.json | wc -l) edge cases"
