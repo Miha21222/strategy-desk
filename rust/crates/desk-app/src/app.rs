@@ -247,6 +247,9 @@ impl AppHandle {
         // current_thread: the app's own work is small and mostly waiting;
         // blocking file I/O goes to tokio's blocking pool.
         let rt = tokio::runtime::Builder::new_current_thread()
+            // Blocking work is file reads and process waits: a few threads are
+            // plenty, and each idle one keeps its stack committed (owner's memory budget).
+            .max_blocking_threads(4)
             .enable_all()
             .build()?;
         let actor = Actor {
