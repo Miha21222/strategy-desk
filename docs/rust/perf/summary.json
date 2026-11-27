@@ -1,6 +1,6 @@
 {
  "schema": "desk-perf-summary/1",
- "generated_at": "2026-11-27T09:30:27Z",
+ "generated_at": "2026-11-27T11:52:41Z",
  "before": {
   "file": "2026-11-25-electron-0.2.3.0.json",
   "label": "electron 0.2.3.0",
@@ -12,20 +12,20 @@
   "representative": true
  },
  "after": {
-  "file": "2026-11-27-3e5102d.json",
+  "file": "2026-11-27-ac1c6d9.json",
   "label": "rust",
   "kind": "rust",
   "version": null,
-  "commit": "3e5102d",
+  "commit": "ac1c6d9",
   "date": "2026-11-27",
-  "created_at": "2026-11-27T09:04:57Z",
+  "created_at": "2026-11-27T10:56:53Z",
   "representative": true
  },
  "representative": true,
  "counts": {
-  "pass": 14,
-  "fail": 1,
-  "skip": 3,
+  "pass": 11,
+  "fail": 0,
+  "skip": 7,
   "info": 2
  },
  "metrics": [
@@ -36,34 +36,15 @@
    "target": 300,
    "stat": "median",
    "before": 592.198,
-   "after": 193.009,
-   "status": "pass",
-   "delta_pct": -67.4,
-   "note": "",
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "skipped by -SkipCold",
    "target_in_report": null,
    "after_from": null,
    "windows": null,
    "target_why": "",
-   "trend": [
-    {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 221.604,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 217.529,
-     "representative": true
-    },
-    {
-     "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 193.009,
-     "representative": true
-    }
-   ]
+   "trend": []
   },
   {
    "id": "warm_start_ms",
@@ -72,34 +53,15 @@
    "target": 200,
    "stat": "median",
    "before": 586.153,
-   "after": 153.367,
-   "status": "pass",
-   "delta_pct": -73.8,
-   "note": "",
+   "after": null,
+   "status": "skip",
+   "delta_pct": null,
+   "note": "skipped by -SkipWarm",
    "target_in_report": null,
    "after_from": null,
    "windows": null,
    "target_why": "цель 150 → 200 мс (26.11): ~132 мс тёплого старта — окно и контекст OpenGL в драйвере, до нашего кода",
-   "trend": [
-    {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 187.496,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 188.512,
-     "representative": true
-    },
-    {
-     "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 153.367,
-     "representative": true
-    }
-   ]
+   "trend": []
   },
   {
    "id": "data_ready_cold_ms",
@@ -108,28 +70,15 @@
    "target": 500,
    "stat": "median",
    "before": null,
-   "after": 200.009,
-   "status": "pass",
+   "after": null,
+   "status": "skip",
    "delta_pct": null,
-   "note": "",
+   "note": "skipped by -SkipCold",
    "target_in_report": null,
    "after_from": null,
    "windows": null,
    "target_why": "",
-   "trend": [
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 227.329,
-     "representative": true
-    },
-    {
-     "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 200.009,
-     "representative": true
-    }
-   ]
+   "trend": []
   },
   {
    "id": "data_ready_warm_ms",
@@ -138,28 +87,15 @@
    "target": 300,
    "stat": "median",
    "before": null,
-   "after": 160.646,
-   "status": "pass",
+   "after": null,
+   "status": "skip",
    "delta_pct": null,
-   "note": "",
+   "note": "skipped by -SkipWarm",
    "target_in_report": null,
    "after_from": null,
    "windows": null,
    "target_why": "",
-   "trend": [
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 198.412,
-     "representative": true
-    },
-    {
-     "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 160.646,
-     "representative": true
-    }
-   ]
+   "trend": []
   },
   {
    "id": "idle_working_set_mb",
@@ -168,9 +104,9 @@
    "target": 100,
    "stat": "median",
    "before": 807.094,
-   "after": 86.508,
+   "after": 82.344,
    "status": "pass",
-   "delta_pct": -89.3,
+   "delta_pct": -89.8,
    "note": "",
    "target_in_report": null,
    "after_from": null,
@@ -178,21 +114,9 @@
    "target_why": "цель 80 → 100 МБ (26.11): ~81 МБ берёт драйвер OpenGL до нашего кода; замер со снимком графика на экране",
    "trend": [
     {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 78.648,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 97.721,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 86.508,
+     "commit": "ac1c6d9",
+     "value": 82.344,
      "representative": true
     }
    ]
@@ -204,9 +128,9 @@
    "target": 100,
    "stat": "median",
    "before": 1471.402,
-   "after": 104.719,
-   "status": "fail",
-   "delta_pct": -92.9,
+   "after": 96.836,
+   "status": "pass",
+   "delta_pct": -93.4,
    "note": "",
    "target_in_report": null,
    "after_from": null,
@@ -214,21 +138,9 @@
    "target_why": "цель 80 → 100 МБ (26.11): ~81 МБ Private — драйвер OpenGL до нашего кода; замер со снимком графика на экране",
    "trend": [
     {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 91.266,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 115.479,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 104.719,
+     "commit": "ac1c6d9",
+     "value": 96.836,
      "representative": true
     }
    ]
@@ -250,20 +162,8 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 0.003,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 0,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
+     "commit": "ac1c6d9",
      "value": 0.001,
      "representative": true
     }
@@ -286,20 +186,8 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 12,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 0,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
+     "commit": "ac1c6d9",
      "value": 0,
      "representative": true
     }
@@ -309,10 +197,10 @@
    "id": "frame_p50_ms",
    "label": "Кадр p50 при стриме",
    "unit": "ms",
-   "target": 8.0,
+   "target": 8,
    "stat": "median",
    "before": null,
-   "after": 2.945,
+   "after": 1.015,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -321,59 +209,53 @@
    "windows": [
     {
      "t_s": 9.8,
-     "n": 627,
-     "p50": 0.63,
-     "p95": 1.04,
-     "p99": 1.28,
-     "max": 35.04
+     "n": 861,
+     "p50": 0.44,
+     "p95": 1.07,
+     "p99": 1.57
     },
     {
      "t_s": 19.8,
-     "n": 656,
-     "p50": 1.47,
-     "p95": 2.08,
-     "p99": 3.25,
-     "max": 7.53
+     "n": 959,
+     "p50": 0.67,
+     "p95": 1.24,
+     "p99": 1.52
     },
     {
      "t_s": 29.8,
-     "n": 644,
-     "p50": 2.48,
-     "p95": 2.98,
-     "p99": 7.44,
-     "max": 17.86
+     "n": 948,
+     "p50": 0.85,
+     "p95": 1.48,
+     "p99": 1.98
     },
     {
      "t_s": 39.8,
-     "n": 636,
-     "p50": 3.41,
-     "p95": 3.88,
-     "p99": 4.7,
-     "max": 11.45
+     "n": 972,
+     "p50": 1.18,
+     "p95": 2.38,
+     "p99": 3.87
     },
     {
      "t_s": 49.8,
-     "n": 647,
-     "p50": 4.18,
-     "p95": 4.8,
-     "p99": 5.14,
-     "max": 7.16
+     "n": 980,
+     "p50": 1.42,
+     "p95": 2.23,
+     "p99": 2.85
     },
     {
      "t_s": 59.8,
-     "n": 26,
-     "p50": 4.61,
-     "p95": 5.14,
-     "p99": 5.2,
-     "max": 5.2
+     "n": 38,
+     "p50": 1.39,
+     "p95": 2.93,
+     "p99": 30.16
     }
    ],
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 2.945,
+     "commit": "ac1c6d9",
+     "value": 1.015,
      "representative": true
     }
    ]
@@ -382,10 +264,10 @@
    "id": "frame_p95_ms",
    "label": "Кадр p95 при стриме",
    "unit": "ms",
-   "target": 16.0,
+   "target": 16,
    "stat": "max",
    "before": null,
-   "after": 5.14,
+   "after": 2.93,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -396,8 +278,8 @@
    "trend": [
     {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 5.14,
+     "commit": "ac1c6d9",
+     "value": 2.93,
      "representative": true
     }
    ]
@@ -406,10 +288,10 @@
    "id": "frame_p99_ms",
    "label": "Кадр p99 при стриме",
    "unit": "ms",
-   "target": 33.0,
+   "target": 33,
    "stat": "max",
    "before": null,
-   "after": 7.44,
+   "after": 30.16,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -420,8 +302,8 @@
    "trend": [
     {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 7.44,
+     "commit": "ac1c6d9",
+     "value": 30.16,
      "representative": true
     }
    ]
@@ -433,10 +315,10 @@
    "target": null,
    "stat": "max",
    "before": null,
-   "after": 5.386,
+   "after": 1.467,
    "status": "info",
    "delta_pct": null,
-   "note": "растёт, если каждый кадр делает работу, пропорциональную длине ответа (например, разбирает живой Markdown целиком)",
+   "note": "grows when each frame does work proportional to the answer length (e.g. re-parsing the live markdown whole)",
    "target_in_report": null,
    "after_from": null,
    "windows": null,
@@ -444,8 +326,8 @@
    "trend": [
     {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 5.386,
+     "commit": "ac1c6d9",
+     "value": 1.467,
      "representative": true
     }
    ]
@@ -457,7 +339,7 @@
    "target": 8,
    "stat": "median",
    "before": null,
-   "after": 0.48,
+   "after": 0.45,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -467,15 +349,9 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 0.48,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 0.48,
+     "commit": "ac1c6d9",
+     "value": 0.45,
      "representative": true
     }
    ]
@@ -487,7 +363,7 @@
    "target": 16,
    "stat": "max",
    "before": null,
-   "after": 1.5,
+   "after": 1.39,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -497,15 +373,9 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 1.42,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 1.5,
+     "commit": "ac1c6d9",
+     "value": 1.39,
      "representative": true
     }
    ]
@@ -517,7 +387,7 @@
    "target": 33,
    "stat": "max",
    "before": null,
-   "after": 2.37,
+   "after": 2.12,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -527,15 +397,9 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 2.31,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 2.37,
+     "commit": "ac1c6d9",
+     "value": 2.12,
      "representative": true
     }
    ]
@@ -547,7 +411,7 @@
    "target": 100,
    "stat": "p95",
    "before": null,
-   "after": 20.3,
+   "after": 20.2,
    "status": "pass",
    "delta_pct": null,
    "note": "",
@@ -557,15 +421,9 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 20.2,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 20.3,
+     "commit": "ac1c6d9",
+     "value": 20.2,
      "representative": true
     }
    ]
@@ -577,7 +435,7 @@
    "target": 15,
    "stat": "max",
    "before": 234.835,
-   "after": 8.483,
+   "after": 8.492,
    "status": "pass",
    "delta_pct": -96.4,
    "note": "",
@@ -587,27 +445,9 @@
    "target_why": "",
    "trend": [
     {
-     "date": "2026-11-25",
-     "commit": "e7b3c78",
-     "value": 0.327,
-     "representative": false
-    },
-    {
-     "date": "2026-11-25",
-     "commit": "b8d06cb",
-     "value": 7.657,
-     "representative": true
-    },
-    {
-     "date": "2026-11-26",
-     "commit": "81ad5b7",
-     "value": 7.687,
-     "representative": true
-    },
-    {
      "date": "2026-11-27",
-     "commit": "3e5102d",
-     "value": 8.483,
+     "commit": "ac1c6d9",
+     "value": 8.492,
      "representative": true
     }
    ]
@@ -664,25 +504,19 @@
    "trend": []
   }
  ],
- "failed": [
-  {
-   "id": "idle_private_mb",
-   "label": "RAM в покое (Private Bytes)",
-   "reason": "median 105 MB > цель 100 MB"
-  }
- ],
+ "failed": [],
  "stress": [
   {
    "id": "chat_stream_10k",
    "status": "pass",
    "scope": "app",
-   "detail": "stream 60 s by the desk's frame windows (first frame_stats window with n=0), desk alive True, responding True; re-derived by report.py (bench.ps1 v4 waited for fake-claude to exit, which it never does in stream-json mode)"
+   "detail": "10000 events at 200/s: stream 60 s by the desk (first frame_stats window with n=0), desk alive True, responding True"
   },
   {
    "id": "chat_claude_dies_mid_answer",
    "status": "pass",
    "scope": "app",
-   "detail": "fake-claude --die-after 2000: it exited after 10 s (code ); 10 s later desk alive True, responding True; worst p99 1.3 ms"
+   "detail": "fake-claude --die-after 2000: exited True (code ?); the desk saw the turn end after 20 s (first frame_stats window with n=0); 10 s later desk alive True, responding True; worst p99 4.8 ms"
   }
  ],
  "variants": [],
