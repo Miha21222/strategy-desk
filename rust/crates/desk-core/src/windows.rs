@@ -27,7 +27,7 @@ pub const XETRA: Tz = chrono_tz::Europe::Berlin;
 pub const NEW_YORK: Tz = chrono_tz::America::New_York;
 
 /// `MacroWindowId`: the three daily review windows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WindowId {
     Eu,
