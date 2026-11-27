@@ -1876,7 +1876,7 @@ mod tests {
         );
         assert_eq!(
             c.vars["found"],
-            "Strategy Desk EU 09:30, Strategy Desk US 15:00"
+            "Strategy Desk EU 0930, Strategy Desk US 1500"
         );
         let none = scheduler_check(
             &s,
@@ -1951,7 +1951,7 @@ mod tests {
         let c = scheduler_check(&s, &dis, &v, n);
         assert_eq!(
             (c.detail_key.as_str(), c.vars["list"].as_str()),
-            ("preflight.scheduler.disabled", "Strategy Desk Review 20:00")
+            ("preflight.scheduler.disabled", "Strategy Desk Review 2000")
         );
         // A job that runs another copy of the exe (moved install) is stale.
         let mut moved = full.clone();
@@ -1959,7 +1959,7 @@ mod tests {
         let c = scheduler_check(&s, &moved, &v, n);
         assert_eq!(
             (c.detail_key.as_str(), c.vars["list"].as_str()),
-            ("preflight.scheduler.stale", "Strategy Desk US 15:00")
+            ("preflight.scheduler.stale", "Strategy Desk US 1500")
         );
         assert_eq!(c.fix, Some(Fix::Task(TaskId::SchedulerRegister)));
         // The old app's three jobs alone are a working schedule (they run the vault's script).

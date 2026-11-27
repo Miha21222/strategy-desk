@@ -90,7 +90,7 @@ pub fn triggers(date: NaiveDate, settings: &Settings) -> Vec<PlannedRun> {
     runs
 }
 
-/// The job's name in the Task Scheduler: «Strategy Desk US 15:00».
+/// The job's name in the Task Scheduler: «Strategy Desk US 1500».
 /// Task Scheduler names may not contain `:`, so the minute is spelled `HHMM`.
 pub fn task_name(run: &PlannedRun) -> String {
     let w = match run.window {
