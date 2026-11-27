@@ -32,6 +32,9 @@ pub fn demo_vault() -> PathBuf {
 /// reference screenshots were taken.
 pub const DEMO_NOW: &str = "2026-10-26T09:40";
 
+/// The largest texture side the desk asks for (`DESK_OPT=atlas_full` lifts it).
+pub const MAX_TEXTURE_SIDE: usize = 4096;
+
 /// Content column of the main area; wider screens get side margins.
 const MAIN_MAX_WIDTH: f32 = 1100.0;
 
@@ -56,6 +59,8 @@ pub struct DeskApp {
     chats: Arc<ChatsView>,
     chats_override: Option<Arc<ChatsView>>,
     theme: ThemePreference,
+    /// See `raw_input_hook`; `None` = the driver's limit.
+    max_texture_side: Option<usize>,
     /// desk-app starting on a helper thread (`DESK_OPT` default): the
     /// handle arrives here; commands wait in `sent` until it does.
     pending: Option<mpsc::Receiver<std::io::Result<AppHandle>>>,
@@ -122,6 +127,7 @@ impl DeskApp {
             chats: Arc::default(),
             chats_override: None,
             theme: ThemePreference::System,
+            max_texture_side: Some(MAX_TEXTURE_SIDE),
             pending: None,
             late_start: None,
             frames: 0,
@@ -345,6 +351,16 @@ impl eframe::App for DeskApp {
         }
     }
 
+    /// Textures, and with them egui's font atlas (as wide as the largest
+    /// texture allowed), are kept to [`MAX_TEXTURE_SIDE`]: the driver allows
+    /// 16384, i.e. a 16384-px-wide atlas that grows 64 KB a row on the CPU
+    /// and again in the driver.
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw: &mut egui::RawInput) {
+        if let Some(cap) = self.max_texture_side {
+            raw.max_texture_side = Some(raw.max_texture_side.map_or(cap, |m| m.min(cap)));
+        }
+    }
+
     fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
         visuals.panel_fill.to_normalized_gamma_f32()
     }
@@ -448,6 +464,9 @@ pub fn run(started: Instant, opts: WindowOpts) -> anyhow::Result<()> {
             } else {
                 let h = start_app(vault).map_err(|e| anyhow::anyhow!("background thread: {e}"))?;
                 app.adopt(&cc.egui_ctx, h);
+            }
+            if o.atlas_full {
+                app.max_texture_side = None;
             }
             app.tex.full_everywhere = o.shots_full;
             app.tex.preview_mips = o.shot_mips;

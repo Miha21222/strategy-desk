@@ -10,6 +10,7 @@
 //!   with the time since `main` and the process memory (see [`trace`]).
 
 use std::io::Write as _;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -126,6 +127,22 @@ pub mod trace {
 
     static TRACE: OnceLock<Option<Trace>> = OnceLock::new();
 
+    /// Frames so far and the font atlas size, for the idle marks (set by
+    /// `Perf::on_frame`, read by the trace thread).
+    pub(crate) static FRAMES: AtomicU64 = AtomicU64::new(0);
+    pub(crate) static ATLAS: AtomicU64 = AtomicU64::new(0);
+
+    /// `, "frames": n, "atlas": "WxH"`.
+    fn frame_fields() -> String {
+        let a = ATLAS.load(Ordering::Relaxed);
+        format!(
+            ", \"frames\": {}, \"atlas\": \"{}x{}\"",
+            FRAMES.load(Ordering::Relaxed),
+            a >> 32,
+            a & 0xffff_ffff
+        )
+    }
+
     /// Call first thing in `main`, with the clock `main` started.
     pub fn init(started: Instant) {
         let on = std::env::var_os("DESK_STARTUP_TRACE").is_some_and(|v| v == "1");
@@ -186,8 +203,19 @@ pub mod trace {
         let spawned = std::thread::Builder::new()
             .name("desk-trace".into())
             .spawn(|| {
-                std::thread::sleep(Duration::from_secs(10));
-                mark("idle_10s");
+                // Where the memory of the first idle seconds goes (owner's
+                // run 27.11: +9 MB between shot_on_gpu and idle_10s).
+                let mut slept = 0;
+                for (at, phase) in [
+                    (1, "idle_1s"),
+                    (2, "idle_2s"),
+                    (5, "idle_5s"),
+                    (10, "idle_10s"),
+                ] {
+                    std::thread::sleep(Duration::from_secs(at - slept));
+                    slept = at;
+                    mark_with(phase, &frame_fields());
+                }
             });
         if spawned.is_err() {
             mark("idle_10s_unavailable");
@@ -315,6 +343,14 @@ impl Perf {
     /// Call at the top of every `App::logic`.
     pub fn on_frame(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
         self.frames += 1;
+        if trace::enabled() {
+            let [w, h] = ctx.fonts(|f| f.font_image_size());
+            trace::FRAMES.store(self.frames, std::sync::atomic::Ordering::Relaxed);
+            trace::ATLAS.store(
+                ((w as u64) << 32) | h as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
+        }
         if self.frames == 1 {
             // Ask for a second pass: when it starts, the first frame has
             // gone through paint + swap, i.e. it is on screen.

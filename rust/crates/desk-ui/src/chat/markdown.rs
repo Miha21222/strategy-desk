@@ -331,14 +331,106 @@ pub fn parse(src: &str) -> Vec<Block> {
 
 // ---------------------------------------------------------------- the cache
 
-/// Parsed messages by the hash of their text. A message that stopped
-/// streaming is parsed once; the live one is re-parsed when its text moved.
+/// A parsed message: the blocks in chunks, so the live message can keep
+/// what it already parsed and add to it.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Doc {
+    pub chunks: Vec<Arc<Vec<Block>>>,
+}
+
+/// Blocks per chunk of a finished message: the unit that is skipped when
+/// it is scrolled out of sight.
+const CHUNK_BLOCKS: usize = 8;
+
+impl Doc {
+    fn one(blocks: Vec<Block>) -> Self {
+        let mut chunks = Vec::with_capacity(blocks.len().div_ceil(CHUNK_BLOCKS));
+        let mut it = blocks.into_iter().peekable();
+        while it.peek().is_some() {
+            chunks.push(Arc::new(it.by_ref().take(CHUNK_BLOCKS).collect()));
+        }
+        Self { chunks }
+    }
+
+    pub fn blocks(&self) -> impl Iterator<Item = &Block> {
+        self.chunks.iter().flat_map(|c| c.iter())
+    }
+}
+
+/// Where the closed part of a live message may end: at the start of a line
+/// that follows a blank line, sits in column 0 and is outside a code fence.
+/// Nothing after such a line can change how the text before it parses
+/// (short of a link definition further down, which an agent does not write).
+/// Only complete lines count; returns the last such offset in `tail`, or 0.
+fn last_boundary(tail: &str) -> usize {
+    let mut fence: Option<(u8, usize)> = None;
+    let mut prev_blank = false;
+    let mut last = 0;
+    let mut at = 0;
+    for line in tail.split_inclusive('\n') {
+        if !line.ends_with('\n') {
+            break; // still being written
+        }
+        let start = at;
+        at += line.len();
+        let text = line.trim_end_matches(['\n', '\r']);
+        let indent = text.len() - text.trim_start_matches(' ').len();
+        let body = text.trim_start_matches(' ');
+        let marker = body.bytes().next().filter(|c| *c == b'`' || *c == b'~');
+        let run = marker.map_or(0, |c| body.bytes().take_while(|b| *b == c).count());
+        if let Some((c, n)) = fence {
+            // Inside a fence: only its closing line counts.
+            if indent <= 3 && marker == Some(c) && run >= n && body[run..].trim().is_empty() {
+                fence = None;
+            }
+            prev_blank = false;
+            continue;
+        }
+        let blank = body.trim().is_empty();
+        if !blank && prev_blank && indent == 0 {
+            last = start;
+        }
+        if indent <= 3 && run >= 3 {
+            if let Some(c) = marker {
+                fence = Some((c, run));
+            }
+        }
+        prev_blank = blank;
+    }
+    last
+}
+
+/// The live message: what is parsed for good and what is still open.
+#[derive(Debug, Default)]
+struct Live {
+    /// Bytes of the text that live in `closed`, and their last bytes (to
+    /// see in O(1) that the new text still starts with them).
+    closed_len: usize,
+    closed_sig: Vec<u8>,
+    closed: Vec<Arc<Vec<Block>>>,
+    /// The whole text as last seen: its length and last bytes.
+    seen_len: usize,
+    seen_sig: Vec<u8>,
+    doc: Arc<Doc>,
+}
+
+/// Bytes compared to recognise a text again.
+const SIG: usize = 32;
+
+fn sig(s: &[u8]) -> Vec<u8> {
+    s[s.len().saturating_sub(SIG)..].to_vec()
+}
+
+/// Parsed messages by the hash of their text: a finished message is parsed
+/// once. The live one is parsed incrementally — the part up to its last
+/// block boundary stays parsed, only the open tail is parsed again, and not
+/// at all when the text did not move.
 #[derive(Debug, Default)]
 pub struct Cache {
-    map: HashMap<u64, Arc<Vec<Block>>>,
-    live: Option<(u64, Arc<Vec<Block>>)>,
-    /// Parses done (tests).
-    pub parses: u64,
+    map: HashMap<u64, Arc<Doc>>,
+    live: Live,
+    /// Bytes handed to the parser so far (tests: bounded work per frame).
+    pub parsed_bytes: u64,
 }
 
 /// Finished messages kept parsed; past this the cache starts over.
@@ -351,29 +443,56 @@ fn hash(s: &str) -> u64 {
 }
 
 impl Cache {
-    pub fn get(&mut self, src: &str, live: bool) -> Arc<Vec<Block>> {
-        let k = hash(src);
+    fn parse_counted(&mut self, src: &str) -> Vec<Block> {
+        self.parsed_bytes += src.len() as u64;
+        parse(src)
+    }
+
+    pub fn get(&mut self, src: &str, live: bool) -> Arc<Doc> {
         if live {
-            if let Some((lk, b)) = &self.live {
-                if *lk == k {
-                    return b.clone();
-                }
-            }
-            self.parses += 1;
-            let b = Arc::new(parse(src));
-            self.live = Some((k, b.clone()));
-            return b;
+            return self.get_live(src);
         }
-        if let Some(b) = self.map.get(&k) {
-            return b.clone();
+        let k = hash(src);
+        if let Some(d) = self.map.get(&k) {
+            return d.clone();
         }
         if self.map.len() >= CACHE_MAX {
             self.map.clear();
         }
-        self.parses += 1;
-        let b = Arc::new(parse(src));
-        self.map.insert(k, b.clone());
-        b
+        let d = Arc::new(Doc::one(self.parse_counted(src)));
+        self.map.insert(k, d.clone());
+        d
+    }
+
+    fn get_live(&mut self, src: &str) -> Arc<Doc> {
+        let bytes = src.as_bytes();
+        let l = &self.live;
+        if bytes.len() == l.seen_len && sig(bytes) == l.seen_sig && l.seen_len > 0 {
+            return l.doc.clone();
+        }
+        // Still the same message, grown? Otherwise start over.
+        let n = l.closed_len;
+        let same = n <= bytes.len() && src.is_char_boundary(n) && sig(&bytes[..n]) == l.closed_sig;
+        if !same {
+            self.live = Live::default();
+        }
+        let start = self.live.closed_len;
+        let cut = last_boundary(&src[start..]);
+        if cut > 0 {
+            let end = start + cut;
+            let blocks = self.parse_counted(&src[start..end]);
+            self.live.closed.push(Arc::new(blocks));
+            self.live.closed_len = end;
+            self.live.closed_sig = sig(&bytes[..end]);
+        }
+        let tail = self.parse_counted(&src[self.live.closed_len..]);
+        let mut chunks = self.live.closed.clone();
+        chunks.push(Arc::new(tail));
+        let doc = Arc::new(Doc { chunks });
+        self.live.seen_len = bytes.len();
+        self.live.seen_sig = sig(bytes);
+        self.live.doc = doc.clone();
+        doc
     }
 }
 
@@ -453,8 +572,41 @@ fn spans_ui(ui: &mut Ui, p: &Palette, spans: &[Span], size: f32, extra: u8) {
     });
 }
 
-/// Draw parsed blocks at the body size.
-pub fn show(ui: &mut Ui, p: &Palette, blocks: &[Block]) {
+/// Draw a parsed message at the body size. A chunk whose height is known
+/// from an earlier frame and that lies outside the visible area only takes
+/// its space, so a long answer costs what is on screen, not its length.
+pub fn show(ui: &mut Ui, p: &Palette, doc: &Doc) {
+    ui.spacing_mut().item_spacing.y = space::S4;
+    let w = ui.available_width();
+    let clip = ui.clip_rect();
+    for chunk in &doc.chunks {
+        let id = egui::Id::NULL.with((
+            "md-chunk",
+            Arc::as_ptr(chunk) as usize,
+            chunk.len(),
+            w.to_bits(),
+        ));
+        let known = ui.ctx().data(|d| d.get_temp::<f32>(id));
+        if let Some(h) = known {
+            let top = ui.cursor().top();
+            if top + h < clip.top() || top > clip.bottom() {
+                ui.allocate_space(egui::vec2(w, h));
+                continue;
+            }
+        }
+        let r = ui
+            .scope(|ui| {
+                for b in chunk.iter() {
+                    block(ui, p, b);
+                }
+            })
+            .response
+            .rect;
+        ui.ctx().data_mut(|d| d.insert_temp(id, r.height()));
+    }
+}
+
+fn show_blocks(ui: &mut Ui, p: &Palette, blocks: &[Block]) {
     ui.spacing_mut().item_spacing.y = space::S4;
     for b in blocks {
         block(ui, p, b);
@@ -492,7 +644,7 @@ fn block(ui: &mut Ui, p: &Palette, b: &Block) {
                         FontId::proportional(text::BASE),
                         p.fg_muted,
                     );
-                    ui.vertical(|ui| show(ui, p, item));
+                    ui.vertical(|ui| show_blocks(ui, p, item));
                 });
             }
         }
@@ -505,7 +657,7 @@ fn block(ui: &mut Ui, p: &Palette, b: &Block) {
                     top: 0,
                     bottom: 0,
                 })
-                .show(ui, |ui| show(ui, p, inner))
+                .show(ui, |ui| show_blocks(ui, p, inner))
                 .response;
             ui.painter().vline(
                 r.rect.left() + 2.0,
@@ -656,15 +808,81 @@ mod tests {
     }
 
     #[test]
-    fn finished_messages_are_parsed_once_the_live_one_on_change() {
+    fn finished_messages_are_parsed_once() {
         let mut c = Cache::default();
         c.get("один", false);
         c.get("один", false);
-        assert_eq!(c.parses, 1);
-        c.get("жив", true);
-        c.get("жив", true);
-        assert_eq!(c.parses, 2);
-        c.get("живой", true);
-        assert_eq!(c.parses, 3);
+        assert_eq!(c.parsed_bytes, "один".len() as u64);
+    }
+
+    #[test]
+    fn boundaries_skip_fences_indents_and_the_open_line() {
+        assert_eq!(last_boundary("раз\n\nдва\n"), "раз\n\n".len());
+        assert_eq!(
+            last_boundary("раз\n\nдва"),
+            0,
+            "an unfinished line is no boundary"
+        );
+        assert_eq!(last_boundary("- a\n\n  b\n"), 0, "indented: still the item");
+        assert_eq!(last_boundary("```\nx\n\ny\n"), 0, "inside a fence");
+        let s = "```\nx\n\n```\n\nпосле\n";
+        assert_eq!(last_boundary(s), s.len() - "после\n".len());
+    }
+
+    /// A long answer, streamed a few characters at a time.
+    fn long_answer(paragraphs: usize) -> String {
+        let mut s = String::new();
+        for i in 0..paragraphs {
+            match i % 4 {
+                0 => s.push_str(&format!("## Раздел {i}\n\n")),
+                1 => s.push_str("- первый пункт про **уровень**\n- второй с `кодом`\n\n"),
+                2 => s.push_str("```bash\npython scale.py review eu\n\necho done\n```\n\n"),
+                _ => s.push_str(
+                    "Европа открылась выше вчерашнего VAH, премаркет снял ночной максимум.\n\n",
+                ),
+            }
+        }
+        s
+    }
+
+    #[test]
+    fn the_live_message_parses_only_its_open_tail() {
+        let text = long_answer(400);
+        assert!(text.len() > 20_000);
+        let mut c = Cache::default();
+        let mut worst = 0;
+        let mut end = 0;
+        while end < text.len() {
+            end = (end + 7).min(text.len());
+            while !text.is_char_boundary(end) {
+                end += 1;
+            }
+            let before = c.parsed_bytes;
+            c.get(&text[..end], true);
+            worst = worst.max(c.parsed_bytes - before);
+            // An unchanged text costs nothing.
+            let again = c.parsed_bytes;
+            c.get(&text[..end], true);
+            assert_eq!(c.parsed_bytes, again);
+        }
+        // Per frame: the open block plus what just closed, never the whole answer.
+        assert!(
+            worst < 300,
+            "worst frame parsed {worst} bytes of {}",
+            text.len()
+        );
+        // And the result is what a whole parse gives.
+        let whole = parse(&text);
+        let live = c.get(&text, true);
+        assert_eq!(live.blocks().cloned().collect::<Vec<_>>(), whole);
+    }
+
+    #[test]
+    fn a_new_live_message_starts_over() {
+        let mut c = Cache::default();
+        let a = c.get("первый\n\nответ", true);
+        let b = c.get("другой", true);
+        assert_ne!(a, b);
+        assert_eq!(b.blocks().count(), 1);
     }
 }
