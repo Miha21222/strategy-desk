@@ -32,11 +32,9 @@ pub const OLD_USER_VARS: [&str; 6] = [
 ];
 
 /// The job's name as registered: desk-core's `task_name` («Strategy Desk US
-/// 15:00») without the colon — a task is a file under
-/// `C:\Windows\System32\Tasks`, and `:` cannot be in a file name.
-/// TODO(core): spell it without `:` in `desk_core::schedule::task_name`.
+/// 1500»; a task is a file under `C:\Windows\System32\Tasks`, so no `:`).
 pub fn job_name(run: &PlannedRun) -> String {
-    task_name(run).replace(':', "")
+    task_name(run)
 }
 
 /// PowerShell single-quoted string.

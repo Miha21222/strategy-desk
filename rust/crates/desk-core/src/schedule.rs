@@ -91,13 +91,14 @@ pub fn triggers(date: NaiveDate, settings: &Settings) -> Vec<PlannedRun> {
 }
 
 /// The job's name in the Task Scheduler: «Strategy Desk US 15:00».
+/// Task Scheduler names may not contain `:`, so the minute is spelled `HHMM`.
 pub fn task_name(run: &PlannedRun) -> String {
     let w = match run.window {
         WindowId::Eu => "EU",
         WindowId::Us => "US",
         WindowId::Review => "Review",
     };
-    format!("{TASK_PREFIX}{w} {}", run.at_local.format("%H:%M"))
+    format!("{TASK_PREFIX}{w} {}", run.at_local.format("%H%M"))
 }
 
 /// The window whose planned start is now: today (Kyiv) has a [`planned_runs`]
@@ -161,10 +162,10 @@ mod tests {
             assert_eq!(
                 names,
                 [
-                    "Strategy Desk EU 09:30",
-                    "Strategy Desk US 15:00",
-                    "Strategy Desk US 16:00",
-                    "Strategy Desk Review 20:00"
+                    "Strategy Desk EU 0930",
+                    "Strategy Desk US 1500",
+                    "Strategy Desk US 1600",
+                    "Strategy Desk Review 2000"
                 ],
                 "{start}"
             );
