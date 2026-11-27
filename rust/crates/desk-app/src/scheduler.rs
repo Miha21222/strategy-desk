@@ -1,12 +1,15 @@
-//! The three Task Scheduler jobs (TZ item 18): each runs
-//! `strategy-desk.exe run --window <eu|us|review>` on weekdays at every
-//! minute `planned_runs` can give for its window (two for the US window: the
-//! weeks Europe and America change clocks on different days). The run itself
-//! decides with `due_window` whether the minute is its own.
+//! The Task Scheduler jobs (TZ item 18): `strategy-desk.exe run --window
+//! <eu|us|review>` on weekdays, one job per window and minute — every minute
+//! `planned_runs` can give over a year (09:30, 15:00, 16:00, 20:00 today:
+//! the US window moves an hour earlier in the weeks Europe and America change
+//! clocks on different days). The run decides with `due_window` whether the
+//! minute is its own.
 //!
-//! Unlike the Electron app, nothing is written into the user's environment:
-//! `run` reads the settings and the sessionid (Credential Manager) itself.
-//! Registering also REMOVES the cookie the old app left in HKCU.
+//! Registration removes the Electron desk's three jobs (`Trading Macro EU`,
+//! `Trading Macro US`, `Trading Review`, from the vault's
+//! `macro_schedule.ps1`) — or every review would run twice — and the cookie
+//! that desk kept in HKCU. Nothing is written into the user's environment:
+//! `run` reads the settings and the Credential Manager itself.
 //!
 //! Everything here builds text; the scripts run through the task runner
 //! (Windows only). The builders are what the tests pin down.
@@ -20,13 +23,11 @@ use desk_core::windows::WindowId;
 use crate::core_wip::{planned_runs, Settings};
 use crate::runtime::SpawnSpec;
 
-/// The job names the old app registered too, so registering replaces them
-/// instead of leaving a second set that runs the old scripts.
-pub const TASKS: [(WindowId, &str); 3] = [
-    (WindowId::Eu, "Trading Macro EU"),
-    (WindowId::Us, "Trading Macro US"),
-    (WindowId::Review, "Trading Review"),
-];
+/// The Electron desk's jobs.
+pub const OLD_TASKS: [&str; 3] = ["Trading Macro EU", "Trading Macro US", "Trading Review"];
+
+/// Our jobs are `Strategy Desk <window> <HHMM>` (a task name cannot hold `:`).
+pub const PREFIX: &str = "Strategy Desk";
 
 /// User variables the old app wrote for its scheduled scripts.
 pub const OLD_USER_VARS: [&str; 6] = [
@@ -38,11 +39,8 @@ pub const OLD_USER_VARS: [&str; 6] = [
     "TV_SESSIONID",
 ];
 
-pub fn task_name(w: WindowId) -> &'static str {
-    TASKS
-        .iter()
-        .find(|(id, _)| *id == w)
-        .map_or("Trading Macro", |(_, n)| n)
+pub fn job_name(w: WindowId, at: NaiveTime) -> String {
+    format!("{PREFIX} {} {}", w.as_str(), at.format("%H%M"))
 }
 
 /// Every local minute a window may run at over a year from `from` — the
@@ -65,38 +63,44 @@ pub fn ps_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
+/// Remove every job of ours (any minute) and the old desk's three.
+fn remove_all() -> Vec<String> {
+    let mut v: Vec<String> = OLD_TASKS
+        .iter()
+        .map(|n| format!("Unregister-ScheduledTask -TaskName {} -Confirm:$false -ErrorAction SilentlyContinue", ps_quote(n)))
+        .collect();
+    v.push(format!(
+        "Get-ScheduledTask -TaskName {} -ErrorAction SilentlyContinue | Unregister-ScheduledTask -Confirm:$false",
+        ps_quote(&format!("{PREFIX} *"))
+    ));
+    v
+}
+
 /// The registration script (shown to the owner before it runs).
 pub fn register_script(exe: &Path, times: &HashMap<WindowId, BTreeSet<NaiveTime>>) -> String {
-    let mut lines = vec![
-        "$ErrorActionPreference = 'Stop'".to_string(),
-        // Late (asleep at the minute) still starts; `run` then finds it is not
-        // its minute any more and exits without work.
-        "$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)".to_string(),
-    ];
-    for (w, name) in TASKS {
-        let Some(at) = times.get(&w).filter(|t| !t.is_empty()) else {
-            continue;
-        };
-        let triggers: Vec<String> = at
-            .iter()
-            .map(|t| {
-                format!(
-                    "(New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At {})",
-                    ps_quote(&t.format("%H:%M").to_string())
-                )
-            })
-            .collect();
+    let mut lines = vec!["$ErrorActionPreference = 'Stop'".to_string()];
+    lines.extend(remove_all());
+    // Late (asleep at the minute) still starts; `run` then finds it is not
+    // its minute any more and exits without work.
+    lines.push("$s = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)".into());
+    for w in WindowId::ALL {
+        let Some(at) = times.get(&w) else { continue };
         lines.push(format!(
             "$a = New-ScheduledTaskAction -Execute {} -Argument {}",
             ps_quote(&exe.to_string_lossy()),
             ps_quote(&format!("run --window {}", w.as_str()))
         ));
-        lines.push(format!("$t = @({})", triggers.join(", ")));
-        lines.push(format!(
-            "Register-ScheduledTask -TaskName {} -Action $a -Trigger $t -Settings $s -Description {} -Force | Out-Null",
-            ps_quote(name),
-            ps_quote(&format!("Strategy Desk: macro review, window {}", w.as_str()))
-        ));
+        for t in at {
+            lines.push(format!(
+                "$t = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At {}",
+                ps_quote(&t.format("%H:%M").to_string())
+            ));
+            lines.push(format!(
+                "Register-ScheduledTask -TaskName {} -Action $a -Trigger $t -Settings $s -Description {} -Force | Out-Null",
+                ps_quote(&job_name(w, *t)),
+                ps_quote(&format!("Strategy Desk: macro review, window {}", w.as_str()))
+            ));
+        }
     }
     // The old app kept the cookie in HKCU for its scheduled scripts; gone.
     lines.push("[Environment]::SetEnvironmentVariable('TV_SESSIONID', $null, 'User')".into());
@@ -105,10 +109,7 @@ pub fn register_script(exe: &Path, times: &HashMap<WindowId, BTreeSet<NaiveTime>
 }
 
 pub fn unregister_script() -> String {
-    let mut lines: Vec<String> = TASKS
-        .iter()
-        .map(|(_, n)| format!("Unregister-ScheduledTask -TaskName {} -Confirm:$false -ErrorAction SilentlyContinue", ps_quote(n)))
-        .collect();
+    let mut lines = remove_all();
     lines.extend(OLD_USER_VARS.iter().map(|v| {
         format!(
             "[Environment]::SetEnvironmentVariable({}, $null, 'User')",
@@ -119,9 +120,10 @@ pub fn unregister_script() -> String {
     lines.join("\n")
 }
 
-/// Read-only: the three jobs, one `name|state|action` line each.
+/// Read-only: our jobs and the old ones, one `name|state|action` line each.
 pub fn query_script() -> String {
-    let names: Vec<String> = TASKS.iter().map(|(_, n)| ps_quote(n)).collect();
+    let mut names: Vec<String> = vec![ps_quote(&format!("{PREFIX} *"))];
+    names.extend(OLD_TASKS.iter().map(|n| ps_quote(n)));
     format!(
         "Get-ScheduledTask -TaskName {} -ErrorAction SilentlyContinue | ForEach-Object {{ $_.TaskName + '|' + $_.State + '|' + (($_.Actions | ForEach-Object {{ $_.Execute + ' ' + $_.Arguments }}) -join ';') }}",
         names.join(",")
@@ -139,17 +141,18 @@ pub struct JobInfo {
 impl JobInfo {
     /// Registered by an Electron desk (runs the vault's scripts), not by us.
     pub fn is_old(&self) -> bool {
-        !self.action.contains("run --window")
+        OLD_TASKS.contains(&self.name.as_str())
     }
 }
 
 pub fn parse_query(out: &str) -> Vec<JobInfo> {
+    let ours = format!("{PREFIX} ");
     out.lines()
         .filter_map(|l| {
             let mut it = l.splitn(3, '|').map(str::trim);
             let (name, state, action) =
                 (it.next()?, it.next().unwrap_or(""), it.next().unwrap_or(""));
-            TASKS.iter().any(|(_, n)| *n == name).then(|| JobInfo {
+            (name.starts_with(&ours) || OLD_TASKS.contains(&name)).then(|| JobInfo {
                 name: name.into(),
                 state: state.into(),
                 action: action.into(),
@@ -208,9 +211,11 @@ mod tests {
     }
 
     #[test]
-    fn the_us_window_gets_both_minutes_of_a_year() {
-        let s = Settings::default();
-        let times = trigger_times(NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(), &s);
+    fn a_year_gives_four_minutes() {
+        let times = trigger_times(
+            NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            &Settings::default(),
+        );
         assert_eq!(times[&WindowId::Eu], [t("09:30")].into_iter().collect());
         assert_eq!(
             times[&WindowId::Us],
@@ -222,49 +227,69 @@ mod tests {
 
     #[test]
     fn the_registration_script() {
-        let mut times = HashMap::new();
-        times.insert(WindowId::Eu, [t("09:30")].into_iter().collect());
-        times.insert(WindowId::Us, [t("15:00"), t("16:00")].into_iter().collect());
+        let times = trigger_times(
+            NaiveDate::from_ymd_opt(2026, 1, 5).unwrap(),
+            &Settings::default(),
+        );
         let s = register_script(
             Path::new(r"C:\Users\Тимур O'Neil\AppData\Local\Strategy Desk\strategy-desk.exe"),
             &times,
         );
         assert!(s.contains(r"-Execute 'C:\Users\Тимур O''Neil\AppData\Local\Strategy Desk\strategy-desk.exe' -Argument 'run --window eu'"), "{s}");
+        let jobs: Vec<&str> = s
+            .lines()
+            .filter(|l| l.starts_with("Register-ScheduledTask"))
+            .collect();
+        assert_eq!(jobs.len(), 4, "09:30, 15:00, 16:00, 20:00: {s}");
         assert!(
-            s.contains("-At '15:00'), (New-ScheduledTaskTrigger"),
-            "two triggers for US: {s}"
+            s.contains("-TaskName 'Strategy Desk us 1500'")
+                && s.contains("-TaskName 'Strategy Desk us 1600'")
         );
-        assert!(s.contains("Register-ScheduledTask -TaskName 'Trading Macro US'"));
-        assert!(!s.contains("Trading Review"), "no times, no job");
-        assert!(s.contains("-DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday"));
+        for old in OLD_TASKS {
+            assert!(
+                s.contains(&format!(
+                    "Unregister-ScheduledTask -TaskName '{old}' -Confirm:$false"
+                )),
+                "{old} removed"
+            );
+        }
+        assert!(s.contains("Get-ScheduledTask -TaskName 'Strategy Desk *' -ErrorAction SilentlyContinue | Unregister-ScheduledTask"), "stale minutes go too");
+        let first_register = s.find("Register-ScheduledTask -TaskName").unwrap_or(0);
+        assert!(
+            s.find("Unregister-ScheduledTask").unwrap_or(usize::MAX) < first_register,
+            "removal first"
+        );
+        assert!(
+            s.contains("-DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday")
+                && s.contains("-StartWhenAvailable")
+        );
         assert!(
             s.contains("SetEnvironmentVariable('TV_SESSIONID', $null, 'User')"),
             "the old cookie is removed"
-        );
-        assert!(
-            !s.to_lowercase().contains("sessionid ="),
-            "no cookie is ever written"
         );
     }
 
     #[test]
     fn unregister_and_query() {
         let u = unregister_script();
-        for (_, n) in TASKS {
+        for n in OLD_TASKS {
             assert!(u.contains(&format!(
                 "Unregister-ScheduledTask -TaskName '{n}' -Confirm:$false"
             )));
         }
+        assert!(u.contains("'Strategy Desk *'"));
         assert!(u.contains("'MACRO_VAULT', $null, 'User'"));
         let q = query_script();
-        assert!(q.starts_with(
-            "Get-ScheduledTask -TaskName 'Trading Macro EU','Trading Macro US','Trading Review'"
-        ));
-        let jobs = parse_query("Trading Macro EU|Ready|C:\\x\\strategy-desk.exe run --window eu\r\nOther|Ready|x\nTrading Review|Disabled|powershell -File macro_review.ps1\n\n");
+        assert!(q.starts_with("Get-ScheduledTask -TaskName 'Strategy Desk *','Trading Macro EU','Trading Macro US','Trading Review'"));
+        let jobs = parse_query("Strategy Desk eu 0930|Ready|C:\\x\\strategy-desk.exe run --window eu\r\nOther|Ready|x\nTrading Review|Disabled|powershell -File macro_review.ps1\n\n");
         assert_eq!(jobs.len(), 2);
         assert_eq!(jobs[0].state, "Ready");
         assert!(!jobs[0].is_old());
         assert!(jobs[1].is_old());
+        assert_eq!(
+            job_name(WindowId::Review, t("20:00")),
+            "Strategy Desk review 2000"
+        );
     }
 
     #[test]

@@ -9,6 +9,7 @@ pub mod claude;
 pub mod core_wip;
 pub mod day;
 pub mod macro_env;
+pub mod ops;
 pub mod paths;
 pub mod run;
 pub mod runtime;

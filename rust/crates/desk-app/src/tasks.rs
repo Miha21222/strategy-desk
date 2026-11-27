@@ -658,7 +658,7 @@ mod tests {
         let p = plan(TaskId::SchedulerRegister, &c).unwrap();
         let shown = p.shown();
         assert!(
-            shown.contains("Register-ScheduledTask -TaskName 'Trading Macro EU'"),
+            shown.contains("Register-ScheduledTask -TaskName 'Strategy Desk eu 0930'"),
             "{shown}"
         );
         assert!(!shown.contains("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"));

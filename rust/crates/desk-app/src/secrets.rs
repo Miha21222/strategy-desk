@@ -19,7 +19,7 @@ pub const TV_SESSION: &str = "tv_session";
 pub struct SecretError(pub String);
 
 /// A place secrets live. `get` = `Ok(None)` when nothing is stored.
-pub trait SecretStore: Send + Sync {
+pub trait SecretStore: Send + Sync + fmt::Debug {
     fn get(&self, key: &str) -> Result<Option<String>, SecretError>;
     fn set(&self, key: &str, value: &str) -> Result<(), SecretError>;
     fn delete(&self, key: &str) -> Result<(), SecretError>;

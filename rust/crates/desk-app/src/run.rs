@@ -89,6 +89,49 @@ pub fn claude_args(window: WindowId, date: NaiveDate) -> Vec<String> {
     ]
 }
 
+/// `<logs>/run.lock`: one run at a time. A lock older than the run timeout
+/// is a crashed run's and is taken over.
+struct RunLock {
+    path: PathBuf,
+}
+
+impl RunLock {
+    fn take(dir: &Path, now: DateTime<Utc>) -> Option<Self> {
+        let path = dir.join("run.lock");
+        let _ = std::fs::create_dir_all(dir);
+        for _ in 0..2 {
+            match std::fs::File::create_new(&path) {
+                Ok(mut f) => {
+                    let _ = write!(f, "{} {}", std::process::id(), now.timestamp());
+                    return Some(Self { path });
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let stale = std::fs::read_to_string(&path)
+                        .ok()
+                        .and_then(|t| {
+                            t.split_whitespace()
+                                .nth(1)
+                                .and_then(|s| s.parse::<i64>().ok())
+                        })
+                        .is_none_or(|at| now.timestamp() - at > RUN_TIMEOUT.as_secs() as i64 + 600);
+                    if !stale {
+                        return None;
+                    }
+                    let _ = std::fs::remove_file(&path);
+                }
+                Err(_) => return None,
+            }
+        }
+        None
+    }
+}
+
+impl Drop for RunLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 struct Log {
     file: Option<std::fs::File>,
 }
@@ -168,6 +211,20 @@ pub fn run(a: RunArgs<'_>) -> i32 {
     );
     let python = tools_python(&rt, &settings.tvmcp_path, Platform::host()).filter(|p| p.is_file());
     let session = tv_session(a.secrets);
+    // A review without TradingView data is not a review (TEST_PLAN №18 I).
+    if session.is_none() {
+        log.line("no TradingView sessionid in the Credential Manager: set it in the desk (wizard, step «Сессия»)");
+        return 1;
+    }
+    // Two runs at once (a late trigger meeting the next one): the second
+    // leaves without work.
+    let _lock = match RunLock::take(&paths::logs_dir(&data), a.now) {
+        Some(l) => l,
+        None => {
+            log.line("another run is in progress: nothing to do");
+            return 0;
+        }
+    };
     let mut env: BTreeMap<String, String> = macro_env_vars(&MacroEnvInput {
         vault: vault.to_string_lossy().into_owned(),
         python: python
@@ -189,9 +246,6 @@ pub fn run(a: RunArgs<'_>) -> i32 {
         vault.display(),
         env.keys().cloned().collect::<Vec<_>>().join(",")
     ));
-    if session.is_none() {
-        log.line("no TradingView sessionid stored: the review runs without account data");
-    }
 
     let mut cmd = Command::new(&claude);
     cmd.args(&launch.program_args)
@@ -443,6 +497,42 @@ mod tests {
     }
 
     #[test]
+    fn no_sessionid_is_exit_1_and_a_second_run_waits_its_turn() {
+        let r = rig();
+        let args = |secrets: &'static MemoryStore| RunArgs {
+            window: WindowId::Eu,
+            date: NaiveDate::from_ymd_opt(2026, 11, 26),
+            now: at(9, 31),
+            data_dir: Some(r.data.path().to_path_buf()),
+            secrets,
+            claude: launch("ok", &r.out),
+        };
+        static NONE: std::sync::LazyLock<MemoryStore> =
+            std::sync::LazyLock::new(MemoryStore::default);
+        static SOME: std::sync::LazyLock<MemoryStore> = std::sync::LazyLock::new(|| {
+            let s = MemoryStore::default();
+            let _ = crate::secrets::set_tv_session(&s, "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4");
+            s
+        });
+        assert_eq!(run(args(&NONE)), 1);
+        assert!(!r.out.exists(), "no review without TradingView data");
+        let log =
+            std::fs::read_to_string(paths::logs_dir(r.data.path()).join("run-2026-11-26-eu.log"))
+                .unwrap();
+        assert!(log.contains("no TradingView sessionid"), "{log}");
+        // A fresh lock of another run: this one leaves without work.
+        let lock = paths::logs_dir(r.data.path()).join("run.lock");
+        std::fs::write(&lock, format!("999 {}", at(9, 30).timestamp())).unwrap();
+        assert_eq!(run(args(&SOME)), 0);
+        assert!(!r.out.exists());
+        // A lock from yesterday is a crashed run's: taken over, and released after.
+        std::fs::write(&lock, format!("999 {}", at(9, 30).timestamp() - 86_400)).unwrap();
+        assert_eq!(run(args(&SOME)), 0);
+        assert!(r.out.exists());
+        assert!(!lock.exists());
+    }
+
+    #[test]
     fn not_its_minute_does_nothing() {
         let r = rig();
         let code = run(RunArgs {
@@ -465,11 +555,14 @@ mod tests {
             date: NaiveDate::from_ymd_opt(2026, 11, 25),
             now: at(12, 0),
             data_dir: Some(r.data.path().to_path_buf()),
-            secrets: &*EMPTY,
+            secrets: &*WITH_SESSION,
             claude: launch(mode, &r.out),
         };
-        static EMPTY: std::sync::LazyLock<MemoryStore> =
-            std::sync::LazyLock::new(MemoryStore::default);
+        static WITH_SESSION: std::sync::LazyLock<MemoryStore> = std::sync::LazyLock::new(|| {
+            let s = MemoryStore::default();
+            let _ = crate::secrets::set_tv_session(&s, "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4");
+            s
+        });
         assert_eq!(run(args("fail")), 1);
         assert_eq!(run(args("ok")), 0, "--date skips the minute check");
         let s = Settings {
