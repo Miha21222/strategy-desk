@@ -21,11 +21,11 @@ pub fn say(key: &str, vars: &[(String, String)]) -> String {
 }
 
 pub fn check_title(id: CheckId) -> String {
-    t(&format!("preflight.check.{}", id.as_str())).to_owned()
+    t(&format!("conn.check.{}", id.as_str())).to_owned()
 }
 
 pub fn task_title(id: TaskId) -> String {
-    t(&format!("task.{}", id.as_str())).to_owned()
+    t(&format!("conn.taskName.{}", id.as_str())).to_owned()
 }
 
 /// The glyph and colour of a state.
@@ -130,7 +130,10 @@ pub fn check_row(
                 ui.label(bold(check_title(c.id), text::BASE, p.fg));
                 if let (true, Some(fix)) = (problem, &c.fix) {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let r = kit::button(ui, p, t("conn.fix"), true, !busy);
+                        let mut r = kit::button(ui, p, t("conn.fix"), true, !busy);
+                        if let Some(k) = &c.fix_label_key {
+                            r = r.on_hover_text(t(k));
+                        }
                         if r.clicked() {
                             run_fix(ui, st, c.id, fix, out);
                         }
@@ -138,6 +141,9 @@ pub fn check_row(
                 }
             });
             kit::para(ui, txt(say(&c.detail_key, &c.vars), text::MD, p.fg_muted));
+            if let (true, Some(note)) = (problem, &c.note_key) {
+                kit::para(ui, txt(t(note), text::SM, p.fg_muted));
+            }
             if let (
                 true,
                 Some(Fix::Copy {
@@ -146,7 +152,9 @@ pub fn check_row(
                 }),
             ) = (problem, &c.fix)
             {
-                kit::para(ui, txt(t(explain_key), text::SM, p.fg_muted));
+                if c.note_key.is_none() {
+                    kit::para(ui, txt(t(explain_key), text::SM, p.fg_muted));
+                }
                 code_line(ui, p, cmd);
                 let now = ui.input(|i| i.time);
                 if st

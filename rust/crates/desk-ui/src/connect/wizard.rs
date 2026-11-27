@@ -132,13 +132,8 @@ pub fn page(
     let is_skipped = skipped(st, conn, step);
     if is_skipped {
         kit::tinted(ui, p.warn_soft, |ui| {
-            ui.horizontal(|ui| {
-                let weak = t(&format!("wiz.weak.{}", step.as_str())).to_owned();
-                ui.add(
-                    egui::Label::new(txt(tf("wiz.skipped", &[("weak", &weak)]), text::MD, p.warn))
-                        .wrap(),
-                );
-            });
+            let limited = t(&format!("setup.limited.{}", step.as_str())).to_owned();
+            ui.add(egui::Label::new(txt(limited, text::MD, p.warn)).wrap());
             if kit::link(ui, p, t("wiz.unskip")).clicked() {
                 st.wizard.skipped.retain(|s| *s != step);
                 out.push(ConnAction::SkipStep(step, false));

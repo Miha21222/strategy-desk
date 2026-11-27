@@ -101,13 +101,13 @@ pub enum TaskId {
 impl TaskId {
     pub fn as_str(self) -> &'static str {
         match self {
-            TaskId::ClaudeInstall => "claude_install",
-            TaskId::ClaudeLogin => "claude_login",
-            TaskId::ProvisionRuntime => "provision_runtime",
-            TaskId::VaultCreate => "vault_create",
-            TaskId::SessionCheck => "session_check",
-            TaskId::SchedulerRegister => "scheduler_register",
-            TaskId::SchedulerUnregister => "scheduler_unregister",
+            TaskId::ClaudeInstall => "claude-install",
+            TaskId::ClaudeLogin => "claude-login",
+            TaskId::ProvisionRuntime => "provision-runtime",
+            TaskId::VaultCreate => "vault-create",
+            TaskId::SessionCheck => "session-check",
+            TaskId::SchedulerRegister => "scheduler-register",
+            TaskId::SchedulerUnregister => "scheduler-unregister",
         }
     }
 }
@@ -130,6 +130,10 @@ pub struct Check {
     pub detail_key: String,
     pub vars: Vec<(String, String)>,
     pub fix: Option<Fix>,
+    /// The fix's own words («Создать здесь»): the hover text of «Исправить».
+    pub fix_label_key: Option<String>,
+    /// What the fix will do, or what the owner does himself when there is none.
+    pub note_key: Option<String>,
 }
 
 /// A task as it runs: its output, line by line.

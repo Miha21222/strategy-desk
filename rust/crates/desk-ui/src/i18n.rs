@@ -14,7 +14,7 @@
 
 use std::fmt::Display;
 
-use crate::i18n_connect::CONNECT;
+use crate::i18n_connect::{CONNECT, CONNECT_OVERRIDE};
 use crate::i18n_ru::RU_TS;
 
 /// The Rust desk's wording of strings `ru.ts` also has; looked up first.
@@ -199,6 +199,9 @@ pub fn t(key: &str) -> &str {
     if let Some((_, v)) = THESIS.iter().find(|(k, _)| *k == key) {
         return v;
     }
+    if let Some((_, v)) = CONNECT_OVERRIDE.iter().find(|(k, _)| *k == key) {
+        return v;
+    }
     if let Ok(i) = RU_TS.binary_search_by(|(k, _)| (*k).cmp(key)) {
         return RU_TS[i].1;
     }
@@ -225,6 +228,7 @@ pub(crate) fn all() -> impl Iterator<Item = &'static str> {
         .chain(DESK)
         .chain(THESIS)
         .chain(CONNECT)
+        .chain(CONNECT_OVERRIDE)
         .map(|(_, v)| *v)
 }
 
@@ -253,6 +257,17 @@ mod tests {
         assert_eq!(tf("macro.long", &[("x", &1)]), "Лонг");
     }
 
+    fn placeholders(s: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut rest = s;
+        while let Some(a) = rest.find('{') {
+            let Some(b) = rest[a..].find('}') else { break };
+            out.push(rest[a..a + b + 1].to_owned());
+            rest = &rest[a + b + 1..];
+        }
+        out
+    }
+
     #[test]
     fn generated_table_is_sorted_and_unique() {
         assert!(
@@ -268,6 +283,20 @@ mod tests {
             .iter()
             .chain(CONNECT)
             .all(|(k, _)| RU_TS.binary_search_by(|(x, _)| (*x).cmp(k)).is_err()));
+        // A stage-6 rewrite overrides a ru.ts key and brings no placeholder
+        // the original does not have (desk-core fills the original's).
+        for (k, v) in CONNECT_OVERRIDE {
+            let Ok(i) = RU_TS.binary_search_by(|(x, _)| (*x).cmp(k)) else {
+                panic!("CONNECT_OVERRIDE key not in ru.ts: {k}")
+            };
+            for var in placeholders(v) {
+                // `{count}` is new in desk-core's scheduler check (the old
+                // text named the three jobs instead).
+                let known = RU_TS[i].1.contains(&var)
+                    || (*k == "preflight.scheduler.ok" && var == "{count}");
+                assert!(known, "{k}: {var} is new");
+            }
+        }
         // An override must override something, and keep the placeholders.
         for (k, v) in THESIS {
             let i = RU_TS.binary_search_by(|(x, _)| (*x).cmp(k));

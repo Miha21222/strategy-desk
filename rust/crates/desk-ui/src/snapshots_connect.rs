@@ -40,6 +40,8 @@ fn check(id: CheckId, state: State, key: &str, vars: &[(&str, &str)], fix: Optio
             .map(|(k, v)| ((*k).into(), (*v).into()))
             .collect(),
         fix,
+        fix_label_key: None,
+        note_key: None,
     }
 }
 
@@ -49,9 +51,9 @@ pub(crate) fn sample_conn() -> ConnView {
     let at = Utc.with_ymd_and_hms(2026, 11, 27, 7, 31, 0).unwrap();
     let mut c = ConnView {
         lights: StatusLights {
-            tradingview: light(State::Fail, "status.tradingview.closed", &[]),
-            cdp: light(State::Fail, "status.cdp.off", &[]),
-            claude: light(State::Warn, "status.claude.no_login", &[]),
+            tradingview: light(State::Fail, "status.tv.stopped", &[]),
+            cdp: light(State::Fail, "status.cdp.down", &[("port", "9222")]),
+            claude: light(State::Warn, "status.claude.logged_out", &[]),
             vault: light(State::Ok, "status.vault.ok", &[]),
             checked_at: Some(at),
         },
@@ -66,14 +68,14 @@ pub(crate) fn sample_conn() -> ConnView {
             check(
                 CheckId::Claude,
                 State::Ok,
-                "preflight.claude.ok",
+                "preflight.claude.found",
                 &[("version", "2.1.340")],
                 None,
             ),
             check(
                 CheckId::ClaudeAuth,
                 State::Fail,
-                "preflight.claude_auth.none",
+                "preflight.claude.none",
                 &[],
                 Some(Fix::Task(TaskId::ClaudeLogin)),
             ),
@@ -87,28 +89,28 @@ pub(crate) fn sample_conn() -> ConnView {
             check(
                 CheckId::Tvmcp,
                 State::Fail,
-                "preflight.tvmcp.missing",
+                "preflight.runtime.missing",
                 &[],
                 Some(Fix::Task(TaskId::ProvisionRuntime)),
             ),
             check(
                 CheckId::Tradingview,
                 State::Fail,
-                "preflight.tradingview.closed",
+                "preflight.tv.notRunning",
                 &[],
                 Some(Fix::LaunchTradingView),
             ),
             check(
                 CheckId::Cdp,
-                State::Unknown,
-                "preflight.cdp.silent",
+                State::Ok,
+                "preflight.port.free",
                 &[("port", "9222")],
                 None,
             ),
             check(
                 CheckId::TvSession,
                 State::Fail,
-                "preflight.tv_session.none",
+                "preflight.tvSession.none",
                 &[],
                 None,
             ),
@@ -187,7 +189,7 @@ fn lights_say_what_is_wrong_and_a_red_one_opens_diagnostics() {
     h.run();
     for s in [
         "TradingView: закрыт",
-        "График для агента: TradingView закрыт",
+        "График для агента: порт 9222 молчит",
         "Claude: нет входа",
         "Папка проекта: на месте",
         "Запустить TradingView",
@@ -230,7 +232,7 @@ fn every_problem_has_one_fix_and_it_runs_its_task() {
     assert_eq!(disabled, 1);
     h.query_all_by_label("Исправить").next().unwrap().click();
     h.run();
-    assert_eq!(tasks_sent(&h), vec!["claude_login".to_owned()]);
+    assert_eq!(tasks_sent(&h), vec!["claude-login".to_owned()]);
 }
 
 #[test]
@@ -248,8 +250,8 @@ fn the_wizard_presses_its_task_once_and_skipping_says_what_weakens() {
     h.run();
     h.run();
     assert!(has(&h, "Шаг 3 из 6 · Рынок"));
+    assert_eq!(tasks_sent(&h), vec!["provision-runtime".to_owned()]);
     assert!(has(&h, "Запущено само: Среда Python"));
-    assert_eq!(tasks_sent(&h), vec!["provision_runtime".to_owned()]);
     h.run();
     assert_eq!(tasks_sent(&h).len(), 1, "never a retry loop");
     // Back on page 2 the skip says what is missing now.
@@ -257,7 +259,7 @@ fn the_wizard_presses_its_task_once_and_skipping_says_what_weakens() {
     h.run();
     assert!(has(
         &h,
-        "Шаг пропущен · агент не ответит, пока нет Claude Code и входа"
+        "Шаг «Claude» пропущен · агент не ответит, пока нет Claude Code и входа"
     ));
 }
 
@@ -275,7 +277,7 @@ fn the_sessionid_is_sent_once_and_never_kept() {
     h.get_by_label("Сохранить").click();
     h.run();
     assert!(h.state_mut().conn_ui_mut().session_field.is_empty());
-    assert_eq!(tasks_sent(&h), vec!["session_check".to_owned()]);
+    assert_eq!(tasks_sent(&h), vec!["session-check".to_owned()]);
     assert!(!has(&h, "abc123secret"));
 }
 

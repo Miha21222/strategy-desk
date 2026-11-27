@@ -190,7 +190,7 @@ mod tests {
         assert_eq!(
             to_commands(ConnAction::RunTask(TaskId::ProvisionRuntime)),
             vec![Command::RunTask(desk_app::app::TaskId(
-                "provision_runtime".into()
+                "provision-runtime".into()
             ))]
         );
         assert!(to_commands(ConnAction::SetTvSession("secret".into())).is_empty());
