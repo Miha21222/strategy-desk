@@ -121,3 +121,31 @@ pub struct Transcript { pub items: Vec<ChatItem> }       // User{text,at} | Assi
 - Макро-чат и «Новый чат» — `macro_env` + `prompt/macro-review.md` / `prompt/ask.md` (через `include_str!`), cwd = vault, инструменты `MACRO_ALLOWED`.
 - Где взять `claude`: `DESK_CLAUDE_BIN`, затем `claude` в PATH; не нашли — `Notice{key:"chat.error.no_claude"}` (мастер настройки — этап 6).
 - Стрим: `TextDelta` дописывается в последний `Assistant{live:true}`; снимок обновляется не чаще 30 раз в секунду.
+
+## Подключения, мастер, настройки, расписание (этап 6)
+
+Порядок источников правды — старое приложение: `src/shared/preflight.ts` (проверки и их порядок), `src/main/preflight.ts` (пробы),
+`src/shared/tasks.ts` + `src/main/tasks.ts` (задачи), `src/renderer/setup.ts` (страницы мастера), `src/main/status.ts`, `src/main/tv-launch.ts`,
+`src/main/runtime-spec.ts`, `src/main/vault-template.ts`, `src/shared/defaults.ts` (настройки), `src/main/macro-env.ts`.
+Из ТЗ: пункты 16–20 и 23. Без базы курса (gt-rag), без официального MCP, без Codex, без legacy.
+
+desk-core (чисто):
+- `settings`: `Settings { vault, claude_bin, tvmcp_path, cdp_port, theme, scale, macro_mcp, schedule: { eu, us, review, enabled } , setup_skipped }`,
+  `serde` с дефолтами и терпимостью к старым полям; `import_electron(old_config_json) -> Settings` (vaultPath, tvmcpPath, cdpPort, theme, macroMcp, расписание; секреты не переносятся).
+- `preflight`: `CheckId` (vault, claude, claude_auth, uv, tvmcp, tradingview, cdp, tv_session, scheduler, timezone), `Facts` → `Vec<Check { id, state: Ok|Warn|Fail|Skipped, detail_key, vars, fix: Option<Fix> }>`;
+  `Fix` = `Task(TaskId)` | `Copy { text, explain_key }` | `LaunchTradingView` | `PickFolder` | `SetCdpPort(u16)` — тот же список «что делает само», что в старом CLAUDE.md.
+- `schedule`: `fn planned_runs(date, settings) -> Vec<PlannedRun { window, at_local }>` и `fn due_window(now, settings) -> Option<WindowId>` — Планировщик будит Desk в обе возможные минуты (например 15:00 и 16:00 для США), `run` сам решает по `windows::window_times`, его ли это окно, иначе выходит с кодом 0 без работы.
+- `wizard`: страницы `vault → claude → tvmcp → tradingview → session → schedule`, правила пропуска и «что ослабнет без шага».
+
+desk-app (I/O):
+- `settings_store`: `%APPDATA%\strategy-desk-rs\settings.json` атомарно; при первом старте — `import_electron` из `%APPDATA%\strategy-desk\config.json`, если он есть.
+- `secrets`: sessionid TradingView в Диспетчере учётных данных (`keyring`, сервис `strategy-desk`, ключ `tv_session`); наружу только `has_tv_session`.
+- `status`: лампочки `StatusLights { tradingview, cdp, claude, vault }` по событию (старт, фокус окна, за 5 мин до окна) и по кнопке; TradingView через `sysinfo`, CDP — один GET `/json/version` с таймаутом 1,5 с, Claude — `claude --version` + проверка входа.
+- `tv_launch`: запуск TradingView Desktop (MSIX) с `--remote-debugging-port`, никогда не убивает запущенный.
+- `tasks`: `TaskId` (claude_install, claude_login, provision_runtime, vault_create, session_check, scheduler_register, scheduler_unregister); UI называет id, не команду; вывод построчно в снимок; ввод в stdin только для claude_login.
+- `runtime`: среда Python для tvmcp и скриптов vault — `uv sync --frozen` в `%APPDATA%\strategy-desk-rs\py` (внешний режим: готовый checkout + uv в PATH — как `preferExternal`).
+- `vault_template`: создание vault из шаблона, только недостающие файлы, ничего не перезаписывать; шаблон вшивается `include_dir` из `resources/vault-template`, если он подготовлен (`scripts/stage-vault.mjs`), иначе пустой — это этап 7.
+- `scheduler`: задачи Планировщика Windows через `schtasks`/PowerShell на `strategy-desk.exe run --window <eu|us|review>` в минуты из `planned_runs`; cookie в реестре больше не пишется.
+- `run`: безоконный режим `strategy-desk run --window eu|us|review [--date D]`: настройки + sessionid из keyring + `macro_env`, `due_window`, затем `claude -p` с `run_command`, лог в `%APPDATA%\strategy-desk-rs\logs\run-<D>-<w>.log`, код выхода 0/1.
+
+desk-ui: лампочки в боковой панели с «Запустить TradingView», страница «Настройки» (vault с выбором папки, тема, масштаб, sessionid — поле + «Проверить», macroMcp, расписание, «Очистить рантайм»), мастер первого запуска (6 страниц, у каждой ошибки одна кнопка «Исправить»), «Диагностика» — тот же список проверок, вывод задач.
