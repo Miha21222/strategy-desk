@@ -25,7 +25,6 @@ use tokio::sync::mpsc;
 use crate::chat::manager::{ChatMsg, Chats, Forward};
 use crate::chat::store::{default_data_dir, ChatStore};
 use crate::chat::{ChatCommand, ChatsView, ClaudeLaunch};
-use crate::core_wip::Settings;
 use crate::day::{self, DayMark};
 use crate::ops::{next_prewindow, Ops};
 use crate::paths;
@@ -36,6 +35,7 @@ use crate::tasks::{Forward as TaskForward, TaskEvent, TaskId, TasksView};
 use crate::tv_launch::{self, LaunchError, Launched};
 use crate::vault_write::{self, WriteError};
 use crate::watch::{Changed, StateWatcher, WatchOptions};
+use desk_core::settings::Settings;
 
 /// How many errors the snapshot keeps (oldest dropped first).
 pub const ERRORS_KEPT: usize = 20;

@@ -19,12 +19,12 @@ use desk_core::windows::WindowId;
 use crate::chat::launch::{find_claude, ClaudeLaunch, MACRO_PROMPT};
 use crate::claude::config::{AUTH_ENV_REMOVED, MACRO_ALLOWED, MACRO_DISALLOWED};
 use crate::claude::{DriverEvent, Translator};
-use crate::core_wip::due_window;
 use crate::macro_env::{macro_env_vars, MacroEnvInput, Platform};
 use crate::paths;
 use crate::runtime::{self, runtime_env, tools_python};
 use crate::secrets::{tv_session, SecretStore};
 use crate::settings_store::SettingsStore;
+use desk_core::schedule::due_window;
 
 /// A scheduled review gets this long before it is killed.
 pub const RUN_TIMEOUT: Duration = Duration::from_secs(90 * 60);
@@ -188,11 +188,15 @@ pub fn run(a: RunArgs<'_>) -> i32 {
         log.line("not this window's minute: nothing to do");
         return 0;
     }
-    let vault = PathBuf::from(settings.vault.trim());
-    if settings.vault.trim().is_empty() || !vault.is_dir() {
+    let Some(vault) = settings
+        .vault
+        .as_deref()
+        .map(PathBuf::from)
+        .filter(|v| v.is_dir())
+    else {
         log.line("no vault: set one in the desk first");
         return 1;
-    }
+    };
     let explicit = a.claude.program.clone().or_else(|| {
         (!settings.claude_bin.trim().is_empty()).then(|| PathBuf::from(settings.claude_bin.trim()))
     });
@@ -349,9 +353,9 @@ pub fn run(a: RunArgs<'_>) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core_wip::Settings;
     use crate::secrets::MemoryStore;
     use chrono::TimeZone;
+    use desk_core::settings::Settings;
 
     const FAKE: &str = "DESK_TEST_FAKE_RUN";
 
@@ -395,7 +399,7 @@ mod tests {
         let data = tempfile::tempdir().unwrap();
         let vault = tempfile::tempdir().unwrap();
         let s = Settings {
-            vault: vault.path().to_string_lossy().into_owned(),
+            vault: Some(vault.path().to_string_lossy().into_owned()),
             ..Settings::default()
         };
         SettingsStore::new(data.path()).save(&s).unwrap();
@@ -566,7 +570,7 @@ mod tests {
         assert_eq!(run(args("fail")), 1);
         assert_eq!(run(args("ok")), 0, "--date skips the minute check");
         let s = Settings {
-            vault: r.data.path().join("gone").to_string_lossy().into_owned(),
+            vault: Some(r.data.path().join("gone").to_string_lossy().into_owned()),
             ..Settings::default()
         };
         SettingsStore::new(r.data.path()).save(&s).unwrap();
