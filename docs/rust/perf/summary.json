@@ -1,6 +1,6 @@
 {
  "schema": "desk-perf-summary/1",
- "generated_at": "2026-11-26T13:08:32Z",
+ "generated_at": "2026-11-27T09:30:27Z",
  "before": {
   "file": "2026-11-25-electron-0.2.3.0.json",
   "label": "electron 0.2.3.0",
@@ -12,21 +12,21 @@
   "representative": true
  },
  "after": {
-  "file": "2026-11-26-81ad5b7.json",
+  "file": "2026-11-27-3e5102d.json",
   "label": "rust",
   "kind": "rust",
   "version": null,
-  "commit": "81ad5b7",
-  "date": "2026-11-26",
-  "created_at": "2026-11-26T12:27:24Z",
+  "commit": "3e5102d",
+  "date": "2026-11-27",
+  "created_at": "2026-11-27T09:04:57Z",
   "representative": true
  },
  "representative": true,
  "counts": {
-  "pass": 11,
+  "pass": 14,
   "fail": 1,
-  "skip": 6,
-  "info": 1
+  "skip": 3,
+  "info": 2
  },
  "metrics": [
   {
@@ -36,17 +36,31 @@
    "target": 300,
    "stat": "median",
    "before": 592.198,
-   "after": 217.529,
+   "after": 193.009,
    "status": "pass",
-   "delta_pct": -63.3,
+   "delta_pct": -67.4,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 221.604,
+     "representative": true
+    },
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 217.529,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 193.009,
      "representative": true
     }
    ]
@@ -55,20 +69,34 @@
    "id": "warm_start_ms",
    "label": "Тёплый старт",
    "unit": "ms",
-   "target": 200.0,
+   "target": 200,
    "stat": "median",
    "before": 586.153,
-   "after": 188.512,
+   "after": 153.367,
    "status": "pass",
-   "delta_pct": -67.8,
+   "delta_pct": -73.8,
    "note": "",
-   "target_in_report": 150,
+   "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "цель 150 → 200 мс (26.11): ~132 мс тёплого старта — окно и контекст OpenGL в драйвере, до нашего кода",
    "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 187.496,
+     "representative": true
+    },
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 188.512,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 153.367,
      "representative": true
     }
    ]
@@ -80,17 +108,25 @@
    "target": 500,
    "stat": "median",
    "before": null,
-   "after": 227.329,
+   "after": 200.009,
    "status": "pass",
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 227.329,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 200.009,
      "representative": true
     }
    ]
@@ -102,17 +138,25 @@
    "target": 300,
    "stat": "median",
    "before": null,
-   "after": 198.412,
+   "after": 160.646,
    "status": "pass",
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 198.412,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 160.646,
      "representative": true
     }
    ]
@@ -121,20 +165,34 @@
    "id": "idle_working_set_mb",
    "label": "RAM в покое (Working Set)",
    "unit": "MB",
-   "target": 100.0,
+   "target": 100,
    "stat": "median",
    "before": 807.094,
-   "after": 97.721,
+   "after": 86.508,
    "status": "pass",
-   "delta_pct": -87.9,
+   "delta_pct": -89.3,
    "note": "",
-   "target_in_report": 80,
+   "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "цель 80 → 100 МБ (26.11): ~81 МБ берёт драйвер OpenGL до нашего кода; замер со снимком графика на экране",
    "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 78.648,
+     "representative": true
+    },
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 97.721,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 86.508,
      "representative": true
     }
    ]
@@ -143,20 +201,34 @@
    "id": "idle_private_mb",
    "label": "RAM в покое (Private Bytes)",
    "unit": "MB",
-   "target": 100.0,
+   "target": 100,
    "stat": "median",
    "before": 1471.402,
-   "after": 115.479,
+   "after": 104.719,
    "status": "fail",
-   "delta_pct": -92.2,
+   "delta_pct": -92.9,
    "note": "",
-   "target_in_report": 80,
+   "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "цель 80 → 100 МБ (26.11): ~81 МБ Private — драйвер OpenGL до нашего кода; замер со снимком графика на экране",
    "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 91.266,
+     "representative": true
+    },
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 115.479,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 104.719,
      "representative": true
     }
    ]
@@ -168,17 +240,31 @@
    "target": 1,
    "stat": "median",
    "before": 0.053,
-   "after": 0,
+   "after": 0.001,
    "status": "pass",
-   "delta_pct": -100.0,
+   "delta_pct": -98.1,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 0.003,
+     "representative": true
+    },
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 0,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 0.001,
      "representative": true
     }
    ]
@@ -195,11 +281,25 @@
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 12,
+     "representative": true
+    },
+    {
      "date": "2026-11-26",
      "commit": "81ad5b7",
+     "value": 0,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
      "value": 0,
      "representative": true
     }
@@ -209,46 +309,146 @@
    "id": "frame_p50_ms",
    "label": "Кадр p50 при стриме",
    "unit": "ms",
-   "target": 8,
+   "target": 8.0,
    "stat": "median",
    "before": null,
-   "after": null,
-   "status": "skip",
+   "after": 2.945,
+   "status": "pass",
    "delta_pct": null,
-   "note": "waits for stage 5: DESK_BENCH_AUTOCHAT is still a stub in this build, so no chat is sent (see switch_frame_* for frames under load)",
+   "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": [
+    {
+     "t_s": 9.8,
+     "n": 627,
+     "p50": 0.63,
+     "p95": 1.04,
+     "p99": 1.28,
+     "max": 35.04
+    },
+    {
+     "t_s": 19.8,
+     "n": 656,
+     "p50": 1.47,
+     "p95": 2.08,
+     "p99": 3.25,
+     "max": 7.53
+    },
+    {
+     "t_s": 29.8,
+     "n": 644,
+     "p50": 2.48,
+     "p95": 2.98,
+     "p99": 7.44,
+     "max": 17.86
+    },
+    {
+     "t_s": 39.8,
+     "n": 636,
+     "p50": 3.41,
+     "p95": 3.88,
+     "p99": 4.7,
+     "max": 11.45
+    },
+    {
+     "t_s": 49.8,
+     "n": 647,
+     "p50": 4.18,
+     "p95": 4.8,
+     "p99": 5.14,
+     "max": 7.16
+    },
+    {
+     "t_s": 59.8,
+     "n": 26,
+     "p50": 4.61,
+     "p95": 5.14,
+     "p99": 5.2,
+     "max": 5.2
+    }
+   ],
    "target_why": "",
-   "trend": []
+   "trend": [
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 2.945,
+     "representative": true
+    }
+   ]
   },
   {
    "id": "frame_p95_ms",
    "label": "Кадр p95 при стриме",
    "unit": "ms",
-   "target": 16,
+   "target": 16.0,
    "stat": "max",
    "before": null,
-   "after": null,
-   "status": "skip",
+   "after": 5.14,
+   "status": "pass",
    "delta_pct": null,
-   "note": "waits for stage 5: DESK_BENCH_AUTOCHAT is still a stub in this build, so no chat is sent (see switch_frame_* for frames under load)",
+   "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
-   "trend": []
+   "trend": [
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 5.14,
+     "representative": true
+    }
+   ]
   },
   {
    "id": "frame_p99_ms",
    "label": "Кадр p99 при стриме",
    "unit": "ms",
-   "target": 33,
+   "target": 33.0,
    "stat": "max",
    "before": null,
-   "after": null,
-   "status": "skip",
+   "after": 7.44,
+   "status": "pass",
    "delta_pct": null,
-   "note": "waits for stage 5: DESK_BENCH_AUTOCHAT is still a stub in this build, so no chat is sent (see switch_frame_* for frames under load)",
+   "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
-   "trend": []
+   "trend": [
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 7.44,
+     "representative": true
+    }
+   ]
+  },
+  {
+   "id": "frame_p50_growth_ms_per_min",
+   "label": "Рост p50 кадра за минуту стрима",
+   "unit": "ms/min",
+   "target": null,
+   "stat": "max",
+   "before": null,
+   "after": 5.386,
+   "status": "info",
+   "delta_pct": null,
+   "note": "растёт, если каждый кадр делает работу, пропорциональную длине ответа (например, разбирает живой Markdown целиком)",
+   "target_in_report": null,
+   "after_from": null,
+   "windows": null,
+   "target_why": "",
+   "trend": [
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 5.386,
+     "representative": true
+    }
+   ]
   },
   {
    "id": "switch_frame_p50_ms",
@@ -262,11 +462,19 @@
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
+     "value": 0.48,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
      "value": 0.48,
      "representative": true
     }
@@ -279,17 +487,25 @@
    "target": 16,
    "stat": "max",
    "before": null,
-   "after": 1.42,
+   "after": 1.5,
    "status": "pass",
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 1.42,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 1.5,
      "representative": true
     }
    ]
@@ -301,17 +517,25 @@
    "target": 33,
    "stat": "max",
    "before": null,
-   "after": 2.31,
+   "after": 2.37,
    "status": "pass",
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 2.31,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 2.37,
      "representative": true
     }
    ]
@@ -323,17 +547,25 @@
    "target": 100,
    "stat": "p95",
    "before": null,
-   "after": 20.2,
+   "after": 20.3,
    "status": "pass",
    "delta_pct": null,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 20.2,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 20.3,
      "representative": true
     }
    ]
@@ -345,17 +577,37 @@
    "target": 15,
    "stat": "max",
    "before": 234.835,
-   "after": 7.687,
+   "after": 8.483,
    "status": "pass",
-   "delta_pct": -96.7,
+   "delta_pct": -96.4,
    "note": "",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": [
+    {
+     "date": "2026-11-25",
+     "commit": "e7b3c78",
+     "value": 0.327,
+     "representative": false
+    },
+    {
+     "date": "2026-11-25",
+     "commit": "b8d06cb",
+     "value": 7.657,
+     "representative": true
+    },
     {
      "date": "2026-11-26",
      "commit": "81ad5b7",
      "value": 7.687,
+     "representative": true
+    },
+    {
+     "date": "2026-11-27",
+     "commit": "3e5102d",
+     "value": 8.483,
      "representative": true
     }
    ]
@@ -372,6 +624,8 @@
    "delta_pct": null,
    "note": "exe is not under %LOCALAPPDATA%\\Programs (a build folder is not an installation)",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": []
   },
@@ -387,6 +641,8 @@
    "delta_pct": null,
    "note": "no installer found; pass -Installer <path>",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": []
   },
@@ -402,6 +658,8 @@
    "delta_pct": null,
    "note": "not requested (-SoakHours 24)",
    "target_in_report": null,
+   "after_from": null,
+   "windows": null,
    "target_why": "",
    "trend": []
   }
@@ -410,1599 +668,23 @@
   {
    "id": "idle_private_mb",
    "label": "RAM в покое (Private Bytes)",
-   "reason": "median 115 MB > цель 100 MB"
+   "reason": "median 105 MB > цель 100 MB"
   }
  ],
- "stress": [],
- "variants": [
+ "stress": [
   {
-   "id": "v1",
-   "label": "glow/default",
-   "env": {
-    "DESK_OPT": ""
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "glow",
-   "opt": "default",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 137.1,
-      "private_mb": 82.9,
-      "ws_mb": 56.3
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 137.1,
-      "private_mb": 82.9,
-      "ws_mb": 56.4
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 137.5,
-      "private_mb": 85,
-      "ws_mb": 57.1
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 137.8,
-      "private_mb": 85,
-      "ws_mb": 59
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 140.9,
-      "private_mb": 85.4,
-      "ws_mb": 60.9
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 178.4,
-      "private_mb": 90.4,
-      "ws_mb": 68.9
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 186.9,
-      "private_mb": 91.4,
-      "ws_mb": 69.9
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 188.3,
-      "private_mb": 92.4,
-      "ws_mb": 70.5
-     }
-    },
-    "cold": {
-     "main": {
-      "n": 10,
-      "ms": 0.15,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 10,
-      "ms": 0.7,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 10,
-      "ms": 146.55,
-      "private_mb": 83.45,
-      "ws_mb": 56.3
-     },
-     "fonts_installed": {
-      "n": 10,
-      "ms": 146.6,
-      "private_mb": 83.45,
-      "ws_mb": 56.3
-     },
-     "app_handle_started": {
-      "n": 10,
-      "ms": 147.4,
-      "private_mb": 85.15,
-      "ws_mb": 57
-     },
-     "first_update_begin": {
-      "n": 10,
-      "ms": 147.95,
-      "private_mb": 85.6,
-      "ws_mb": 58.95
-     },
-     "first_update_end": {
-      "n": 10,
-      "ms": 154.7,
-      "private_mb": 85.75,
-      "ws_mb": 60.8
-     },
-     "first_frame_presented": {
-      "n": 10,
-      "ms": 187.8,
-      "private_mb": 90.6,
-      "ws_mb": 68.8
-     },
-     "day_drawn": {
-      "n": 10,
-      "ms": 195.5,
-      "private_mb": 91.4,
-      "ws_mb": 69.8
-     },
-     "day_presented": {
-      "n": 10,
-      "ms": 196.95,
-      "private_mb": 92.85,
-      "ws_mb": 70.5
-     }
-    },
-    "idle": {
-     "main": {
-      "n": 2,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 2,
-      "ms": 0.15,
-      "private_mb": 1.85,
-      "ws_mb": 8.7
-     },
-     "creator_entered": {
-      "n": 2,
-      "ms": 132.25,
-      "private_mb": 83.35,
-      "ws_mb": 56.65
-     },
-     "fonts_installed": {
-      "n": 2,
-      "ms": 132.35,
-      "private_mb": 83.35,
-      "ws_mb": 56.7
-     },
-     "app_handle_started": {
-      "n": 2,
-      "ms": 132.6,
-      "private_mb": 85.6,
-      "ws_mb": 57.5
-     },
-     "first_update_begin": {
-      "n": 2,
-      "ms": 132.95,
-      "private_mb": 85.65,
-      "ws_mb": 59.25
-     },
-     "first_update_end": {
-      "n": 2,
-      "ms": 135.25,
-      "private_mb": 85.9,
-      "ws_mb": 61.15
-     },
-     "first_frame_presented": {
-      "n": 2,
-      "ms": 168.8,
-      "private_mb": 90.95,
-      "ws_mb": 69.15
-     },
-     "day_drawn": {
-      "n": 2,
-      "ms": 175.8,
-      "private_mb": 91.8,
-      "ws_mb": 70.15
-     },
-     "day_presented": {
-      "n": 2,
-      "ms": 177,
-      "private_mb": 92.4,
-      "ws_mb": 70.8
-     },
-     "first_shot_uploaded": {
-      "n": 2,
-      "ms": 253.05,
-      "private_mb": 96,
-      "ws_mb": 78.65
-     },
-     "idle_10s": {
-      "n": 2,
-      "ms": 10169.45,
-      "private_mb": 118.7,
-      "ws_mb": 100.15
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": 217.529,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 188.512,
-     "status": "pass",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": 227.329,
-     "status": "pass",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 198.412,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    },
-    "idle_working_set_mb": {
-     "value": 97.721,
-     "status": "pass",
-     "target": 100.0,
-     "unit": "MB",
-     "label": "RAM в покое (Working Set)"
-    },
-    "idle_private_mb": {
-     "value": 115.479,
-     "status": "fail",
-     "target": 100.0,
-     "unit": "MB",
-     "label": "RAM в покое (Private Bytes)"
-    },
-    "idle_cpu_pct": {
-     "value": 0,
-     "status": "pass",
-     "target": 1,
-     "unit": "%",
-     "label": "CPU в покое"
-    },
-    "idle_frames_per_min": {
-     "value": 0,
-     "status": "info",
-     "target": null,
-     "unit": "1/min",
-     "label": "Кадров в минуту в покое"
-    }
-   }
+   "id": "chat_stream_10k",
+   "status": "pass",
+   "scope": "app",
+   "detail": "stream 60 s by the desk's frame windows (first frame_stats window with n=0), desk alive True, responding True; re-derived by report.py (bench.ps1 v4 waited for fake-claude to exit, which it never does in stream-json mode)"
   },
   {
-   "id": "v2",
-   "label": "glow/vsync0",
-   "env": {
-    "DESK_OPT": "vsync0"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "glow",
-   "opt": "vsync0",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 129.8,
-      "private_mb": 83.2,
-      "ws_mb": 56.3
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 129.8,
-      "private_mb": 83.2,
-      "ws_mb": 56.4
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 130.2,
-      "private_mb": 85.3,
-      "ws_mb": 57.5
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 130.5,
-      "private_mb": 85.3,
-      "ws_mb": 59
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 133,
-      "private_mb": 85.8,
-      "ws_mb": 60.9
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 167.4,
-      "private_mb": 90.9,
-      "ws_mb": 68.9
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 174.3,
-      "private_mb": 91.8,
-      "ws_mb": 69.9
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 175.5,
-      "private_mb": 92.3,
-      "ws_mb": 70.6
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 178.685,
-     "status": "pass",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 186.489,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v3",
-   "label": "glow/app_sync",
-   "env": {
-    "DESK_OPT": "app_sync"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "glow",
-   "opt": "app_sync",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 132.5,
-      "private_mb": 83.5,
-      "ws_mb": 56.3
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 132.6,
-      "private_mb": 83.5,
-      "ws_mb": 56.4
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 132.6,
-      "private_mb": 83.6,
-      "ws_mb": 56.5
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 133.2,
-      "private_mb": 85.7,
-      "ws_mb": 59
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 135.4,
-      "private_mb": 86,
-      "ws_mb": 60.9
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 171.8,
-      "private_mb": 91.1,
-      "ws_mb": 68.9
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 179.1,
-      "private_mb": 91.8,
-      "ws_mb": 69.9
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 180.4,
-      "private_mb": 92.8,
-      "ws_mb": 70.6
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 182.989,
-     "status": "pass",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 191.889,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v4",
-   "label": "glow/app_late",
-   "env": {
-    "DESK_OPT": "app_late"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "glow",
-   "opt": "app_late",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 129.2,
-      "private_mb": 83.3,
-      "ws_mb": 56.4
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 129.3,
-      "private_mb": 83.3,
-      "ws_mb": 56.4
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 129.8,
-      "private_mb": 85.4,
-      "ws_mb": 58.7
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 132.1,
-      "private_mb": 85.7,
-      "ws_mb": 60.2
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 164.1,
-      "private_mb": 89.3,
-      "ws_mb": 66.3
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 164.4,
-      "private_mb": 89.4,
-      "ws_mb": 66.5
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 241.2,
-      "private_mb": 92,
-      "ws_mb": 70.1
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 242.5,
-      "private_mb": 93.8,
-      "ws_mb": 71.5
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 178.095,
-     "status": "pass",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 257.654,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v5",
-   "label": "glow/no_inter",
-   "env": {
-    "DESK_OPT": "no_inter"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "glow",
-   "opt": "no_inter",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 134.5,
-      "private_mb": 83.4,
-      "ws_mb": 56.4
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 134.6,
-      "private_mb": 83.4,
-      "ws_mb": 56.4
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 134.9,
-      "private_mb": 85.5,
-      "ws_mb": 57.5
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 135.3,
-      "private_mb": 85.6,
-      "ws_mb": 59
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 137.1,
-      "private_mb": 85.8,
-      "ws_mb": 60.8
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 170.7,
-      "private_mb": 90.6,
-      "ws_mb": 68.8
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 178.1,
-      "private_mb": 91.4,
-      "ws_mb": 69.8
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 179.1,
-      "private_mb": 92.3,
-      "ws_mb": 70.8
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 182.25,
-     "status": "pass",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 190.65,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v6",
-   "label": "glow/shots_full",
-   "env": {
-    "DESK_OPT": "shots_full"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "glow",
-   "opt": "shots_full",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 1.8,
-      "ws_mb": 8.6
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 134.8,
-      "private_mb": 84.3,
-      "ws_mb": 56.3
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 134.9,
-      "private_mb": 84.3,
-      "ws_mb": 56.4
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 135.2,
-      "private_mb": 86.4,
-      "ws_mb": 57.4
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 135.6,
-      "private_mb": 86.4,
-      "ws_mb": 59
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 138.5,
-      "private_mb": 86.7,
-      "ws_mb": 60.9
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 174,
-      "private_mb": 91.7,
-      "ws_mb": 68.9
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 180.1,
-      "private_mb": 92.5,
-      "ws_mb": 69.8
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 181.4,
-      "private_mb": 92.7,
-      "ws_mb": 70.6
-     }
-    },
-    "idle": {
-     "main": {
-      "n": 2,
-      "ms": 0,
-      "private_mb": 1.8,
-      "ws_mb": 8.4
-     },
-     "before_run_native": {
-      "n": 2,
-      "ms": 0.15,
-      "private_mb": 1.8,
-      "ws_mb": 8.65
-     },
-     "creator_entered": {
-      "n": 2,
-      "ms": 144.65,
-      "private_mb": 83.75,
-      "ws_mb": 56.45
-     },
-     "fonts_installed": {
-      "n": 2,
-      "ms": 144.75,
-      "private_mb": 83.8,
-      "ws_mb": 56.5
-     },
-     "app_handle_started": {
-      "n": 2,
-      "ms": 145.05,
-      "private_mb": 85.9,
-      "ws_mb": 57.6
-     },
-     "first_update_begin": {
-      "n": 2,
-      "ms": 145.4,
-      "private_mb": 86.1,
-      "ws_mb": 59
-     },
-     "first_update_end": {
-      "n": 2,
-      "ms": 147.65,
-      "private_mb": 86.4,
-      "ws_mb": 60.95
-     },
-     "first_frame_presented": {
-      "n": 2,
-      "ms": 181.85,
-      "private_mb": 91.45,
-      "ws_mb": 69
-     },
-     "day_drawn": {
-      "n": 2,
-      "ms": 188.45,
-      "private_mb": 92.25,
-      "ws_mb": 69.9
-     },
-     "day_presented": {
-      "n": 2,
-      "ms": 189.85,
-      "private_mb": 93.05,
-      "ws_mb": 70.85
-     },
-     "first_shot_uploaded": {
-      "n": 2,
-      "ms": 266.35,
-      "private_mb": 101.85,
-      "ws_mb": 83.65
-     },
-     "idle_10s": {
-      "n": 2,
-      "ms": 10182.85,
-      "private_mb": 129.75,
-      "ws_mb": 104.7
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 186.45,
-     "status": "pass",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 194.748,
-     "status": "pass",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    },
-    "idle_working_set_mb": {
-     "value": 96.771,
-     "status": "pass",
-     "target": 100.0,
-     "unit": "MB",
-     "label": "RAM в покое (Working Set)"
-    },
-    "idle_private_mb": {
-     "value": 121.41,
-     "status": "fail",
-     "target": 100.0,
-     "unit": "MB",
-     "label": "RAM в покое (Private Bytes)"
-    },
-    "idle_cpu_pct": {
-     "value": 0.002,
-     "status": "pass",
-     "target": 1,
-     "unit": "%",
-     "label": "CPU в покое"
-    },
-    "idle_frames_per_min": {
-     "value": 0,
-     "status": "info",
-     "target": null,
-     "unit": "1/min",
-     "label": "Кадров в минуту в покое"
-    }
-   }
-  },
-  {
-   "id": "v7",
-   "label": "wgpu/default",
-   "env": {
-    "DESK_OPT": ""
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "wgpu",
-   "opt": "default",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9.1
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.2,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 431,
-      "private_mb": 388.1,
-      "ws_mb": 159.1
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 431.1,
-      "private_mb": 388.1,
-      "ws_mb": 159.1
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 431.4,
-      "private_mb": 389.2,
-      "ws_mb": 160
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 431.5,
-      "private_mb": 389.2,
-      "ws_mb": 160.4
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 434.2,
-      "private_mb": 389.8,
-      "ws_mb": 162.3
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 475.5,
-      "private_mb": 401.8,
-      "ws_mb": 174
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 484.4,
-      "private_mb": 403.8,
-      "ws_mb": 176.1
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 495.9,
-      "private_mb": 405.4,
-      "ws_mb": 178.3
-     }
-    },
-    "cold": {
-     "main": {
-      "n": 10,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9.1
-     },
-     "before_run_native": {
-      "n": 10,
-      "ms": 0.1,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 10,
-      "ms": 441.55,
-      "private_mb": 388,
-      "ws_mb": 159
-     },
-     "fonts_installed": {
-      "n": 10,
-      "ms": 441.55,
-      "private_mb": 388,
-      "ws_mb": 159.05
-     },
-     "app_handle_started": {
-      "n": 10,
-      "ms": 441.95,
-      "private_mb": 389.1,
-      "ws_mb": 159.95
-     },
-     "first_update_begin": {
-      "n": 10,
-      "ms": 442.05,
-      "private_mb": 389.15,
-      "ws_mb": 160.4
-     },
-     "first_update_end": {
-      "n": 10,
-      "ms": 444.6,
-      "private_mb": 389.7,
-      "ws_mb": 162.35
-     },
-     "first_frame_presented": {
-      "n": 10,
-      "ms": 489.15,
-      "private_mb": 401.5,
-      "ws_mb": 174
-     },
-     "day_drawn": {
-      "n": 10,
-      "ms": 497.5,
-      "private_mb": 403.4,
-      "ws_mb": 176.05
-     },
-     "day_presented": {
-      "n": 10,
-      "ms": 508.35,
-      "private_mb": 405.05,
-      "ws_mb": 177.9
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": 552.435,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 489.833,
-     "status": "fail",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": 571.685,
-     "status": "fail",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 510.633,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v8",
-   "label": "wgpu/vsync0",
-   "env": {
-    "DESK_OPT": "vsync0"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "wgpu",
-   "opt": "vsync0",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9.1
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 438.1,
-      "private_mb": 387.2,
-      "ws_mb": 159
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 438.2,
-      "private_mb": 387.2,
-      "ws_mb": 159.1
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 438.5,
-      "private_mb": 388.3,
-      "ws_mb": 159.8
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 438.6,
-      "private_mb": 388.4,
-      "ws_mb": 160.5
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 441.1,
-      "private_mb": 388.9,
-      "ws_mb": 162.4
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 484,
-      "private_mb": 400.9,
-      "ws_mb": 174
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 495.7,
-      "private_mb": 403,
-      "ws_mb": 176.2
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 501.9,
-      "private_mb": 404.5,
-      "ws_mb": 178.2
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 496.617,
-     "status": "fail",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 514.517,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v9",
-   "label": "wgpu/app_sync",
-   "env": {
-    "DESK_OPT": "app_sync"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "wgpu",
-   "opt": "app_sync",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9.1
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 428.9,
-      "private_mb": 387.6,
-      "ws_mb": 159
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 429,
-      "private_mb": 387.6,
-      "ws_mb": 159
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 429,
-      "private_mb": 387.6,
-      "ws_mb": 159
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 429.4,
-      "private_mb": 388.7,
-      "ws_mb": 160.4
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 431.9,
-      "private_mb": 389.3,
-      "ws_mb": 162.2
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 476.8,
-      "private_mb": 401.3,
-      "ws_mb": 173.8
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 484.3,
-      "private_mb": 403.1,
-      "ws_mb": 175.9
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 495.9,
-      "private_mb": 404.6,
-      "ws_mb": 178
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 487.139,
-     "status": "fail",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 506.239,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v10",
-   "label": "wgpu/app_late",
-   "env": {
-    "DESK_OPT": "app_late"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "wgpu",
-   "opt": "app_late",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 433.3,
-      "private_mb": 387.5,
-      "ws_mb": 159.1
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 433.4,
-      "private_mb": 387.5,
-      "ws_mb": 159.1
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 433.8,
-      "private_mb": 388.5,
-      "ws_mb": 160.3
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 436.3,
-      "private_mb": 388.5,
-      "ws_mb": 161.5
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 480.4,
-      "private_mb": 398.8,
-      "ws_mb": 171.2
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 480.7,
-      "private_mb": 399.2,
-      "ws_mb": 171.6
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 515.9,
-      "private_mb": 405.6,
-      "ws_mb": 178.4
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 518.5,
-      "private_mb": 406.5,
-      "ws_mb": 179.1
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 493.74,
-     "status": "fail",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 531.84,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v11",
-   "label": "wgpu/no_inter",
-   "env": {
-    "DESK_OPT": "no_inter"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "wgpu",
-   "opt": "no_inter",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9.1
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 430.8,
-      "private_mb": 387.2,
-      "ws_mb": 159.1
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 430.9,
-      "private_mb": 387.2,
-      "ws_mb": 159.1
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 431.2,
-      "private_mb": 388.3,
-      "ws_mb": 159.9
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 431.3,
-      "private_mb": 388.3,
-      "ws_mb": 160.4
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 433.4,
-      "private_mb": 388.8,
-      "ws_mb": 162.3
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 481.1,
-      "private_mb": 400.6,
-      "ws_mb": 173.9
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 489.1,
-      "private_mb": 401.8,
-      "ws_mb": 175
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 499,
-      "private_mb": 403.7,
-      "ws_mb": 176.6
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 491.157,
-     "status": "fail",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 509.057,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
-  },
-  {
-   "id": "v12",
-   "label": "wgpu/shots_full",
-   "env": {
-    "DESK_OPT": "shots_full"
-   },
-   "exe": "strategy-desk.exe",
-   "mode": "data-ready",
-   "build": "wgpu",
-   "opt": "shots_full",
-   "phases": {
-    "warm": {
-     "main": {
-      "n": 5,
-      "ms": 0,
-      "private_mb": 2,
-      "ws_mb": 9.1
-     },
-     "before_run_native": {
-      "n": 5,
-      "ms": 0.1,
-      "private_mb": 2,
-      "ws_mb": 9.3
-     },
-     "creator_entered": {
-      "n": 5,
-      "ms": 432.7,
-      "private_mb": 387.4,
-      "ws_mb": 158.9
-     },
-     "fonts_installed": {
-      "n": 5,
-      "ms": 432.8,
-      "private_mb": 387.4,
-      "ws_mb": 159
-     },
-     "app_handle_started": {
-      "n": 5,
-      "ms": 433.2,
-      "private_mb": 388.5,
-      "ws_mb": 159.7
-     },
-     "first_update_begin": {
-      "n": 5,
-      "ms": 433.3,
-      "private_mb": 388.5,
-      "ws_mb": 160.3
-     },
-     "first_update_end": {
-      "n": 5,
-      "ms": 435.9,
-      "private_mb": 389.1,
-      "ws_mb": 162.3
-     },
-     "first_frame_presented": {
-      "n": 5,
-      "ms": 480.3,
-      "private_mb": 401.1,
-      "ws_mb": 173.9
-     },
-     "day_drawn": {
-      "n": 5,
-      "ms": 489.2,
-      "private_mb": 402.8,
-      "ws_mb": 176.1
-     },
-     "day_presented": {
-      "n": 5,
-      "ms": 500.1,
-      "private_mb": 404.6,
-      "ws_mb": 177.9
-     }
-    }
-   },
-   "metrics": {
-    "cold_start_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 300,
-     "unit": "ms",
-     "label": "Холодный старт до первого кадра"
-    },
-    "warm_start_ms": {
-     "value": 492.611,
-     "status": "fail",
-     "target": 200.0,
-     "unit": "ms",
-     "label": "Тёплый старт"
-    },
-    "data_ready_cold_ms": {
-     "value": null,
-     "status": "skip",
-     "target": 500,
-     "unit": "ms",
-     "label": "Данные дня на экране, холодный старт"
-    },
-    "data_ready_warm_ms": {
-     "value": 510.811,
-     "status": "fail",
-     "target": 300,
-     "unit": "ms",
-     "label": "Данные дня на экране, тёплый старт"
-    }
-   }
+   "id": "chat_claude_dies_mid_answer",
+   "status": "pass",
+   "scope": "app",
+   "detail": "fake-claude --die-after 2000: it exited after 10 s (code ); 10 s later desk alive True, responding True; worst p99 1.3 ms"
   }
  ],
+ "variants": [],
  "vault": "-Vault"
 }
