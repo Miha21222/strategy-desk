@@ -36,3 +36,4 @@ scripts/preview/out/
 .cowork/
 rust/target/
 rust/target-wgpu/
+docs/rust/perf/inbox/

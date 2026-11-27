@@ -2,7 +2,7 @@
 .SYNOPSIS
   Strategy Desk performance bench: cold / warm start, idle RAM and CPU,
   sizes, optional frame stats under a fake Claude stream and a soak run.
-  Writes docs/rust/perf/<date>-<commit>.json (schema desk-perf/1, see
+  Writes docs/rust/perf/inbox/<date>-<commit>.json (gitignored; the lead files it under docs/rust/perf/) (schema desk-perf/1, see
   docs/rust/PERF.md). Same script for the Rust build and the Electron 0.2.3
   baseline.
 
@@ -1079,7 +1079,7 @@ $traceOut = ''
 if ($Kind -eq 'rust') {
     $traceOut = $TraceDir
     if (-not $traceOut) {
-        $traceOut = Join-Path $RepoRoot ('docs\rust\perf\ab\{0}' -f (Get-Date -Format 'yyyy-MM-dd'))
+        $traceOut = Join-Path $RepoRoot ('docs\rust\perf\inbox\ab\{0}' -f (Get-Date -Format 'yyyy-MM-dd'))
         if ((Test-Path -LiteralPath $traceOut) -and @(Get-ChildItem -LiteralPath $traceOut).Count -gt 0) { $traceOut = $traceOut + (Get-Date -Format '-HHmm') }
     }
     New-Item -ItemType Directory -Force -Path $traceOut | Out-Null
@@ -1100,7 +1100,7 @@ if (-not $Commit) {
 }
 if (-not $Label) { $Label = ('{0} {1}' -f $Kind, $ver).Trim() }
 $build = [ordered]@{ kind = $Kind; version = $ver; commit = [string]$Commit; exe = $exeName; profile = 'release' }
-if (-not $Out) { $Out = Join-Path $RepoRoot ('docs\rust\perf\{0}-{1}.json' -f (Get-Date -Format 'yyyy-MM-dd'), $Commit) }
+if (-not $Out) { $Out = Join-Path $RepoRoot ('docs\rust\perf\inbox\{0}-{1}.json' -f (Get-Date -Format 'yyyy-MM-dd'), $Commit) }
 
 $metrics = New-Object System.Collections.ArrayList
 $notes = New-Object System.Collections.ArrayList
