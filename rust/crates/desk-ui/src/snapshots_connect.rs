@@ -185,6 +185,7 @@ pub(crate) fn sample_conn() -> ConnView {
 }
 
 /// A fresh PC: the vault folder is not there yet.
+#[cfg(target_os = "linux")]
 fn fresh_conn() -> ConnView {
     let mut c = sample_conn();
     Arc::make_mut(&mut c.lights).vault = light(LightState::Fail, "status.vault.missing", &[]);

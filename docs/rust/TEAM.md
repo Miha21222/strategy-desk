@@ -30,6 +30,7 @@
 
 - CI на windows-latest с clippy 1.100, облако — со старым: `chunks_exact(N)` / `chunks_exact_mut(N)` с константой там запрещены → `as_chunks::<N>().0`.
 - Всё, что используют только тесты под `#[cfg(target_os = "linux")]`, импортировать под тем же cfg, иначе Windows падает с E0432.
+- Это касается и вспомогательных функций: хелпер, который вызывают только Linux-снимки, тоже под `#[cfg(target_os = "linux")]`, иначе на Windows `dead_code` под `-D warnings`.
 
 ## Готово — это
 
