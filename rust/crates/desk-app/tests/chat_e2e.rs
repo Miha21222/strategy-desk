@@ -65,6 +65,7 @@ mod api {
                 program_args: claude.args,
                 ..Default::default()
             },
+            ..AppConfig::default()
         })
         .expect("start")
     }

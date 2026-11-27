@@ -6,9 +6,21 @@
 pub mod app;
 pub mod chat;
 pub mod claude;
+pub mod core_wip;
 pub mod day;
 pub mod macro_env;
+pub mod ops;
+pub mod paths;
+pub mod run;
+pub mod runtime;
+pub mod scheduler;
+pub mod secrets;
+pub mod settings_store;
 pub mod shots;
+pub mod status;
+pub mod tasks;
+pub mod tv_launch;
+pub mod vault_template;
 pub mod vault_write;
 pub mod watch;
 
