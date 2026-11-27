@@ -1,8 +1,3 @@
-// GATE: compiled out until desk-core's stage-6 modules (settings, preflight,
-// schedule, wizard — docs/rust/CONTRACTS.md «этап 6») land. Delete the next
-// line then and fix the names in `mod api`. (`any()` is always false; a named
-// feature would need a Cargo.toml entry, and `golden` is on in CI.)
-#![cfg(any())]
 //! Stage 6, the pure half, against the OLD app's answers
 //! (rust/fixtures/golden/expected/stage6/, made by
 //! rust/fixtures/tools/capture-stage6.ts):
@@ -54,10 +49,12 @@ fn merge(base: &Value, patch: &Value) -> Value {
 mod api {
     use chrono::{DateTime, NaiveDate, Utc};
     use serde_json::Value;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use super::kebab;
-    use desk_core::preflight::{Check, Facts, Fix};
+    use desk_core::preflight::{Check, CheckId, CheckState, Facts, Fix, TaskId};
     use desk_core::settings::Settings;
+    use desk_core::wizard::StepId;
 
     pub fn facts(v: Value) -> Facts {
         serde_json::from_value(v).expect("preflight::Facts reads the old PreflightFacts JSON")
@@ -68,8 +65,35 @@ mod api {
         desk_core::settings::import_electron(v)
     }
 
+    fn severity(s: CheckState) -> u8 {
+        match s {
+            CheckState::Fail => 3,
+            CheckState::Warn => 2,
+            CheckState::Skipped => 1,
+            CheckState::Ok => 0,
+        }
+    }
+
+    /// Rust's checks with `claude_auth` folded into `claude`, the way the four
+    /// tvmcp rows are folded into one: the old `claude` row answered «can
+    /// Claude answer» (its claude.exe was shipped, so only the login could be
+    /// missing); Rust splits it into installed (`claude`) and logged in
+    /// (`claude_auth`). Worst state, the first fix.
     pub fn build_checks(f: &Facts, s: &Settings) -> Vec<Check> {
-        desk_core::preflight::build_checks(f, s)
+        let mut checks = desk_core::preflight::build_checks(s, f);
+        if let Some(auth) = checks.iter().position(|c| c.id == CheckId::ClaudeAuth) {
+            let auth = checks.remove(auth);
+            if let Some(claude) = checks.iter_mut().find(|c| c.id == CheckId::Claude) {
+                if severity(auth.state) > severity(claude.state) {
+                    claude.state = auth.state;
+                    claude.detail_key = auth.detail_key;
+                }
+                if claude.fix.is_none() {
+                    claude.fix = auth.fix;
+                }
+            }
+        }
+        checks
     }
 
     /// (id, state, fix kind, task) with the Rust spelling: ids snake_case,
@@ -101,12 +125,12 @@ mod api {
 
     // wizard
     pub fn step_ids() -> Vec<String> {
-        desk_core::wizard::STEPS.iter().map(kebab).collect()
+        StepId::ALL.iter().map(|s| s.as_str().to_owned()).collect()
     }
     pub fn visible_steps(checks: &[Check]) -> Vec<String> {
         desk_core::wizard::visible_steps(checks)
             .into_iter()
-            .map(|s| kebab(&s))
+            .map(|s| s.as_str().to_owned())
             .collect()
     }
     pub fn step_state(step: &str, checks: &[Check]) -> String {
@@ -115,21 +139,35 @@ mod api {
     pub fn step_done(step: &str, checks: &[Check]) -> bool {
         desk_core::wizard::step_done(step_id(step), checks)
     }
+    fn steps(v: &[String]) -> Vec<StepId> {
+        v.iter().filter_map(|s| StepId::parse(s)).collect()
+    }
     pub fn apply_skip(skipped: &[String], step: &str, on: bool) -> Vec<String> {
-        desk_core::wizard::apply_skip(skipped, step_id(step), on)
+        desk_core::wizard::apply_skip(&steps(skipped), step_id(step), on)
+            .into_iter()
+            .map(|s| s.as_str().to_owned())
+            .collect()
     }
     pub fn limitation_keys(skipped: &[String]) -> Vec<String> {
-        desk_core::wizard::limitation_keys(skipped)
+        let s = Settings {
+            setup_skipped: desk_core::wizard::apply_skip(&steps(skipped), StepId::Vault, false),
+            ..Settings::default()
+        };
+        desk_core::wizard::limitation_keys(&s)
     }
     /// The tasks a page starts by itself (old `autoFixes` with an empty task table).
     pub fn auto_tasks(step: &str, checks: &[Check], started: &[String]) -> Vec<String> {
-        desk_core::wizard::auto_tasks(step_id(step), checks, started)
+        let started: BTreeSet<TaskId> = started
+            .iter()
+            .filter_map(|t| TaskId::parse(&t.replace('_', "-")))
+            .collect();
+        desk_core::wizard::auto_task(step_id(step), checks, &BTreeMap::new(), &started, None)
             .into_iter()
             .map(|t| snake(&kebab(&t)))
             .collect()
     }
-    fn step_id(s: &str) -> desk_core::wizard::StepId {
-        desk_core::wizard::StepId::parse(s).unwrap_or_else(|| panic!("step {s}"))
+    fn step_id(s: &str) -> StepId {
+        StepId::parse(s).unwrap_or_else(|| panic!("step {s}"))
     }
 
     // settings
