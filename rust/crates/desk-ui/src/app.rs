@@ -13,11 +13,15 @@ use eframe::egui::{self, Frame, Margin, ScrollArea, ThemePreference, Ui};
 use crate::chat::{self, view as chat_view, AutoChat, ChatAction, ChatUi, ChatsView, Page};
 use crate::cli::WindowOpts;
 use crate::clock::{parse_now, Clock};
+use crate::connect::{
+    self, lights::LightsEvent, settings::SettingsEvent, wizard::WizardEvent, ConnUi, ConnView,
+    SettingsTab,
+};
 use crate::fonts;
 use crate::i18n::t;
 use crate::opts::Opts;
 use crate::perf::Perf;
-use crate::screen::kit::{self, bold, txt};
+use crate::screen::kit::{bold, txt};
 use crate::screen::shots::ShotTextures;
 use crate::screen::{self, ScreenEvent, ScreenState};
 use crate::theme::{self, space, text, Palette, SIDEBAR_WIDTH};
@@ -34,6 +38,9 @@ pub const DEMO_NOW: &str = "2026-10-26T09:40";
 
 /// The largest texture side the desk asks for (`DESK_OPT=atlas_full` lifts it).
 pub const MAX_TEXTURE_SIDE: usize = 4096;
+
+/// Reading column of «Настройки» and the wizard.
+const SETTINGS_MAX_WIDTH: f32 = 860.0;
 
 /// Content column of the main area; wider screens get side margins.
 const MAIN_MAX_WIDTH: f32 = 1100.0;
@@ -59,6 +66,20 @@ pub struct DeskApp {
     chats: Arc<ChatsView>,
     chats_override: Option<Arc<ChatsView>>,
     theme: ThemePreference,
+    /// UI zoom (1.0 = 100 %).
+    scale: f32,
+    /// Theme and zoom last handed to egui (only a change is applied, so a
+    /// test harness keeps the theme it was built with).
+    applied_look: (ThemePreference, f32),
+    /// The connection screens: desk-app's view (or a test's) and the UI's memory.
+    conn: ConnView,
+    conn_override: Option<ConnView>,
+    /// Theme and scale as the settings view last said them (a change there
+    /// is applied; a local pick wins until the next change).
+    seen_look: Option<(connect::Theme, f32)>,
+    cui: ConnUi,
+    /// Last «window focused» probe (s of egui time), to debounce.
+    focus_probe: Option<f64>,
     /// See `raw_input_hook`; `None` = the driver's limit.
     max_texture_side: Option<usize>,
     /// desk-app starting on a helper thread (`DESK_OPT` default): the
@@ -127,6 +148,13 @@ impl DeskApp {
             chats: Arc::default(),
             chats_override: None,
             theme: ThemePreference::System,
+            scale: 1.0,
+            applied_look: (ThemePreference::System, 1.0),
+            conn: ConnView::default(),
+            conn_override: None,
+            seen_look: None,
+            cui: ConnUi::default(),
+            focus_probe: None,
             max_texture_side: Some(MAX_TEXTURE_SIDE),
             pending: None,
             late_start: None,
@@ -165,6 +193,16 @@ impl DeskApp {
         self.chats_override = Some(chats);
     }
 
+    /// For tests: draw this connection state instead of the snapshot's.
+    pub fn set_conn(&mut self, conn: ConnView) {
+        self.conn_override = Some(conn);
+        self.refresh_conn();
+    }
+
+    pub fn conn_ui_mut(&mut self) -> &mut ConnUi {
+        &mut self.cui
+    }
+
     pub fn chat_mut(&mut self) -> &mut ChatUi {
         &mut self.chat
     }
@@ -180,6 +218,46 @@ impl DeskApp {
     fn send_chat(&mut self, actions: Vec<ChatAction>) {
         let cmds = actions.into_iter().map(chat::to_command).collect();
         self.send(cmds);
+    }
+
+    fn refresh_conn(&mut self) {
+        let today = desk_core::windows::kyiv_now(self.clock.now()).date;
+        let mut c = match &self.conn_override {
+            Some(c) => c.clone(),
+            None => connect::conn_of(&self.snap, today),
+        };
+        let look = (c.settings.theme, c.settings.scale);
+        if self.seen_look != Some(look) {
+            self.seen_look = Some(look);
+            self.theme = theme_pref(look.0);
+            self.scale = if look.1 > 0.0 { look.1 } else { 1.0 };
+        }
+        // What is applied is what the page shows (a pick shows before the
+        // snapshot brings it back).
+        let theme = match self.theme {
+            ThemePreference::Light => connect::Theme::Light,
+            ThemePreference::Dark => connect::Theme::Dark,
+            ThemePreference::System => connect::Theme::System,
+        };
+        if c.settings.theme != theme || c.settings.scale != self.scale {
+            let s = std::sync::Arc::make_mut(&mut c.settings);
+            s.theme = theme;
+            s.scale = self.scale;
+        }
+        self.conn = c;
+    }
+
+    /// Apply what is the UI's own (theme, scale), then hand the rest to desk-app.
+    fn send_conn(&mut self, cmds: Vec<Command>) {
+        // Theme and scale take effect here and now; desk-app stores them.
+        for c in &cmds {
+            if let Command::SaveSettings(next) = c {
+                self.theme = theme_pref(next.theme);
+                self.scale = next.scale;
+            }
+        }
+        self.send(cmds);
+        self.refresh_conn();
     }
 
     fn refresh_chats(&mut self) {
@@ -200,8 +278,30 @@ impl DeskApp {
     pub fn draw(&mut self, ui: &mut Ui) {
         let p = Palette::of(ui);
         let mut actions = Vec::new();
+        let mut conn_actions = Vec::new();
         self.chat.sync(&self.chats, &mut actions);
         let today = desk_core::windows::kyiv_now(self.clock.now()).date;
+        if self.applied_look != (self.theme, self.scale) {
+            self.applied_look = (self.theme, self.scale);
+            ui.ctx().set_theme(self.theme);
+            ui.ctx().set_zoom_factor(self.scale);
+        }
+        // The first run opens the wizard, once.
+        if self.conn.first_run && !self.cui.wizard_shown {
+            self.cui.wizard_shown = true;
+            self.chat.page = Page::Wizard;
+        }
+        // A window brought to the front asks for fresh lights (at most every 30 s).
+        let focused = ui.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::WindowFocused(true)))
+        });
+        let now_s = ui.input(|i| i.time);
+        if focused && self.focus_probe.is_none_or(|t0| now_s - t0 > 30.0) {
+            self.focus_probe = Some(now_s);
+            conn_actions.push(Command::CheckStatus);
+        }
         egui::Panel::left("sidebar")
             .resizable(false)
             .exact_size(SIDEBAR_WIDTH)
@@ -211,23 +311,27 @@ impl DeskApp {
                     .inner_margin(Margin::same(space::S4 as i8)),
             )
             .show(ui, |ui| {
-                let picked = sidebar(
+                let ev = sidebar(
                     ui,
                     &p,
-                    self.theme,
                     &mut self.chat,
                     &self.chats,
+                    &self.conn,
                     today,
                     &mut actions,
+                    &mut conn_actions,
                 );
-                if let Some(pref) = picked {
-                    self.theme = pref;
-                    ui.ctx().set_theme(pref);
+                if ev == Some(LightsEvent::OpenDiagnostics) {
+                    self.chat.page = Page::Settings;
+                    self.cui.tab = SettingsTab::Diagnostics;
+                    if self.conn.checks_at == 0 {
+                        conn_actions.push(Command::RunPreflight);
+                    }
                 }
             });
         let mut out = Vec::new();
         let mut events = Vec::new();
-        let on_day = self.chat.page == Page::Day;
+        let page = self.chat.page.clone();
         egui::CentralPanel::default()
             .frame(Frame::new().fill(p.bg_chat).inner_margin(Margin {
                 left: space::S12 as i8,
@@ -236,9 +340,44 @@ impl DeskApp {
                 bottom: 0,
             }))
             .show(ui, |ui| {
-                if !on_day {
-                    actions.extend(chat_view::page(ui, &p, &mut self.chat, &self.chats));
-                    return;
+                match page {
+                    Page::Day => {}
+                    Page::Chat(_) => {
+                        actions.extend(chat_view::page(ui, &p, &mut self.chat, &self.chats));
+                        return;
+                    }
+                    Page::Settings | Page::Wizard => {
+                        ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                            ui.set_max_width(ui.available_width().min(SETTINGS_MAX_WIDTH));
+                            ui.spacing_mut().item_spacing.y = space::S6;
+                            if page == Page::Settings {
+                                let ev = connect::settings::page(
+                                    ui,
+                                    &p,
+                                    &mut self.cui,
+                                    &self.conn,
+                                    &mut conn_actions,
+                                );
+                                if ev == Some(SettingsEvent::OpenWizard) {
+                                    self.cui.wizard.step = 0;
+                                    self.chat.page = Page::Wizard;
+                                }
+                            } else {
+                                let ev = connect::wizard::page(
+                                    ui,
+                                    &p,
+                                    &mut self.cui,
+                                    &self.conn,
+                                    &mut conn_actions,
+                                );
+                                if ev == Some(WizardEvent::Close) {
+                                    self.chat.page = Page::Day;
+                                }
+                            }
+                            ui.add_space(40.0);
+                        });
+                        return;
+                    }
                 }
                 ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
                     ui.set_max_width(ui.available_width().min(MAIN_MAX_WIDTH) - space::S6);
@@ -271,6 +410,10 @@ impl DeskApp {
             }
         }
         self.send_chat(actions);
+        self.send_conn(conn_actions);
+        if self.applied_look != (self.theme, self.scale) {
+            ui.ctx().request_repaint();
+        }
         if self.clock == Clock::Real {
             // Window states and «сегодня» move with the minute; nothing else
             // on screen depends on the clock.
@@ -320,6 +463,7 @@ impl eframe::App for DeskApp {
             self.snap = h.snapshot();
         }
         self.refresh_chats();
+        self.refresh_conn();
         if let Some(perf) = &mut self.perf {
             perf.on_frame(ctx, frame);
         }
@@ -491,28 +635,28 @@ pub fn run(started: Instant, opts: WindowOpts) -> anyhow::Result<()> {
 
 // ---------------------------------------------------------------- sidebar
 
-/// The tabs of the MVP (only «Обзор дня» is live yet), the chats, the theme.
+/// The tabs, the lights, the chats.
 #[allow(clippy::too_many_arguments)]
 fn sidebar(
     ui: &mut Ui,
     p: &Palette,
-    theme_now: ThemePreference,
     chat: &mut ChatUi,
     chats: &ChatsView,
+    conn: &ConnView,
     today: NaiveDate,
     actions: &mut Vec<ChatAction>,
-) -> Option<ThemePreference> {
+    conn_actions: &mut Vec<Command>,
+) -> Option<LightsEvent> {
     ui.spacing_mut().item_spacing.y = space::S3;
     ui.add_space(space::S2);
     ui.label(bold(t("app.title"), text::HEADING, p.fg));
     ui.add_space(space::S4);
-    for (key, live) in [
-        ("tabs.macro", true),
-        ("tabs.copilot", false),
-        ("tabs.settings", false),
-        ("tabs.help", false),
+    for (key, target) in [
+        ("tabs.macro", Some(Page::Day)),
+        ("tabs.settings", Some(Page::Settings)),
+        ("tabs.help", None),
     ] {
-        let on = live && chat.page == Page::Day;
+        let on = target.as_ref() == Some(&chat.page);
         let fill = if on {
             p.accent_soft
         } else {
@@ -520,7 +664,7 @@ fn sidebar(
         };
         let color = if on {
             p.accent
-        } else if live {
+        } else if target.is_some() {
             p.fg
         } else {
             p.fg_muted
@@ -539,43 +683,36 @@ fn sidebar(
                 ui.label(label);
             })
             .response;
-        if live {
-            let r = ui
-                .interact(r.rect, ui.scope_id().with(key), egui::Sense::click())
-                .on_hover_cursor(egui::CursorIcon::PointingHand);
-            let label = t(key);
-            r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, on, label));
-            if r.clicked() {
-                chat.page = Page::Day;
+        match target {
+            Some(page) => {
+                let r = ui
+                    .interact(r.rect, ui.scope_id().with(key), egui::Sense::click())
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let label = t(key);
+                r.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, on, label));
+                if r.clicked() {
+                    chat.page = page;
+                }
             }
-        } else {
-            r.on_hover_text(t("desk.soon"));
+            None => {
+                r.on_hover_text(t("desk.soon"));
+            }
         }
     }
-    ui.add_space(space::S8);
-    kit::sub(ui, p, t("sidebar.simple.title"));
-    kit::para(ui, txt(t("desk.soon"), text::SM, p.fg_muted));
-    ui.add_space(space::S8);
-    // Leave room for the theme switch at the bottom.
-    let list_h = (ui.available_height() - 90.0).max(80.0);
+    ui.add_space(space::S6);
+    let ev = connect::lights::show(ui, p, conn, conn_actions);
+    ui.add_space(space::S6);
+    let list_h = (ui.available_height() - space::S4).max(80.0);
     actions.extend(chat_view::sidebar_list(ui, p, chat, chats, today, list_h));
+    ev
+}
 
-    let mut picked = None;
-    ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-        let prefs = [
-            (ThemePreference::System, t("desk.theme.system")),
-            (ThemePreference::Light, t("desk.theme.light")),
-            (ThemePreference::Dark, t("desk.theme.dark")),
-        ];
-        let items: Vec<(&str, kit::Tone)> =
-            prefs.iter().map(|(_, l)| (*l, kit::Tone::Accent)).collect();
-        let sel = prefs.iter().position(|(x, _)| *x == theme_now);
-        if let Some(i) = kit::seg(ui, p, &items, sel, false) {
-            picked = Some(prefs[i].0);
-        }
-        kit::sub(ui, p, t("desk.theme.title"));
-    });
-    picked
+fn theme_pref(th: connect::Theme) -> ThemePreference {
+    match th {
+        connect::Theme::System => ThemePreference::System,
+        connect::Theme::Light => ThemePreference::Light,
+        connect::Theme::Dark => ThemePreference::Dark,
+    }
 }
 
 // ---------------------------------------------------------------- --bench-switch
