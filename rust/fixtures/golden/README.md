@@ -24,6 +24,7 @@ names and machine paths before it finishes.
 | `expected/day_<D>.json` | `loadDay(vault, D)` for every listed day (10 days) | the same |
 | `expected/helpers/*.json` | the pure helpers of `src/shared/macro.ts`, case by case | `tools/capture-helpers.ts` |
 | `../edge/<case>/` | hand-made broken vaults + `loadDay()` over them | `tools/make-edge.py` + `tools/dump-edge.ts` |
+| `expected/stage6/` | stage 6: `buildChecks` on 42 machines (`checks.json`), the wizard's pages / skips / auto tasks (`wizard.json`), old `config.json` → settings (`settings_import.json`), and — not from the old app — the TZ schedule rule (`schedule.json`) | `tools/capture-stage6.ts` (run with `TZ=Europe/Kyiv`) |
 
 `dump.ts` also writes `defaults.json` (the settings defaults); it is dropped: it is desk-app's
 settings contract, not the day's, and it names the owner's GitHub repo.
