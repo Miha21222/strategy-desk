@@ -273,12 +273,16 @@ fn checks_match_the_old_diagnosis() {
         let name = str_of(&c["name"]);
         let facts = api::facts(merge(base_facts, &c["facts_patch"]));
         let settings = api::settings_from_old(&merge(base_settings, &c["settings_patch"]));
-        let got: Vec<_> = api::build_checks(&facts, &settings)
+        let mut got: Vec<_> = api::build_checks(&facts, &settings)
             .iter()
             .map(api::view)
             .filter(|v| v.0 != "claude_auth") // new in Rust, no old twin
             .collect();
-        let want = expected_mvp(c["checks"].as_array().expect("checks"));
+        let mut want = expected_mvp(c["checks"].as_array().expect("checks"));
+        // Content only: the ORDER is a deliberate change (quirk S5, wizard
+        // order for both lists) and has its own test below.
+        got.sort_by(|a, b| a.0.cmp(&b.0));
+        want.sort_by(|a, b| a.0.cmp(&b.0));
         r.eq(format!("{name}: {}", str_of(&c["about"])), want, got);
     }
     r.finish("stage6/checks.json");
