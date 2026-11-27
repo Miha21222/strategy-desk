@@ -67,7 +67,7 @@ pub fn page(ui: &mut Ui, p: &Palette, st: &mut ChatUi, view: &ChatsView) -> Vec<
     let mut out = Vec::new();
     let id = match &st.page {
         Page::Chat(id) => id.clone(),
-        Page::Day | Page::Settings | Page::Wizard => return out,
+        Page::Day => return out,
     };
     let meta = id.as_deref().and_then(|id| view.meta(id)).cloned();
 

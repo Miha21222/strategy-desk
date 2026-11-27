@@ -44,8 +44,4 @@ egui_kittest = { version = "0.37", features = ["wgpu", "snapshot"] }
 
 # Working-set size for `--bench-first-frame` (already in the tree via winit).
 [target.'cfg(windows)'.dependencies]
-# The native folder picker of «Настройки» and the wizard (IFileOpenDialog).
-# Windows only: the desk ships for Windows, and rfd's Linux backends pull in
-# GTK or a D-Bus portal stack. Elsewhere the path is typed.
-rfd = { version = "0.15", default-features = false }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_ProcessStatus", "Win32_System_Threading"] }
