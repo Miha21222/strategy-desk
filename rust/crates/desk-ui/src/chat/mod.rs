@@ -32,6 +32,10 @@ pub enum Page {
     Day,
     /// A chat; `None` while desk-app is creating the one «+ Новый чат» asked for.
     Chat(Option<ChatId>),
+    /// «Настройки» (with «Диагностика» as its second tab).
+    Settings,
+    /// The first-run wizard.
+    Wizard,
 }
 
 /// `DESK_BENCH_AUTOCHAT=1`: one message once the first frame is out, so QA

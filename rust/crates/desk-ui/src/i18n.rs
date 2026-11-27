@@ -14,6 +14,7 @@
 
 use std::fmt::Display;
 
+use crate::i18n_connect::CONNECT;
 use crate::i18n_ru::RU_TS;
 
 /// The Rust desk's wording of strings `ru.ts` also has; looked up first.
@@ -202,6 +203,7 @@ pub fn t(key: &str) -> &str {
         return RU_TS[i].1;
     }
     DESK.iter()
+        .chain(CONNECT)
         .find(|(k, _)| *k == key)
         .map_or(key, |(_, v)| *v)
 }
@@ -218,7 +220,12 @@ pub fn tf(key: &str, vars: &[(&str, &dyn Display)]) -> String {
 /// Every string the desk can show (tests: glyph coverage).
 #[cfg(test)]
 pub(crate) fn all() -> impl Iterator<Item = &'static str> {
-    RU_TS.iter().chain(DESK).chain(THESIS).map(|(_, v)| *v)
+    RU_TS
+        .iter()
+        .chain(DESK)
+        .chain(THESIS)
+        .chain(CONNECT)
+        .map(|(_, v)| *v)
 }
 
 #[cfg(test)]
@@ -252,13 +259,14 @@ mod tests {
             RU_TS.windows(2).all(|w| w[0].0 < w[1].0),
             "RU_TS must be sorted"
         );
-        let mut keys: Vec<_> = DESK.iter().map(|(k, _)| *k).collect();
+        let mut keys: Vec<_> = DESK.iter().chain(CONNECT).map(|(k, _)| *k).collect();
         keys.sort_unstable();
         let before = keys.len();
         keys.dedup();
         assert_eq!(before, keys.len(), "duplicate desk key");
         assert!(DESK
             .iter()
+            .chain(CONNECT)
             .all(|(k, _)| RU_TS.binary_search_by(|(x, _)| (*x).cmp(k)).is_err()));
         // An override must override something, and keep the placeholders.
         for (k, v) in THESIS {
