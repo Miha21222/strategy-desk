@@ -337,7 +337,9 @@ mod tests {
         let env = runtime_env(&b);
         assert_eq!(
             env["UV_PROJECT_ENVIRONMENT"],
-            Path::new("/data/py/venv").to_string_lossy()
+            // Built with Path::join, so compare against the same join on
+            // every OS (Windows spells it "/data/py\\venv").
+            Path::new("/data/py").join("venv").to_string_lossy()
         );
         assert!(env.contains_key("NUMBA_CACHE_DIR") && env.contains_key("PYTHONPYCACHEPREFIX"));
         assert_eq!(
