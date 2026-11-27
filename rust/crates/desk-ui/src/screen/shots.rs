@@ -111,6 +111,16 @@ pub fn decode_png(bytes: &[u8]) -> Option<ColorImage> {
 /// Windows heap does not hand back promptly). Interlaced PNGs, which the
 /// skill does not write, take the whole-image path.
 pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> {
+    decode_png_fit(bytes, max_w, None)
+}
+
+/// [`decode_png_max`] that also keeps both sides within `max_side` (the
+/// largest texture the GPU takes: a bigger image would make egui panic).
+pub fn decode_png_fit(
+    bytes: &[u8],
+    max_w: Option<usize>,
+    max_side: Option<usize>,
+) -> Option<ColorImage> {
     let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
     dec.set_transformations(png::Transformations::normalize_to_color8());
     let mut reader = dec.read_info().ok()?;
@@ -119,6 +129,10 @@ pub fn decode_png_max(bytes: &[u8], max_w: Option<usize>) -> Option<ColorImage> 
         return None;
     }
     let k = max_w.map_or(1, |m| w.div_ceil(m.max(1)).max(1));
+    let k = max_side.map_or(k, |m| {
+        let m = m.max(1);
+        k.max(w.div_ceil(m)).max(h.div_ceil(m))
+    });
     if reader.info().interlaced {
         return decode_whole(reader, w, h, k);
     }
@@ -390,8 +404,9 @@ impl ShotTextures {
         self.map.insert(map_key.clone(), Tex::Decoding(key));
         self.decoded += 1;
         let max_w = (kind == Kind::Preview && !self.full_everywhere).then_some(self.preview_max_w);
+        let max_side = Some(ctx.input(|i| i.max_texture_side));
         if self.sync {
-            let img = decode_png_max(&loaded.png, max_w);
+            let img = decode_png_fit(&loaded.png, max_w, max_side);
             self.finish(ctx, map_key, key, img);
             return self.view_kind(ctx, snap, path, out, kind);
         }
@@ -408,7 +423,7 @@ impl ShotTextures {
                     "shot_decode_begin",
                     &format!(", \"bytes\": {}", bytes.len()),
                 );
-                let img = decode_png_max(&bytes, max_w);
+                let img = decode_png_fit(&bytes, max_w, max_side);
                 crate::perf::trace::event("shot_decode_end", "");
                 // The receiver lives as long as the app; a send after it is gone is moot.
                 let _ = tx.send((owned, key, img));
@@ -416,7 +431,7 @@ impl ShotTextures {
             });
         if spawned.is_err() {
             // No thread to spare: decode here rather than show nothing.
-            let img = decode_png_max(&loaded.png, max_w);
+            let img = decode_png_fit(&loaded.png, max_w, max_side);
             self.finish(ctx, map_key, key, img);
         }
         ShotView::Loading
@@ -955,6 +970,10 @@ mod tests {
         assert_eq!(small.size, [full.size[0] / 2, full.size[1] / 2]);
         let same = decode_png_max(&bytes, Some(full.size[0])).unwrap();
         assert_eq!(same.size, full.size);
+        // Both sides within the texture limit, whichever is the longer one.
+        let side = full.size[0].min(full.size[1]) / 2;
+        let fit = decode_png_fit(&bytes, None, Some(side)).unwrap();
+        assert!(fit.size[0] <= side && fit.size[1] <= side, "{:?}", fit.size);
     }
 
     #[test]

@@ -12,6 +12,7 @@
 //! | `shot_mips` | previews without mipmaps (the box downscale already filters) | previews with mipmaps |
 //! | `no_shots` | screenshots shown | never loaded (diagnostic: what do they cost?) |
 //! | `shot_small` | previews ≤ 1280 px wide | ≤ 640 px (diagnostic: does memory follow texture size?) |
+//! | `atlas_full` | textures (and so egui's font atlas) ≤ 4096 px a side | the driver's limit (16384 here: a 16384-wide atlas) |
 //!
 //! Unknown names are reported on stderr and ignored.
 
@@ -25,6 +26,7 @@ pub struct Opts {
     pub shot_mips: bool,
     pub shots: bool,
     pub shot_small: bool,
+    pub atlas_full: bool,
 }
 
 impl Default for Opts {
@@ -38,6 +40,7 @@ impl Default for Opts {
             shot_mips: false,
             shots: true,
             shot_small: false,
+            atlas_full: false,
         }
     }
 }
@@ -57,6 +60,7 @@ impl Opts {
                 "shot_mips" => o.shot_mips = true,
                 "no_shots" => o.shots = false,
                 "shot_small" => o.shot_small = true,
+                "atlas_full" => o.atlas_full = true,
                 other => unknown.push(other.to_owned()),
             }
         }
@@ -99,6 +103,9 @@ impl Opts {
         }
         if self.shot_small != d.shot_small {
             v.push("shot_small");
+        }
+        if self.atlas_full != d.atlas_full {
+            v.push("atlas_full");
         }
         v.join(",")
     }
