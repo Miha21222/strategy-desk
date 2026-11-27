@@ -1,0 +1,233 @@
+{
+    "commit":  "3e5102d",
+    "vault":  "-Vault",
+    "desk_now":  "2026-10-13T12:00",
+    "now_source":  "auto: newest day with a screenshot and an owner read",
+    "note":  "DESK_STARTUP_TRACE=1 on every launch; ms since main(); runs: probe, cold i/N, warm-up, warm i/N, idle i/N, stream, switch",
+    "phases":  {
+                   "default":  {
+                                   "warm":  {
+                                                "main":  {
+                                                             "n":  10,
+                                                             "ms":  0,
+                                                             "private_mb":  1.8,
+                                                             "ws_mb":  8.4
+                                                         },
+                                                "before_run_native":  {
+                                                                          "n":  10,
+                                                                          "ms":  0.1,
+                                                                          "private_mb":  1.8,
+                                                                          "ws_mb":  8.6
+                                                                      },
+                                                "creator_entered":  {
+                                                                        "n":  10,
+                                                                        "ms":  115.95,
+                                                                        "private_mb":  83.35,
+                                                                        "ws_mb":  56.4
+                                                                    },
+                                                "fonts_installed":  {
+                                                                        "n":  10,
+                                                                        "ms":  116.05,
+                                                                        "private_mb":  83.35,
+                                                                        "ws_mb":  56.5
+                                                                    },
+                                                "app_handle_started":  {
+                                                                           "n":  10,
+                                                                           "ms":  116.3,
+                                                                           "private_mb":  85.5,
+                                                                           "ws_mb":  57.45
+                                                                       },
+                                                "first_update_begin":  {
+                                                                           "n":  10,
+                                                                           "ms":  116.65,
+                                                                           "private_mb":  85.5,
+                                                                           "ws_mb":  59.1
+                                                                       },
+                                                "first_update_end":  {
+                                                                         "n":  10,
+                                                                         "ms":  119.1,
+                                                                         "private_mb":  85.75,
+                                                                         "ws_mb":  61.1
+                                                                     },
+                                                "first_frame_presented":  {
+                                                                              "n":  10,
+                                                                              "ms":  143,
+                                                                              "private_mb":  90.7,
+                                                                              "ws_mb":  69.15
+                                                                          },
+                                                "day_drawn":  {
+                                                                  "n":  10,
+                                                                  "ms":  149.25,
+                                                                  "private_mb":  91.6,
+                                                                  "ws_mb":  70.15
+                                                              },
+                                                "day_presented":  {
+                                                                      "n":  10,
+                                                                      "ms":  150.3,
+                                                                      "private_mb":  92.85,
+                                                                      "ws_mb":  70.9
+                                                                  }
+                                            },
+                                   "cold":  {
+                                                "main":  {
+                                                             "n":  10,
+                                                             "ms":  0.2,
+                                                             "private_mb":  1.8,
+                                                             "ws_mb":  8.4
+                                                         },
+                                                "before_run_native":  {
+                                                                          "n":  10,
+                                                                          "ms":  1,
+                                                                          "private_mb":  1.8,
+                                                                          "ws_mb":  8.6
+                                                                      },
+                                                "creator_entered":  {
+                                                                        "n":  10,
+                                                                        "ms":  127.75,
+                                                                        "private_mb":  83.05,
+                                                                        "ws_mb":  56.4
+                                                                    },
+                                                "fonts_installed":  {
+                                                                        "n":  10,
+                                                                        "ms":  127.85,
+                                                                        "private_mb":  83.05,
+                                                                        "ws_mb":  56.5
+                                                                    },
+                                                "app_handle_started":  {
+                                                                           "n":  10,
+                                                                           "ms":  128.3,
+                                                                           "private_mb":  84.6,
+                                                                           "ws_mb":  56.95
+                                                                       },
+                                                "first_update_begin":  {
+                                                                           "n":  10,
+                                                                           "ms":  129,
+                                                                           "private_mb":  85.3,
+                                                                           "ws_mb":  59.15
+                                                                       },
+                                                "first_update_end":  {
+                                                                         "n":  10,
+                                                                         "ms":  134.75,
+                                                                         "private_mb":  85.65,
+                                                                         "ws_mb":  61.1
+                                                                     },
+                                                "first_frame_presented":  {
+                                                                              "n":  10,
+                                                                              "ms":  162.15,
+                                                                              "private_mb":  90.7,
+                                                                              "ws_mb":  69.2
+                                                                          },
+                                                "day_drawn":  {
+                                                                  "n":  10,
+                                                                  "ms":  168.85,
+                                                                  "private_mb":  91.5,
+                                                                  "ws_mb":  70.1
+                                                              },
+                                                "day_presented":  {
+                                                                      "n":  10,
+                                                                      "ms":  170.2,
+                                                                      "private_mb":  91.9,
+                                                                      "ws_mb":  70.9
+                                                                  }
+                                            },
+                                   "idle":  {
+                                                "main":  {
+                                                             "n":  3,
+                                                             "ms":  0,
+                                                             "private_mb":  1.8,
+                                                             "ws_mb":  8.4
+                                                         },
+                                                "before_run_native":  {
+                                                                          "n":  3,
+                                                                          "ms":  0.1,
+                                                                          "private_mb":  1.8,
+                                                                          "ws_mb":  8.7
+                                                                      },
+                                                "creator_entered":  {
+                                                                        "n":  3,
+                                                                        "ms":  125.5,
+                                                                        "private_mb":  83.9,
+                                                                        "ws_mb":  56.5
+                                                                    },
+                                                "fonts_installed":  {
+                                                                        "n":  3,
+                                                                        "ms":  125.5,
+                                                                        "private_mb":  83.9,
+                                                                        "ws_mb":  56.6
+                                                                    },
+                                                "app_handle_started":  {
+                                                                           "n":  3,
+                                                                           "ms":  125.7,
+                                                                           "private_mb":  85.9,
+                                                                           "ws_mb":  57.5
+                                                                       },
+                                                "first_update_begin":  {
+                                                                           "n":  3,
+                                                                           "ms":  126.1,
+                                                                           "private_mb":  86,
+                                                                           "ws_mb":  59.2
+                                                                       },
+                                                "first_update_end":  {
+                                                                         "n":  3,
+                                                                         "ms":  128.2,
+                                                                         "private_mb":  86.4,
+                                                                         "ws_mb":  61.2
+                                                                     },
+                                                "first_frame_presented":  {
+                                                                              "n":  3,
+                                                                              "ms":  153.4,
+                                                                              "private_mb":  91.4,
+                                                                              "ws_mb":  69.2
+                                                                          },
+                                                "day_drawn":  {
+                                                                  "n":  3,
+                                                                  "ms":  158.7,
+                                                                  "private_mb":  92.3,
+                                                                  "ws_mb":  70.3
+                                                              },
+                                                "day_presented":  {
+                                                                      "n":  3,
+                                                                      "ms":  159.9,
+                                                                      "private_mb":  93.8,
+                                                                      "ws_mb":  71.1
+                                                                  },
+                                                "shot_decode_begin":  {
+                                                                          "n":  3,
+                                                                          "ms":  160.6,
+                                                                          "private_mb":  93.8,
+                                                                          "ws_mb":  75.6
+                                                                      },
+                                                "shot_decode_end":  {
+                                                                        "n":  3,
+                                                                        "ms":  165.6,
+                                                                        "private_mb":  96.9,
+                                                                        "ws_mb":  79.2
+                                                                    },
+                                                "first_shot_uploaded":  {
+                                                                            "n":  3,
+                                                                            "ms":  205.8,
+                                                                            "private_mb":  97.3,
+                                                                            "ws_mb":  79.5
+                                                                        },
+                                                "shot_uploaded":  {
+                                                                      "n":  3,
+                                                                      "ms":  205.9,
+                                                                      "private_mb":  97.3,
+                                                                      "ws_mb":  79.5
+                                                                  },
+                                                "shot_on_gpu":  {
+                                                                    "n":  3,
+                                                                    "ms":  209.7,
+                                                                    "private_mb":  99.6,
+                                                                    "ws_mb":  78.4
+                                                                },
+                                                "idle_10s":  {
+                                                                 "n":  3,
+                                                                 "ms":  10154.6,
+                                                                 "private_mb":  108.4,
+                                                                 "ws_mb":  88.6
+                                                             }
+                                            }
+                               }
+               }
+}
