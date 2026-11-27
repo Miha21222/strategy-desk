@@ -100,6 +100,12 @@ pub struct Settings {
     /// When the wizard was finished; `None` = open it on start (`setupCompletedAt`).
     #[serde(deserialize_with = "lenient::de")]
     pub setup_completed_at: Option<DateTime<Utc>>,
+    /// TradingView Desktop's exe when it is not where desk-app looks (`tvDesktopExe`); empty = find it.
+    #[serde(deserialize_with = "lenient::de")]
+    pub tv_desktop_exe: String,
+    /// When the stored sessionid last passed `session_check`; `None` = never, or a new cookie.
+    #[serde(deserialize_with = "lenient::de")]
+    pub tv_session_verified_at: Option<DateTime<Utc>>,
 }
 
 impl Default for Settings {
@@ -115,6 +121,8 @@ impl Default for Settings {
             schedule: ScheduleSettings::default(),
             setup_skipped: Vec::new(),
             setup_completed_at: None,
+            tv_desktop_exe: String::new(),
+            tv_session_verified_at: None,
         }
     }
 }
@@ -237,6 +245,9 @@ pub fn import_electron(old: &Value) -> Settings {
             .map(steps_of)
             .unwrap_or_default(),
         setup_completed_at: completed,
+        tv_desktop_exe: s("tvDesktopExe").unwrap_or_default(),
+        // The cookie itself is not carried over, so neither is its check.
+        tv_session_verified_at: None,
     }
 }
 

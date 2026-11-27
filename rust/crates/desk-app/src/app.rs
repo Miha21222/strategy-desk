@@ -25,8 +25,8 @@ use tokio::sync::mpsc;
 use crate::chat::manager::{ChatMsg, Chats, Forward};
 use crate::chat::store::{default_data_dir, ChatStore};
 use crate::chat::{ChatCommand, ChatsView, ClaudeLaunch};
-use crate::core_wip::Settings;
 use crate::day::{self, DayMark};
+use crate::diagnose;
 use crate::ops::{next_prewindow, Ops};
 use crate::paths;
 use crate::secrets::{KeyringStore, SecretStore};
@@ -36,6 +36,9 @@ use crate::tasks::{Forward as TaskForward, TaskEvent, TaskId, TasksView};
 use crate::tv_launch::{self, LaunchError, Launched};
 use crate::vault_write::{self, WriteError};
 use crate::watch::{Changed, StateWatcher, WatchOptions};
+use desk_core::preflight::{build_checks, Check};
+use desk_core::settings::Settings;
+use desk_core::wizard::{should_open_wizard, StepId};
 
 /// How many errors the snapshot keeps (oldest dropped first).
 pub const ERRORS_KEPT: usize = 20;
@@ -84,6 +87,12 @@ pub enum Command {
     ClearTvSession,
     /// «Очистить рантайм» (after the UI asked).
     ClearRuntime,
+    /// «Проверить заново»: the whole check list (`Snapshot::checks`).
+    RunPreflight,
+    /// «Пропустить» on a wizard page (saved in the settings).
+    SkipStep(StepId),
+    /// «Готово»: the wizard does not open by itself again.
+    FinishWizard,
 }
 
 /// A screenshot as the UI may find it in the snapshot.
@@ -128,8 +137,13 @@ pub struct Snapshot {
     pub chats: Arc<ChatsView>,
     pub status: Arc<StatusLights>,
     pub tasks: Arc<TasksView>,
-    /// TODO(core): `desk_core::settings::Settings`.
     pub settings: Arc<Settings>,
+    /// «Диагностика» / the wizard's list, from `desk_core::preflight::build_checks`.
+    pub checks: Arc<Vec<Check>>,
+    /// When `checks` was gathered (ms); 0 = not yet.
+    pub checks_at: i64,
+    /// The wizard was never finished: open it by itself.
+    pub first_run: bool,
     /// The only thing about the sessionid that leaves desk-app.
     pub has_tv_session: bool,
     pub errors: Arc<Vec<UserError>>,
@@ -148,6 +162,9 @@ impl Default for Snapshot {
             status: Arc::default(),
             tasks: Arc::default(),
             settings: Arc::default(),
+            checks: Arc::default(),
+            checks_at: 0,
+            first_run: false,
             has_tv_session: false,
             errors: Arc::default(),
             rev: 0,
@@ -241,6 +258,7 @@ enum Msg {
     Cmd(Command),
     Chat(ChatMsg),
     Status(StatusLights),
+    Preflight(Vec<Check>, i64),
     Task(TaskEvent),
     TvLaunched(Result<Launched, LaunchError>),
     /// A watcher's report; `gen` names the vault it watched.
@@ -297,6 +315,8 @@ impl AppHandle {
             ops: None,
             status_busy: false,
             status_again: false,
+            preflight_busy: false,
+            preflight_again: false,
             data_dir: cfg.data_dir,
             launch: cfg.claude,
             chats: None,
@@ -373,6 +393,8 @@ struct Actor {
     ops: Option<Ops>,
     status_busy: bool,
     status_again: bool,
+    preflight_busy: bool,
+    preflight_again: bool,
     /// Built inside the runtime (its writer is a task).
     chats: Option<Chats>,
     weak: mpsc::WeakUnboundedSender<Msg>,
@@ -393,8 +415,8 @@ impl Actor {
         self.start_watcher();
         self.refresh_index().await;
         self.start_chats().await;
-        // The lights: once at start, then on events (no polling loop).
-        self.refresh_status();
+        // The lights and the checks: once at start, then on events (no polling loop).
+        self.refresh_all();
         let mut last_chat_publish = tokio::time::Instant::now() - CHAT_FRAME;
         loop {
             let dirty = self.chats.as_ref().is_some_and(|c| c.is_dirty())
@@ -429,12 +451,13 @@ impl Actor {
                     Some(Msg::Changed(g, names)) if g == self.watch_gen => self.changed(names).await,
                     Some(Msg::Changed(..)) => {}
                     Some(Msg::Status(lights)) => self.on_status(lights),
+                    Some(Msg::Preflight(checks, at)) => self.on_preflight(checks, at),
                     Some(Msg::Task(ev)) => self.on_task(ev),
                     Some(Msg::TvLaunched(r)) => {
                         if let Err(e) = r {
                             self.error(UserError::new(e.key()));
                         }
-                        self.refresh_status();
+                        self.refresh_all();
                     }
                 },
             }
@@ -499,7 +522,10 @@ impl Actor {
                 self.open_day(today).await;
             }
             Command::LoadShot(rel) => self.load_shot(rel).await,
-            Command::SetVault(v) => self.set_vault(v).await,
+            Command::SetVault(v) => {
+                self.set_vault(v).await;
+                self.refresh_all();
+            }
             Command::WriteHumanRead {
                 date,
                 region,
@@ -573,6 +599,15 @@ impl Actor {
                 let r = self.ops.as_mut().map(Ops::clear_runtime);
                 self.after_ops(r);
             }
+            Command::RunPreflight => self.refresh_preflight(),
+            Command::SkipStep(id) => {
+                let r = self.ops.as_mut().map(|o| o.skip_step(id));
+                self.after_ops(r);
+            }
+            Command::FinishWizard => {
+                let r = self.ops.as_mut().map(|o| o.finish_wizard(Utc::now()));
+                self.after_ops(r);
+            }
         }
     }
 
@@ -611,9 +646,11 @@ impl Actor {
     fn publish_settings(&self) {
         if let Some(o) = self.ops.as_ref() {
             let (s, has) = (Arc::new(o.settings.clone()), o.has_tv_session());
+            let first_run = should_open_wizard(&s);
             self.shared.publish(|snap| {
                 snap.settings = s;
                 snap.has_tv_session = has;
+                snap.first_run = first_run;
             });
         }
     }
@@ -623,7 +660,7 @@ impl Actor {
             self.error(e);
         }
         self.publish_settings();
-        self.refresh_status();
+        self.refresh_all();
     }
 
     async fn save_settings(&mut self, next: Settings) {
@@ -642,7 +679,7 @@ impl Actor {
                 self.set_vault(v).await;
             }
         }
-        self.refresh_status();
+        self.refresh_all();
     }
 
     fn task_forward(&self) -> TaskForward {
@@ -658,16 +695,15 @@ impl Actor {
         let ended = matches!(ev, TaskEvent::End { .. });
         let r = self.ops.as_mut().map(|o| o.on_task(ev, Utc::now()));
         match r {
-            Some(Ok(true)) => {
-                self.publish_settings();
-                self.refresh_status();
-            }
+            Some(Ok(true)) => self.publish_settings(),
             Some(Err(e)) => self.error(e),
             _ => {}
         }
         if ended {
-            // The end of a task is shown at once, not at the next frame.
+            // The end of a task is shown at once, not at the next frame,
+            // and what it changed is looked at again.
             self.publish_tasks();
+            self.refresh_all();
         }
     }
 
@@ -701,6 +737,49 @@ impl Actor {
                 let _ = tx.send(Msg::Status(lights));
             }
         });
+    }
+
+    fn refresh_all(&mut self) {
+        self.refresh_status();
+        self.refresh_preflight();
+    }
+
+    /// The check list in the background, one gathering at a time (like the
+    /// lights); nothing is cached, so «Проверить заново» means it.
+    fn refresh_preflight(&mut self) {
+        if self.preflight_busy {
+            self.preflight_again = true;
+            return;
+        }
+        let Some(o) = self.ops.as_ref() else { return };
+        self.preflight_busy = true;
+        let inputs = o.diagnose_inputs(self.vault.as_deref(), Utc::now());
+        let weak = self.weak.clone();
+        tokio::spawn(async move {
+            let settings = inputs.settings.clone();
+            let facts = diagnose::facts(inputs).await;
+            let checks = build_checks(&settings, &facts);
+            if let Some(tx) = weak.upgrade() {
+                let _ = tx.send(Msg::Preflight(checks, Utc::now().timestamp_millis()));
+            }
+        });
+    }
+
+    fn on_preflight(&mut self, checks: Vec<Check>, at: i64) {
+        self.preflight_busy = false;
+        match self.ops.as_mut().map(|o| o.reconcile_skips(&checks)) {
+            Some(Ok(true)) => self.publish_settings(),
+            Some(Err(e)) => self.error(e),
+            _ => {}
+        }
+        let checks = Arc::new(checks);
+        self.shared.publish(|s| {
+            s.checks = checks;
+            s.checks_at = at;
+        });
+        if std::mem::take(&mut self.preflight_again) {
+            self.refresh_preflight();
+        }
     }
 
     fn on_status(&mut self, lights: StatusLights) {
@@ -967,7 +1046,8 @@ mod tests {
     }
 
     fn wait_until(app: &AppHandle, what: &str, f: impl Fn(&Snapshot) -> bool) -> Snapshot {
-        let deadline = Instant::now() + Duration::from_secs(10);
+        // Generous: the check list runs real probes (PowerShell on Windows CI).
+        let deadline = Instant::now() + Duration::from_secs(30);
         loop {
             let s = app.snapshot();
             if f(&s) {
@@ -1192,6 +1272,59 @@ mod tests {
         assert_eq!(s.errors.last().unwrap().key, crate::ops::keys::SECRET_BAD);
         app.send(Command::ClearTvSession);
         wait_until(&app, "the flag off", |s| !s.has_tv_session);
+    }
+
+    #[test]
+    fn checks_and_the_wizard_state() {
+        use desk_core::preflight::{CheckId, CheckState};
+        let cfg = test_cfg(None);
+        let data = cfg.data_dir.clone().unwrap();
+        let app = AppHandle::start(cfg).unwrap();
+        // A fresh data dir: the wizard opens by itself, the checks come unasked.
+        let s = wait_until(&app, "the first checks", |s| s.checks_at > 0);
+        assert!(s.first_run);
+        let vault = s.checks.iter().find(|c| c.id == CheckId::Vault).unwrap();
+        assert_eq!(
+            (vault.state, vault.detail_key.as_str()),
+            (CheckState::Fail, "preflight.vault.unset")
+        );
+        const CANARY: &str = "CANARYzz9f8e7d6c5b4a3f2e1d0c9b8a7";
+        app.send(Command::SetTvSession(CANARY.into()));
+        // The cookie is a fact for the list (set, unverified), never its text.
+        let s = wait_until(&app, "the session check sees the cookie", |s| {
+            s.checks.iter().any(|c| {
+                c.id == CheckId::TvSession && c.detail_key == "preflight.tvSession.unverified"
+            })
+        });
+        assert!(!format!("{:?}", s.checks).contains(CANARY));
+        // «Пропустить»: saved, and kept while the page is not green.
+        app.send(Command::SkipStep(StepId::Schedule));
+        let s = wait_until(&app, "the skip", |s| {
+            s.settings.setup_skipped == [StepId::Schedule]
+        });
+        assert!(s.first_run, "skipping a page does not finish the wizard");
+        app.send(Command::RunPreflight);
+        let at = s.checks_at;
+        let s = wait_until(&app, "a new list", |s| s.checks_at > at);
+        assert_eq!(
+            s.settings.setup_skipped,
+            [StepId::Schedule],
+            "a red page stays skipped"
+        );
+        app.send(Command::FinishWizard);
+        let s = wait_until(&app, "finished", |s| !s.first_run);
+        assert!(s.settings.setup_completed_at.is_some());
+        let text = std::fs::read_to_string(crate::paths::settings_file(&data)).unwrap();
+        assert!(!text.contains(CANARY), "{text}");
+        drop(app);
+        // A second start on the same data dir: not a first run any more.
+        let mut cfg = test_cfg(None);
+        cfg.data_dir = Some(data.clone());
+        let app = AppHandle::start(cfg).unwrap();
+        let s = wait_until(&app, "the settings", |s| {
+            s.settings.setup_completed_at.is_some()
+        });
+        assert!(!s.first_run);
     }
 
     #[test]

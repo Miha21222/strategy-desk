@@ -58,18 +58,9 @@ pub struct StatusLights {
     pub checked_at: i64,
 }
 
-/// Who answers on the CDP port (`cdpProbe` of status.ts).
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct CdpProbe {
-    pub up: bool,
-    pub browser: String,
-    /// A tradingview.com/chart tab is open.
-    pub chart_tab: bool,
-    /// The port is TradingView's (not a browser panel's: 9222 often is).
-    pub tradingview: bool,
-    /// Best name for a foreign owner: tab title, host, browser string.
-    pub owner: String,
-}
+/// Who answers on the CDP port: desk-core's shape, so the lights and the
+/// diagnosis read the same probe.
+pub use desk_core::preflight::{cdp_owner, CdpProbe, CdpTarget};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ClaudeFact {
@@ -119,7 +110,7 @@ pub fn lights(f: &Facts, checked_at: i64) -> StatusLights {
         .var("port", &port),
         (c, _) if c.up => Light::new(Fail, "status.cdp.foreign")
             .var("port", &port)
-            .var("owner", c.owner.clone()),
+            .var("owner", cdp_owner(c)),
         (_, true) => Light::new(Warn, "status.cdp.no_flag").var("port", &port),
         _ => Light::new(Fail, "status.cdp.down").var("port", &port),
     };
@@ -232,56 +223,43 @@ pub async fn cdp_probe(port: u16, timeout: Duration) -> CdpProbe {
     cdp_from(&version, list.as_ref())
 }
 
-/// The pure half of `cdpProbe` + `cdpOwnerLabel`.
+/// The pure half of `cdpProbe`: the first eight targets, and whether any of
+/// them is TradingView (the port may be a browser panel's).
 pub fn cdp_from(version: &Value, list: Option<&Value>) -> CdpProbe {
-    let targets: Vec<(String, String)> = list
+    let targets: Vec<CdpTarget> = list
         .and_then(Value::as_array)
         .map(|a| {
             a.iter()
                 .take(8)
                 .map(|p| {
                     let s = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or("").to_string();
-                    (s("url"), s("title"))
+                    CdpTarget {
+                        url: s("url"),
+                        title: s("title"),
+                    }
                 })
                 .collect()
         })
         .unwrap_or_default();
     let has = |s: &str, pat: &str| s.to_ascii_lowercase().contains(pat);
-    let chart_tab = targets.iter().any(|(u, _)| has(u, "tradingview.com/chart"));
+    let chart_tab = targets.iter().any(|t| has(&t.url, "tradingview.com/chart"));
     let tradingview = chart_tab
         || targets
             .iter()
-            .any(|(u, t)| has(u, "tradingview") || has(t, "tradingview"));
+            .any(|t| has(&t.url, "tradingview") || has(&t.title, "tradingview"));
     let browser = version
         .get("Browser")
         .and_then(Value::as_str)
         .unwrap_or("")
         .trim()
         .to_string();
-    let owner = if tradingview {
-        String::new()
-    } else {
-        match targets.first() {
-            Some((_, t)) if !t.trim().is_empty() => t.trim().chars().take(60).collect(),
-            Some((u, _)) if !u.trim().is_empty() => {
-                host_of(u).unwrap_or_else(|| u.chars().take(60).collect())
-            }
-            _ => browser.clone(),
-        }
-    };
     CdpProbe {
         up: true,
         browser,
         chart_tab,
         tradingview,
-        owner,
+        targets,
     }
-}
-
-fn host_of(url: &str) -> Option<String> {
-    let rest = url.split_once("://")?.1;
-    let host = rest.split(['/', '?', '#']).next()?;
-    (!host.is_empty()).then(|| host.to_string())
 }
 
 /// Run a short command with a deadline; stdout on a zero exit.
@@ -409,7 +387,10 @@ mod tests {
         let mut f = facts();
         f.cdp = CdpProbe {
             up: true,
-            owner: "FX Replay".into(),
+            targets: vec![CdpTarget {
+                url: String::new(),
+                title: "FX Replay".into(),
+            }],
             ..CdpProbe::default()
         };
         let l = lights(&f, 0);
@@ -441,18 +422,22 @@ mod tests {
             &v,
             Some(&json!([{"url": "https://www.tradingview.com/chart/abc/", "title": "DAX"}])),
         );
-        assert!(tv.up && tv.tradingview && tv.chart_tab && tv.owner.is_empty());
+        assert!(tv.up && tv.tradingview && tv.chart_tab);
+        assert_eq!(tv.targets.len(), 1);
         let fx = cdp_from(
             &v,
             Some(&json!([{"url": "https://app.fxreplay.com/x", "title": ""}])),
         );
         assert!(!fx.tradingview);
-        assert_eq!(fx.owner, "app.fxreplay.com");
+        assert_eq!(cdp_owner(&fx), "app.fxreplay.com");
         assert_eq!(
-            cdp_from(&v, Some(&json!([{"url": "", "title": "Панель"}]))).owner,
+            cdp_owner(&cdp_from(
+                &v,
+                Some(&json!([{"url": "", "title": "Панель"}]))
+            )),
             "Панель"
         );
-        assert_eq!(cdp_from(&v, None).owner, "Chrome/126.0");
+        assert_eq!(cdp_owner(&cdp_from(&v, None)), "Chrome/126.0");
     }
 
     #[test]

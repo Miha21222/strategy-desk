@@ -5,9 +5,9 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::core_wip::{import_electron, Settings};
 use crate::paths::settings_file;
 use crate::vault_write::atomic_write;
+use desk_core::settings::{import_electron, Settings};
 
 /// Where the settings came from on this start.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,10 +63,8 @@ impl SettingsStore {
                     Some(s) => (s, Origin::Imported),
                     None => (Settings::default(), Origin::Fresh),
                 };
-                if s.vault.trim().is_empty() {
-                    if let Some(v) = default_vault {
-                        s.vault = v.to_string_lossy().into_owned();
-                    }
+                if s.vault.is_none() {
+                    s.vault = default_vault.map(|v| v.to_string_lossy().into_owned());
                 }
                 let err = self.save(&s).err();
                 (s, origin, err)
@@ -108,11 +106,15 @@ mod tests {
         let (s, origin, err) = store.load(Some(&old), Some(Path::new("/docs/Strategy Desk")));
         assert!(err.is_none(), "{err:?}");
         assert_eq!(origin, Origin::Imported);
-        assert_eq!(s.vault, r"C:\Users\T\Documents\Strategy Desk");
-        assert_eq!(s.cdp_port, 9224);
-        assert_eq!(s.theme, "dark");
         assert_eq!(
-            s.macro_mcp, "user",
+            s.vault.as_deref(),
+            Some(r"C:\Users\T\Documents\Strategy Desk")
+        );
+        assert_eq!(s.cdp_port, 9224);
+        assert_eq!(s.theme, desk_core::settings::Theme::Dark);
+        assert_eq!(
+            s.macro_mcp,
+            desk_core::settings::MacroMcp::User,
             "an old config without macroMcp is the owner's"
         );
         let text = std::fs::read_to_string(store.file()).unwrap();
@@ -134,8 +136,8 @@ mod tests {
         );
         assert!(err.is_none());
         assert_eq!(origin, Origin::Fresh);
-        assert_eq!(s.vault, "/docs/Strategy Desk");
-        assert_eq!(s.macro_mcp, "bundled");
+        assert_eq!(s.vault.as_deref(), Some("/docs/Strategy Desk"));
+        assert_eq!(s.macro_mcp, desk_core::settings::MacroMcp::Bundled);
         assert!(store.file().exists());
     }
 
@@ -165,9 +167,9 @@ mod tests {
         .unwrap();
         let (s, _, err) = store.load(None, None);
         assert!(err.is_none(), "{err:?}");
-        assert_eq!(s.vault, "/v");
+        assert_eq!(s.vault.as_deref(), Some("/v"));
         assert!(s.schedule.enabled);
-        assert_eq!(s.schedule.us, "16:00");
+        assert!(s.schedule.us, "a window is on unless switched off");
         let mut s = s;
         s.cdp_port = 9300;
         store.save(&s).unwrap();

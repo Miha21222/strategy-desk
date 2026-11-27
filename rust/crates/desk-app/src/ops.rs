@@ -11,13 +11,16 @@ use chrono::{DateTime, Days, Utc};
 use crate::app::UserError;
 use crate::chat::launch::{resolve_claude, ClaudeLaunch};
 use crate::claude::process::CLAUDE_BIN_ENV;
-use crate::core_wip::{planned_runs, Settings};
 use crate::macro_env::Platform;
 use crate::paths;
 use crate::runtime::{self, RuntimePaths};
 use crate::secrets::{self, SecretStore};
 use crate::settings_store::SettingsStore;
 use crate::tasks::{self, After, PlanCtx, TaskEvent, TaskId, TasksView};
+use desk_core::preflight::Check;
+use desk_core::schedule::planned_runs;
+use desk_core::settings::Settings;
+use desk_core::wizard::{self, StepId};
 
 pub mod keys {
     pub const SETTINGS_READ: &str = "error.settings.read";
@@ -83,8 +86,7 @@ impl Ops {
 
     /// The vault the settings name (empty = none).
     pub fn settings_vault(&self) -> Option<PathBuf> {
-        let v = self.settings.vault.trim();
-        (!v.is_empty()).then(|| PathBuf::from(v))
+        self.settings.vault.as_deref().map(PathBuf::from)
     }
 
     /// Claude Code: the test seam, the setting, `DESK_CLAUDE_BIN`, PATH.
@@ -129,7 +131,7 @@ impl Ops {
             .map_err(|e| UserError::new(keys::SECRET_STORE).var("detail", e.0))?;
         // A new cookie is unverified until session_check says otherwise.
         let mut s = self.settings.clone();
-        s.tv_session_verified_at = 0;
+        s.tv_session_verified_at = None;
         self.save_settings(s)
     }
 
@@ -138,8 +140,57 @@ impl Ops {
             .delete(secrets::TV_SESSION)
             .map_err(|e| UserError::new(keys::SECRET_STORE).var("detail", e.0))?;
         let mut s = self.settings.clone();
-        s.tv_session_verified_at = 0;
+        s.tv_session_verified_at = None;
         self.save_settings(s)
+    }
+
+    /// What the diagnosis probes need, taken now (the probes run off the loop).
+    pub fn diagnose_inputs(
+        &self,
+        vault: Option<&Path>,
+        now: DateTime<Utc>,
+    ) -> crate::diagnose::Inputs {
+        crate::diagnose::Inputs {
+            settings: self.settings.clone(),
+            vault: vault.map(Path::to_path_buf),
+            runtime: self.runtime.clone(),
+            claude: self.claude_bin(),
+            has_tv_session: self.has_tv_session(),
+            exe: self.exe.clone(),
+            has_template: !crate::vault_template::builtin().is_empty(),
+            now,
+        }
+    }
+
+    /// «Пропустить» on a wizard page.
+    pub fn skip_step(&mut self, id: StepId) -> Result<(), UserError> {
+        let mut s = self.settings.clone();
+        s.setup_skipped = wizard::apply_skip(&s.setup_skipped, id, true);
+        self.save_if_changed(s)
+    }
+
+    /// «Готово»: the wizard is not opened by itself again.
+    pub fn finish_wizard(&mut self, now: DateTime<Utc>) -> Result<(), UserError> {
+        let s = wizard::finish(&self.settings, &self.settings.setup_skipped, now);
+        self.save_settings(s)
+    }
+
+    /// A skipped page that is green now is no longer skipped. `Ok(true)` = saved.
+    pub fn reconcile_skips(&mut self, checks: &[Check]) -> Result<bool, UserError> {
+        let kept = wizard::reconcile_skips(&self.settings.setup_skipped, checks);
+        if kept == self.settings.setup_skipped {
+            return Ok(false);
+        }
+        let mut s = self.settings.clone();
+        s.setup_skipped = kept;
+        self.save_settings(s).map(|()| true)
+    }
+
+    fn save_if_changed(&mut self, next: Settings) -> Result<(), UserError> {
+        if next == self.settings {
+            return Ok(());
+        }
+        self.save_settings(next)
     }
 
     /// «Очистить рантайм»: refused while a task could be using it.
@@ -250,7 +301,7 @@ impl Ops {
                     |e| UserError::new(keys::SETTINGS_WRITE).var("detail", e.to_string()),
                 );
             }
-            After::SessionVerified => s.tv_session_verified_at = now.timestamp_millis(),
+            After::SessionVerified => s.tv_session_verified_at = Some(now),
             After::ScheduleOn => s.schedule.enabled = true,
             After::ScheduleOff => s.schedule.enabled = false,
         }
@@ -259,12 +310,12 @@ impl Ops {
 }
 
 /// When the lights should next refresh by themselves: 5 minutes before the
-/// next scheduled window (today or tomorrow, Kyiv clock).
+/// next scheduled window (Kyiv clock; a weekend has none, so a week ahead).
 pub fn next_prewindow(now: DateTime<Utc>, s: &Settings) -> Option<DateTime<Utc>> {
     let kyiv = chrono_tz::Europe::Kyiv;
     let today = now.with_timezone(&kyiv).date_naive();
-    [today, today.checked_add_days(Days::new(1))?]
-        .into_iter()
+    (0..8u64)
+        .filter_map(|k| today.checked_add_days(Days::new(k)))
         .flat_map(|d| planned_runs(d, s).into_iter().map(move |r| (d, r.at_local)))
         .filter_map(|(d, t)| {
             use chrono::TimeZone;
@@ -329,7 +380,7 @@ mod tests {
         o.after(After::SessionVerified, now).unwrap();
         let back = SettingsStore::new(d.path()).load(None, None).0;
         assert!(back.schedule.enabled);
-        assert_eq!(back.tv_session_verified_at, now.timestamp_millis());
+        assert_eq!(back.tv_session_verified_at, Some(now));
     }
 
     #[test]
@@ -341,11 +392,11 @@ mod tests {
             next_prewindow(now, &s),
             Some(Utc.with_ymd_and_hms(2026, 11, 27, 7, 25, 0).unwrap())
         );
-        // After 20:00: tomorrow's 09:25.
+        // Friday after 20:00: Monday's 09:25.
         let late = Utc.with_ymd_and_hms(2026, 11, 27, 19, 0, 0).unwrap();
         assert_eq!(
             next_prewindow(late, &s),
-            Some(Utc.with_ymd_and_hms(2026, 11, 28, 7, 25, 0).unwrap())
+            Some(Utc.with_ymd_and_hms(2026, 11, 30, 7, 25, 0).unwrap())
         );
     }
 }

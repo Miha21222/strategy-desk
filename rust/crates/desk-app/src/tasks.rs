@@ -17,62 +17,24 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
-use crate::core_wip::Settings;
 use crate::macro_env::{macro_env_vars, MacroEnvInput, Platform, SESSION_CHECK_CODE};
 use crate::runtime::{provision_spec, runtime_env, tools_python, RuntimePaths, SpawnSpec};
 use crate::scheduler;
+use desk_core::settings::Settings;
 
-/// The closed list (CONTRACTS «… (этап 6)»).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum TaskId {
-    ClaudeInstall,
-    ClaudeLogin,
-    ProvisionRuntime,
-    VaultCreate,
-    SessionCheck,
-    SchedulerRegister,
-    SchedulerUnregister,
-}
+pub use desk_core::preflight::TaskId;
 
-impl TaskId {
-    pub const ALL: [TaskId; 7] = [
-        TaskId::ClaudeInstall,
-        TaskId::ClaudeLogin,
-        TaskId::ProvisionRuntime,
-        TaskId::VaultCreate,
-        TaskId::SessionCheck,
-        TaskId::SchedulerRegister,
-        TaskId::SchedulerUnregister,
-    ];
-
-    pub fn as_str(self) -> &'static str {
-        match self {
-            TaskId::ClaudeInstall => "claude_install",
-            TaskId::ClaudeLogin => "claude_login",
-            TaskId::ProvisionRuntime => "provision_runtime",
-            TaskId::VaultCreate => "vault_create",
-            TaskId::SessionCheck => "session_check",
-            TaskId::SchedulerRegister => "scheduler_register",
-            TaskId::SchedulerUnregister => "scheduler_unregister",
-        }
-    }
-
-    pub fn parse(s: &str) -> Option<TaskId> {
-        TaskId::ALL.into_iter().find(|t| t.as_str() == s)
-    }
-
-    /// Generous: a cold `uv sync` downloads a Python and ~290 packages.
-    pub fn timeout(self) -> Duration {
-        let min = |m: u64| Duration::from_secs(m * 60);
-        match self {
-            TaskId::ClaudeInstall => min(15),
-            TaskId::ClaudeLogin => min(10),
-            TaskId::ProvisionRuntime => min(45),
-            TaskId::VaultCreate => min(2),
-            TaskId::SessionCheck => min(1),
-            TaskId::SchedulerRegister => min(2),
-            TaskId::SchedulerUnregister => min(1),
-        }
+/// Generous: a cold `uv sync` downloads a Python and ~290 packages.
+pub fn timeout(id: TaskId) -> Duration {
+    let min = |m: u64| Duration::from_secs(m * 60);
+    match id {
+        TaskId::ClaudeInstall => min(15),
+        TaskId::ClaudeLogin => min(10),
+        TaskId::ProvisionRuntime => min(45),
+        TaskId::VaultCreate => min(2),
+        TaskId::SessionCheck => min(1),
+        TaskId::SchedulerRegister => min(2),
+        TaskId::SchedulerUnregister => min(1),
     }
 }
 
@@ -333,7 +295,10 @@ pub fn plan(id: TaskId, c: &PlanCtx<'_>) -> Result<Plan, &'static str> {
                     .with_timezone(&chrono_tz::Europe::Kyiv)
                     .date_naive();
                 (
-                    scheduler::register_script(exe, &scheduler::trigger_times(today, c.settings)),
+                    scheduler::register_script(
+                        exe,
+                        &desk_core::schedule::triggers(today, c.settings),
+                    ),
                     After::ScheduleOn,
                 )
             } else {
@@ -521,7 +486,7 @@ async fn supervise(
         })
     })
     .collect();
-    let deadline = tokio::time::sleep(id.timeout());
+    let deadline = tokio::time::sleep(timeout(id));
     tokio::pin!(deadline);
     let mut killed: Option<&'static str> = None;
     let status = loop {
@@ -658,7 +623,7 @@ mod tests {
         let p = plan(TaskId::SchedulerRegister, &c).unwrap();
         let shown = p.shown();
         assert!(
-            shown.contains("Register-ScheduledTask -TaskName 'Strategy Desk eu 0930'"),
+            shown.contains("Register-ScheduledTask -TaskName 'Strategy Desk EU 0930'"),
             "{shown}"
         );
         assert!(!shown.contains("a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"));
