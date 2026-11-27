@@ -25,19 +25,33 @@ import subprocess
 
 
 def autochat():
-    """Stage 5 stand-in: send one message to DESK_CLAUDE_BIN, read the stream,
-    log frame stats meanwhile, and stay up whatever claude does."""
+    """Stage 5 stand-in, shaped like the real desk: one message to
+    DESK_CLAUDE_BIN over stream-json, stdin kept open (so claude stays up
+    after `result`, as the real CLI does), frame stats while the answer
+    streams and empty windows (n=0) once the turn is over or claude died."""
     cmd = [os.environ["DESK_CLAUDE_BIN"], "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose"]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     p.stdin.write(b'{"type":"user","message":{"role":"user","content":"bench"}}\n')
-    p.stdin.close()
+    p.stdin.flush()
+    if TRACE:
+        print(json.dumps({"trace": "autochat_sent", "ms": (time.monotonic() - T0) * 1000}), file=sys.stderr, flush=True)
     last = time.monotonic()
-    for _ in p.stdout:
+    k = 0
+    for line in p.stdout:
         if time.monotonic() - last > 0.5:
-            print("frame_stats n=30 p50=2.00ms p95=6.00ms p99=11.00ms max=14.00ms", file=sys.stderr, flush=True)
+            k += 1
+            # p50 grows with the answer, like the live markdown re-parse.
+            print(f"frame_stats n=30 p50={1.0 + 0.5 * k:.2f}ms p95=6.00ms p99=11.00ms max=14.00ms", file=sys.stderr, flush=True)
             last = time.monotonic()
-    p.wait()
+        if b'"type":"result"' in line:
+            break
+    else:
+        p.wait()  # stdout ended: claude is gone; reap it, like desk-app does
     print("frame_stats n=5 p50=1.00ms p95=1.50ms p99=2.00ms max=2.00ms", file=sys.stderr, flush=True)
+    while True:  # idle desk: empty windows; claude (if alive) waits for the next frame
+        time.sleep(0.5)
+        p.poll()  # reap a claude that died, like desk-app does
+        print("frame_stats n=0 p50=0.00ms p95=0.00ms p99=0.00ms max=0.00ms", file=sys.stderr, flush=True)
 
 
 if os.environ.get("DESK_BENCH_AUTOCHAT") == "1":

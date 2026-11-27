@@ -105,8 +105,10 @@ m = {x["id"]: x for x in r["metrics"]}
 st = {x["id"]: x for x in r.get("stress", [])}
 checks = [
     (m["frame_p50_ms"]["status"] == "pass" and m["frame_p99_ms"]["value"] == 11.0, "stream frames measured"),
+    (m["frame_p50_ms"]["extra"]["end"] == "first frame_stats window with n=0", "stream end from the desk, not claude's exit"),
+    (m["frame_p50_growth_ms_per_min"]["value"] is not None and m["frame_p50_growth_ms_per_min"]["value"] > 0, "p50 trend reported"),
     (st.get("chat_stream_10k", {}).get("status") == "pass", "stream: desk alive after the stream"),
-    (st.get("chat_claude_dies_mid_answer", {}).get("status") == "pass" and "exited after" in st["chat_claude_dies_mid_answer"]["detail"], "claude died mid-answer, desk alive"),
+    (st.get("chat_claude_dies_mid_answer", {}).get("status") == "pass" and "exited True" in st["chat_claude_dies_mid_answer"]["detail"], "claude died mid-answer, desk alive"),
 ]
 for ok, n in checks:
     print(("ok   " if ok else "FAIL ") + n)

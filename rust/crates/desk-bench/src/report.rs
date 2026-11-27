@@ -112,22 +112,33 @@ pub const METRICS: &[MetricDef] = &[
         target: Some(8.0),
         stat: Stat::Median,
     },
+    // Samples are per-10-s windows of DESK_FRAME_STATS; p95/p99 are judged
+    // on the worst window, so one janky stretch is not averaged away.
     MetricDef {
         id: "frame_p95_ms",
         label: "Кадр p95 при стриме",
         unit: "ms",
         target: Some(16.0),
-        stat: Stat::Median,
+        stat: Stat::Max,
     },
     MetricDef {
         id: "frame_p99_ms",
         label: "Кадр p99 при стриме",
         unit: "ms",
         target: Some(33.0),
-        stat: Stat::Median,
+        stat: Stat::Max,
+    },
+    // How much the stream's p50 frame grows per minute of answer (weighted
+    // slope over the windows): no target, a finding to track — 27.11: ~5 ms/min.
+    MetricDef {
+        id: "frame_p50_growth_ms_per_min",
+        label: "Рост p50 кадра за минуту стрима",
+        unit: "ms/min",
+        target: None,
+        stat: Stat::Max,
     },
     // Same per-window rule, while `--bench-switch` flips days as fast as it
-    // can: the stand-in for scrolling until the chat stream (stage 5) exists.
+    // can: the stand-in for scrolling, a different load than the chat stream.
     MetricDef {
         id: "switch_frame_p50_ms",
         label: "Кадр p50 при переключении дней",

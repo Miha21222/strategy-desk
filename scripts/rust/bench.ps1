@@ -66,7 +66,7 @@ $ErrorActionPreference = 'Stop'
 # PowerShell 5.1 serializes some arrays as {"value": [...], "Count": n}
 # because of the ETS Count alias on System.Array; without it they stay arrays.
 Remove-TypeData -TypeName System.Array -ErrorAction SilentlyContinue
-$ScriptVersion = '4'
+$ScriptVersion = '5'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 # ---------------------------------------------------------------- catalog
@@ -86,6 +86,7 @@ $Catalog = @{
     'frame_p50_ms'            = @('ms', 8, 'median', 'Frame p50 while streaming')
     'frame_p95_ms'            = @('ms', 16, 'max', 'Frame p95 while streaming')
     'frame_p99_ms'            = @('ms', 33, 'max', 'Frame p99 while streaming')
+    'frame_p50_growth_ms_per_min' = @('ms/min', $null, 'max', 'Stream frame p50 growth per minute')
     'switch_frame_p50_ms'     = @('ms', 8, 'median', 'Frame p50 while switching days')
     'switch_frame_p95_ms'     = @('ms', 16, 'max', 'Frame p95 while switching days')
     'switch_frame_p99_ms'     = @('ms', 33, 'max', 'Frame p99 while switching days')
@@ -803,6 +804,61 @@ function Find-ShotNow([string]$VaultDir) {
     return ''
 }
 
+# The chat stream as the desk saw it, from its stderr ("<utc> <text>" lines).
+# Start: the `autochat_sent` trace. End: a `chat_turn_done` / `chat_turn_error`
+# trace if the build has one, else the first DESK_FRAME_STATS window with n=0
+# after a window with frames. Not fake-claude's exit: in --input-format
+# stream-json mode it (like the real CLI) stays up after `result`, waiting for
+# the next user frame. Same rule as stream_windows() in report.py.
+function Get-StreamWindows([string]$Text) {
+    $out = @{ start = $null; rows = @(); end = ''; seconds = 0.0 }
+    $lines = @()
+    foreach ($line in ($Text -split "`n")) {
+        $sp = $line.IndexOf(' ')
+        if ($sp -lt 20) { continue }
+        $ts = [DateTime]::MinValue
+        if (-not [DateTime]::TryParse($line.Substring(0, $sp), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$ts)) { continue }
+        $lines += , @($ts.ToUniversalTime(), $line.Substring($sp + 1))
+    }
+    $done = $null
+    foreach ($l in $lines) {
+        if ($null -eq $out.start -and $l[1] -match '"trace":\s*"autochat_sent"') { $out.start = $l[0] }
+        if ($null -eq $done -and $l[1] -match '"trace":\s*"chat_turn_(done|error)"') { $done = $l[0] }
+    }
+    if ($null -eq $out.start) { return $out }
+    $rows = New-Object System.Collections.ArrayList
+    foreach ($l in $lines) {
+        if ($l[0] -le $out.start -or $l[1] -notmatch 'frame_stats') { continue }
+        $fs = Get-FrameStats $l[1]   # an array already (no @(): it would wrap it again)
+        if ($fs.Count -eq 0) { continue }
+        $w = $fs[0]
+        if ($null -ne $w.frames -and $w.frames -eq 0) {
+            if ($rows.Count -gt 0) { $out.end = 'first frame_stats window with n=0'; break }
+            continue
+        }
+        $w.t_s = [math]::Round(($l[0] - $out.start).TotalSeconds, 1)
+        [void]$rows.Add($w)
+        if ($null -ne $done -and $l[0] -ge $done) { $out.end = 'chat_turn_done trace'; break }
+    }
+    $out.rows = $rows.ToArray()
+    if ($rows.Count -gt 0) { $out.seconds = $rows[$rows.Count - 1].t_s }
+    return $out
+}
+
+# p50 slope over the windows in ms per minute, least squares weighted by the
+# frame count (report.py growth_per_min).
+function Get-P50Growth($rows) {
+    $rs = @($rows | Where-Object { $null -ne $_.frames -and $_.frames -gt 0 })
+    if ($rs.Count -lt 2) { return $null }
+    $sw = 0.0; $sx = 0.0; $sy = 0.0
+    foreach ($r in $rs) { $sw += $r.frames; $sx += $r.frames * $r.t_s / 60.0; $sy += $r.frames * $r.p50 }
+    $mx = $sx / $sw; $my = $sy / $sw
+    $num = 0.0; $den = 0.0
+    foreach ($r in $rs) { $x = $r.t_s / 60.0 - $mx; $num += $r.frames * $x * ($r.p50 - $my); $den += $r.frames * $x * $x }
+    if ($den -eq 0) { return $null }
+    return [math]::Round($num / $den, 3)
+}
+
 # ---------------------------------------------------------------- self-test
 if ($SelfTest) {
     # Pure parts only, so this also runs under pwsh on Linux (CI, agents).
@@ -855,6 +911,22 @@ if ($SelfTest) {
     $ph = Get-PhaseSummary $recs
     Assert-Eq $ph['day_drawn'].ms 250.5 'phase median'
     Assert-Eq $ph['day_drawn'].ws_mb 70 'phase median skips null'
+    $tx = ('2026-11-27T09:01:29.0050000Z {"trace": "autochat_sent", "ms": 252.4}' + "`n" +
+        '2026-11-27T09:01:38.7580000Z frame_stats n=627 p50=0.63ms p95=1.04ms p99=1.28ms max=35.04ms' + "`n" +
+        '2026-11-27T09:01:48.7580000Z frame_stats n=656 p50=1.47ms p95=2.08ms p99=3.25ms max=7.53ms' + "`n" +
+        '2026-11-27T09:01:58.7590000Z frame_stats n=644 p50=2.48ms p95=2.98ms p99=7.44ms max=17.86ms' + "`n" +
+        '2026-11-27T09:02:08.7590000Z frame_stats n=636 p50=3.41ms p95=3.88ms p99=4.70ms max=11.45ms' + "`n" +
+        '2026-11-27T09:02:18.7600000Z frame_stats n=647 p50=4.18ms p95=4.80ms p99=5.14ms max=7.16ms' + "`n" +
+        '2026-11-27T09:02:28.7610000Z frame_stats n=26 p50=4.61ms p95=5.14ms p99=5.20ms max=5.20ms' + "`n" +
+        '2026-11-27T09:02:38.7610000Z frame_stats n=0 p50=0.00ms p95=0.00ms p99=0.00ms max=0.00ms' + "`n" +
+        '2026-11-27T09:02:48.7620000Z frame_stats n=0 p50=0.00ms p95=0.00ms p99=0.00ms max=0.00ms')
+    $sw5 = Get-StreamWindows $tx
+    Assert-Eq @($sw5.rows).Count 6 'stream: six windows until the first n=0'
+    Assert-Eq $sw5.end 'first frame_stats window with n=0' 'stream end rule'
+    Assert-Eq (New-Metric 'frame_p50_ms' @($sw5.rows | ForEach-Object { $_.p50 }) 't').value 2.945 'stream p50 = median of windows'
+    $g5 = Get-P50Growth $sw5.rows
+    Assert-Eq ($g5 -gt 5.0 -and $g5 -lt 6.0) $true ('p50 growth ms/min (same as report.py): ' + $g5)
+    Assert-Eq (Get-StreamWindows ($tx + "`n" + '2026-11-27T09:01:50.0000000Z {"trace": "chat_turn_done"}')).end 'chat_turn_done trace' 'turn-done trace wins'
     $b = Read-BenchLine '{"first_frame_ms": 180.5, "data_ready_ms": 260.0, "private_mb": 95.1, "ws_mb": 80}'
     Assert-Eq $b.data_ready_ms 260 'bench line data ready'
     Assert-Eq (Get-DerivedFirstFrame 300.0 $b.first_frame_ms $b.data_ready_ms) 220.5 'derived first frame'
@@ -1291,14 +1363,12 @@ if (-not $SkipIdle -and -not $aborted) {
 }
 foreach ($o in $variantsOut) { $o.metrics = @($o.metrics.ToArray()) }
 
-# One chat run under DESK_BENCH_AUTOCHAT: wait for fake-claude to appear in
-# the tree, then for it to exit, then 10 s more; frame-stats lines stamped in
-# that span count. state: stub | no-chat | streamed | stuck.
+# One chat run under DESK_BENCH_AUTOCHAT. state: stub | no-chat | streamed | stuck.
 function Invoke-ChatRun($v, [string]$run, [string[]]$fakeEnv) {
     $err = New-Object System.Text.StringBuilder
     $extraEnv = [string[]](@('DESK_FRAME_STATS', '1', 'DESK_CLAUDE_BIN', $FakeClaude, 'DESK_BENCH_AUTOCHAT', '1') + $fakeEnv)
     $r = [DeskBenchNative]::Start($v.exe, '', (Get-EnvPairs $v $extraEnv), $null, $true, $false, $timeoutMs, $err)
-    $res = @{ state = 'no-chat'; rows = @(); seconds = 0.0; fakeExit = $null; alive = $false; responding = $false; why = '' }
+    $res = @{ state = 'no-chat'; rows = @(); seconds = 0.0; end = ''; fakeExit = '?'; fakeExited = $false; alive = $false; responding = $false; why = '' }
     $fake = $null
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt 30) {
@@ -1309,32 +1379,29 @@ function Invoke-ChatRun($v, [string]$run, [string[]]$fakeEnv) {
         if ($f.Count -gt 0) { $fake = $f[0]; break }
     }
     if ($null -ne $fake) {
-        $t0 = [DateTime]::UtcNow
-        $cap = $StreamEvents / [math]::Max($StreamRate, 1) + 90
         $res.state = 'stuck'
-        while (([DateTime]::UtcNow - $t0).TotalSeconds -lt $cap) {
-            if ($fake.HasExited) { $res.state = 'streamed'; break }
-            Start-Sleep -Milliseconds 250
+        $cap = $StreamEvents / [math]::Max($StreamRate, 1) + 90
+        $sw.Restart()
+        $exitedAt = $null
+        while ($sw.Elapsed.TotalSeconds -lt $cap) {
+            Start-Sleep -Milliseconds 500
+            $st = Get-StreamWindows $err.ToString()
+            if ($st.end) { $res.state = 'streamed'; break }
+            # A claude that died: the desk's next empty window ends it, but do
+            # not wait for ever if the build prints no stats at all.
+            if ($fake.HasExited -and $null -eq $exitedAt) { $exitedAt = $sw.Elapsed.TotalSeconds }
+            if ($null -ne $exitedAt -and $sw.Elapsed.TotalSeconds - $exitedAt -gt 25) { break }
         }
-        $t1 = [DateTime]::UtcNow
-        $res.seconds = ($t1 - $t0).TotalSeconds
-        $res.fakeExit = '?'   # unknown when the OS no longer has it
-        if ($fake.HasExited) { try { $res.fakeExit = [string]$fake.ExitCode } catch { } }
-        Start-Sleep -Seconds 11   # one more DESK_FRAME_STATS window, and time to fall over if it would
+        # 10 s more: time to fall over, if it would (and for the desk to reap a dead claude).
+        Start-Sleep -Seconds 10
+        if ($fake.HasExited) { $res.fakeExited = $true; try { $c = [string]$fake.ExitCode; if ($c) { $res.fakeExit = $c } } catch { } }
+        if ($res.state -eq 'stuck' -and $res.fakeExited) { $res.state = 'streamed' }
         $me = Get-Process -Id $r.Pid -ErrorAction SilentlyContinue
         $res.alive = ($null -ne $me -and -not $me.HasExited)
         # Responding = the main window answers messages within 5 s (a hang shows here).
         if ($res.alive) { $me.Refresh(); try { $res.responding = [bool]$me.Responding } catch { $res.responding = $res.alive } }
-        $inWin = New-Object System.Text.StringBuilder
-        foreach ($line in ($err.ToString() -split "`n")) {
-            if ($line.Length -lt 28) { continue }
-            $ts = [DateTime]::MinValue
-            if ([DateTime]::TryParse($line.Substring(0, 28), [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$ts)) {
-                $ts = $ts.ToUniversalTime()
-                if ($ts -ge $t0 -and $ts -le $t1.AddSeconds(11)) { [void]$inWin.Append($line).Append("`n") }
-            }
-        }
-        $res.rows = Get-FrameStats $inWin.ToString()
+        $st = Get-StreamWindows $err.ToString()
+        $res.rows = $st.rows; $res.seconds = $st.seconds; $res.end = $st.end
     }
     [DeskBenchNative]::CloseTree($r.Pid, 5000)
     Start-Sleep -Seconds 2
@@ -1342,17 +1409,17 @@ function Invoke-ChatRun($v, [string]$run, [string[]]$fakeEnv) {
     switch ($res.state) {
         'stub' { $res.why = 'waits for stage 5: DESK_BENCH_AUTOCHAT is still a stub in this build, so no chat is sent (see switch_frame_* for frames under load)' }
         'no-chat' { $res.why = 'fake-claude never started within 30 s: the build sent no chat message (DESK_BENCH_AUTOCHAT / DESK_CLAUDE_BIN)' }
-        'stuck' { $res.why = 'fake-claude did not finish its stream in time' }
-        default { if ($res.rows.Count -eq 0) { $res.why = 'the chat streamed but no DESK_FRAME_STATS line fell inside it' } }
+        'stuck' { $res.why = 'the desk never showed the end of the turn (no chat_turn_done trace, no empty frame_stats window)' }
+        default { if (@($res.rows).Count -eq 0) { $res.why = 'the chat streamed but no DESK_FRAME_STATS line fell inside it' } }
     }
-    Write-Host (Fmt '{0}: {1}, {2:F0} s, desk alive {3}, responding {4}, {5} stats windows' $run $res.state $res.seconds $res.alive $res.responding @($res.rows).Count)
+    Write-Host (Fmt '{0}: {1}, {2:F0} s ({3}), desk alive {4}, responding {5}, {6} stats windows' $run $res.state $res.seconds $res.end $res.alive $res.responding @($res.rows).Count)
     return $res
 }
 
 $stress = New-Object System.Collections.ArrayList
 
 # ---------------------------------------------------------------- frames
-$frameIds = @('frame_p50_ms', 'frame_p95_ms', 'frame_p99_ms')
+$frameIds = @('frame_p50_ms', 'frame_p95_ms', 'frame_p99_ms', 'frame_p50_growth_ms_per_min')
 $switchIds = @('switch_frame_p50_ms', 'switch_frame_p95_ms', 'switch_frame_p99_ms', 'switch_ms')
 if ($StreamFrames -and $Kind -eq 'rust' -and -not $aborted) {
     # (a) The chat stream (stage 5): desk-app runs DESK_CLAUDE_BIN instead of
@@ -1367,20 +1434,29 @@ if ($StreamFrames -and $Kind -eq 'rust' -and -not $aborted) {
         $FakeClaude = (Resolve-Path -LiteralPath $FakeClaude).Path
         Write-Host ('-- chat stream: fake-claude, {0} events at {1}/s, then a run that dies after {2}' -f $StreamEvents, $StreamRate, $DieAfter)
         $s10k = Invoke-ChatRun $ref 'stream 10k' ([string[]]@('FAKE_CLAUDE_EVENTS', [string]$StreamEvents, 'FAKE_CLAUDE_RATE', (Fmt '{0}' $StreamRate)))
-        if ($s10k.state -eq 'streamed' -and $s10k.rows.Count -gt 0) {
-            Add-FrameMetrics $metrics 'frame_' $s10k.rows ((Fmt 'variant {0}; DESK_FRAME_STATS=1 per-10-s windows from fake-claude start to its exit + 10 s, {1} events at {2}/s (stream took {3:F0} s); p95/p99 judged on the worst window' $ref.label $StreamEvents $StreamRate $s10k.seconds))
+        if ($s10k.state -eq 'streamed' -and @($s10k.rows).Count -gt 0) {
+            $fm = Fmt 'variant {0}; DESK_FRAME_STATS=1 per-10-s windows from autochat_sent to the end of the turn ({1}), {2} events at {3}/s, {4:F0} s; p50: median of the windows, p95/p99: worst window' $ref.label $s10k.end $StreamEvents $StreamRate $s10k.seconds
+            Add-FrameMetrics $metrics 'frame_' $s10k.rows $fm
+            $p50m = $metrics[$metrics.Count - 3]
+            $p50m.extra = [ordered]@{ windows = @($s10k.rows | ForEach-Object { [ordered]@{ t_s = $_.t_s; n = $_.frames; p50 = $_.p50; p95 = $_.p95; p99 = $_.p99 } })
+                stream_s = $s10k.seconds; end = $s10k.end; p50_first = @($s10k.rows)[0].p50; p50_last = @($s10k.rows)[-1].p50 }
+            $g = Get-P50Growth $s10k.rows
+            $gs = @()
+            if ($null -ne $g) { $gs = @($g) }
+            [void]$metrics.Add((New-Metric 'frame_p50_growth_ms_per_min' $gs 'weighted least-squares slope of the per-window p50 over the stream, ms per minute' 'grows when each frame does work proportional to the answer length (e.g. re-parsing the live markdown whole)'))
+            Write-Host ('stream p50 by window: ' + ((@($s10k.rows) | ForEach-Object { Fmt '{0:F2}' $_.p50 }) -join ' -> ') + ' ms')
         } else {
             foreach ($id in $frameIds) { [void]$metrics.Add((New-Skip $id $s10k.why)) }
         }
         if ($s10k.state -ne 'stub' -and $s10k.state -ne 'no-chat') {
             [void]$stress.Add([ordered]@{ id = 'chat_stream_10k'; status = $(if ($s10k.alive -and $s10k.responding -and $s10k.state -eq 'streamed') { 'pass' } else { 'fail' }); scope = 'app'
-                    detail = (Fmt '{0} events at {1}/s: stream {2:F0} s, fake-claude exit {3}, desk alive {4}, responding {5}' $StreamEvents $StreamRate $s10k.seconds $s10k.fakeExit $s10k.alive $s10k.responding) })
+                    detail = (Fmt '{0} events at {1}/s: stream {2:F0} s by the desk ({3}), desk alive {4}, responding {5}' $StreamEvents $StreamRate $s10k.seconds $s10k.end $s10k.alive $s10k.responding) })
             $die = Invoke-ChatRun $ref 'stream die-after' ([string[]]@('FAKE_CLAUDE_EVENTS', [string]$StreamEvents, 'FAKE_CLAUDE_RATE', (Fmt '{0}' $StreamRate), 'FAKE_CLAUDE_DIE_AFTER', [string]$DieAfter))
             $worst = '-'
             $p99s = @($die.rows | Where-Object { $null -ne $_.p99 } | ForEach-Object { $_.p99 })
             if ($p99s.Count -gt 0) { $worst = Fmt '{0:F1} ms' (Get-Percentile $p99s 100) }
-            [void]$stress.Add([ordered]@{ id = 'chat_claude_dies_mid_answer'; status = $(if ($die.alive -and $die.responding -and $die.state -eq 'streamed') { 'pass' } else { 'fail' }); scope = 'app'
-                    detail = (Fmt 'fake-claude --die-after {0}: it exited after {1:F0} s (code {2}); 10 s later desk alive {3}, responding {4}; worst p99 {5}' $DieAfter $die.seconds $die.fakeExit $die.alive $die.responding $worst) })
+            [void]$stress.Add([ordered]@{ id = 'chat_claude_dies_mid_answer'; status = $(if ($die.alive -and $die.responding -and $die.fakeExited) { 'pass' } else { 'fail' }); scope = 'app'
+                    detail = (Fmt 'fake-claude --die-after {0}: exited {1} (code {2}); the desk saw the turn end after {3:F0} s ({4}); 10 s later desk alive {5}, responding {6}; worst p99 {7}' $DieAfter $die.fakeExited $die.fakeExit $die.seconds $die.end $die.alive $die.responding $worst) })
         }
     }
 
