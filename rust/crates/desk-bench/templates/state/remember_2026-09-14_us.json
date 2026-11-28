@@ -1,0 +1,44 @@
+{
+ "date": "2026-09-14",
+ "region": "us",
+ "asof": "2026-09-14 16:01",
+ "items": [
+  {
+   "kind": "lesson",
+   "text": "[демо] Уровень ближе 0.1 ADR — не цель, а шум.",
+   "why": "те же условия: вялая ночь на ES",
+   "ref": "уроки 10.09",
+   "tags": [
+    "us",
+    "пила"
+   ]
+  },
+  {
+   "kind": "rule",
+   "text": "Сетап 1 только до 17:30 — после закрытия IB ждать сетап 2.",
+   "why": "сегодня светофор зелёный, ночь обычная",
+   "ref": "заметка 20, п. 4",
+   "tags": [
+    "us"
+   ]
+  }
+ ],
+ "conditions": {
+  "region": "us",
+  "weekday": "mon",
+  "phase": "пила",
+  "night": "wide",
+  "night_adr": 0.85,
+  "light": "yellow",
+  "earnings_giant_prev": false,
+  "tags": [
+   "us",
+   "пила",
+   "mon",
+   "ночь ≥ 0.8 ADR"
+  ]
+ },
+ "similar": null,
+ "lesson_candidates": 1,
+ "enough_history": true
+}

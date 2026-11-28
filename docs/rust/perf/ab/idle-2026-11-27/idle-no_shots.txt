@@ -1,0 +1,14 @@
+{"trace": "main", "ms": 0.0, "private_mb": 1.8, "ws_mb": 12.3}
+{"trace": "before_run_native", "ms": 0.8, "private_mb": 1.8, "ws_mb": 12.3, "opts": "no_shots"}
+{"trace": "creator_entered", "ms": 176.3, "private_mb": 83.0, "ws_mb": 59.3}
+{"trace": "fonts_installed", "ms": 177.0, "private_mb": 83.0, "ws_mb": 59.3}
+{"trace": "app_handle_started", "ms": 177.8, "private_mb": 83.9, "ws_mb": 59.8}
+{"trace": "first_update_begin", "ms": 177.8, "private_mb": 83.9, "ws_mb": 59.9}
+{"trace": "first_update_end", "ms": 181.4, "private_mb": 84.3, "ws_mb": 60.6}
+{"trace": "first_frame_presented", "ms": 211.4, "private_mb": 87.2, "ws_mb": 64.7}
+{"trace": "day_drawn", "ms": 292.6, "private_mb": 90.5, "ws_mb": 69.3}
+{"trace": "day_presented", "ms": 296.4, "private_mb": 92.6, "ws_mb": 72.4}
+{"trace": "idle_1s", "ms": 1212.5, "private_mb": 95.2, "ws_mb": 83.2, "frames": 27, "atlas": "4096x64"}
+{"trace": "idle_2s", "ms": 2214.2, "private_mb": 95.2, "ws_mb": 83.2, "frames": 27, "atlas": "4096x64"}
+{"trace": "idle_5s", "ms": 5215.3, "private_mb": 94.8, "ws_mb": 83.2, "frames": 27, "atlas": "4096x64"}
+{"trace": "idle_10s", "ms": 10217.0, "private_mb": 93.8, "ws_mb": 82.2, "frames": 27, "atlas": "4096x64"}

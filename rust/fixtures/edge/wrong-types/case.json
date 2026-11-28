@@ -1,0 +1,8 @@
+{
+ "dates": [
+  "2026-10-08",
+  "2026-10-09"
+ ],
+ "compare": "strict",
+ "why": "Fields with the wrong type. Normalized files fall back field by field; raw files pass the wrong value through (TS quirk). Config zones written as strings stay strings in `zones` (TS `??` keeps them) — see TEST_PLAN «Известные причуды»."
+}

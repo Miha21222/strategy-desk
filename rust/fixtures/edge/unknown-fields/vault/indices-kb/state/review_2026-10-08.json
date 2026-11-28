@@ -1,0 +1,24 @@
+{
+ "date": "2026-10-08",
+ "asof": "x",
+ "regions": {
+  "eu": {
+   "facts": {
+    "dir": "SHORT",
+    "day_move": -0.6
+   },
+   "score": {
+    "needle_hit": "1"
+   },
+   "ib": {
+    "side": "SHORT"
+   }
+  }
+ },
+ "trader": [
+  "наблюдение"
+ ],
+ "new_section": {
+  "a": 1
+ }
+}

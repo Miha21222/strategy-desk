@@ -1,0 +1,148 @@
+{
+ "case": "process_died",
+ "about": "The process exits with code 3 in the middle of an answer (fake-claude --die-after 15): partial text kept in the transcript, error notice with the SDK message, no retry (code 3 is not a crash code).",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/fake_die.jsonl",
+   "sha256": "5ffc2a3880e7b3da3b3c6f30f6c2b02fad90d3fd612bc1ecbc153d36c52e134b"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "/macro-review eu 2026-11-25"
+ ],
+ "skipped_non_json_lines": 1,
+ "specs": [
+  {
+   "resume": null,
+   "text": "/macro-review eu 2026-11-25",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "466320ac-2ebc-48f7-9c87-a88ef4c4b6ce",
+  "cost_usd": 0,
+  "tokens": {
+   "in": 0,
+   "out": 0
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "вчерашний moved \n\n осторожно. **Почему так:** ниже стрелка the ### Итог → VIX ADR \n\n Bund after **Почему так:** `scale.py` Bund VIX шорт. вернулась ADR ",
+   "tools": [],
+   "thinking": false
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "вчерашний moved \n\n осторожно. **Почему так:** ниже стрелка the ### Итог → VIX ADR \n\n Bund after **Почему так:** `scale.py` Bund VIX шорт. вернулась ADR ",
+   "live": true,
+   "thinking": false,
+   "tools": []
+  },
+  {
+   "role": "notice",
+   "level": "error",
+   "text": "Ошибка: Claude Code process exited with code 3"
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-fake",
+    "engineVersion": "0.0.0-fake",
+    "mcpServers": [],
+    "toolCount": 7,
+    "sessionId": "466320ac-2ebc-48f7-9c87-a88ef4c4b6ce"
+   }
+  },
+  {
+   "kind": "text",
+   "delta": "вчерашний moved \n\n "
+  },
+  {
+   "kind": "text",
+   "delta": "осторожно. **Почему так:** "
+  },
+  {
+   "kind": "text",
+   "delta": "ниже "
+  },
+  {
+   "kind": "text",
+   "delta": "стрелка "
+  },
+  {
+   "kind": "text",
+   "delta": "the "
+  },
+  {
+   "kind": "text",
+   "delta": "### Итог "
+  },
+  {
+   "kind": "text",
+   "delta": "→ VIX "
+  },
+  {
+   "kind": "text",
+   "delta": "ADR "
+  },
+  {
+   "kind": "text",
+   "delta": "\n\n Bund after "
+  },
+  {
+   "kind": "text",
+   "delta": "**Почему так:** `scale.py` "
+  },
+  {
+   "kind": "text",
+   "delta": "Bund VIX "
+  },
+  {
+   "kind": "text",
+   "delta": "шорт. вернулась ADR "
+  },
+  {
+   "kind": "error",
+   "message": "Claude Code process exited with code 3"
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 0,
+    "out": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0
+   },
+   "costUsd": null,
+   "sessionId": "466320ac-2ebc-48f7-9c87-a88ef4c4b6ce",
+   "turns": 0,
+   "stopped": false
+  }
+ ]
+}

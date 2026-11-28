@@ -1,0 +1,19 @@
+{"trace": "main", "ms": 0.2, "private_mb": 1.8, "ws_mb": 8.4}
+{"trace": "before_run_native", "ms": 3.9, "private_mb": 1.8, "ws_mb": 8.7, "opts": ""}
+{"trace": "creator_entered", "ms": 220.3, "private_mb": 82.4, "ws_mb": 56.4}
+{"trace": "fonts_installed", "ms": 221.1, "private_mb": 82.4, "ws_mb": 56.5}
+{"trace": "app_handle_started", "ms": 221.9, "private_mb": 83.4, "ws_mb": 57.2}
+{"trace": "first_update_begin", "ms": 222.0, "private_mb": 83.4, "ws_mb": 57.4}
+{"trace": "first_update_end", "ms": 226.7, "private_mb": 83.8, "ws_mb": 59.6}
+{"trace": "first_frame_presented", "ms": 258.0, "private_mb": 86.8, "ws_mb": 64.0}
+{"trace": "day_drawn", "ms": 342.5, "private_mb": 90.2, "ws_mb": 69.4}
+{"trace": "day_presented", "ms": 347.3, "private_mb": 93.2, "ws_mb": 72.9}
+{"trace": "shot_decode_begin", "ms": 348.3, "private_mb": 93.3, "ws_mb": 73.1, "bytes": 117501}
+{"trace": "shot_decode_end", "ms": 355.8, "private_mb": 96.2, "ws_mb": 76.3}
+{"trace": "first_shot_uploaded", "ms": 356.6, "private_mb": 95.8, "ws_mb": 77.7}
+{"trace": "shot_uploaded", "ms": 356.9, "private_mb": 95.8, "ws_mb": 77.8, "key": "indices-kb/shots/2026-10-13/macro_eu/m15.png", "w": 917, "h": 502, "mips": false, "live": 1}
+{"trace": "shot_on_gpu", "ms": 368.5, "private_mb": 95.4, "ws_mb": 79.9, "key": "indices-kb/shots/2026-10-13/macro_eu/m15.png"}
+{"trace": "idle_1s", "ms": 1259.3, "private_mb": 99.2, "ws_mb": 84.5, "frames": 27, "atlas": "4096x64"}
+{"trace": "idle_2s", "ms": 2260.2, "private_mb": 99.2, "ws_mb": 84.5, "frames": 27, "atlas": "4096x64"}
+{"trace": "idle_5s", "ms": 5261.7, "private_mb": 98.7, "ws_mb": 84.5, "frames": 27, "atlas": "4096x64"}
+{"trace": "idle_10s", "ms": 10264.1, "private_mb": 97.7, "ws_mb": 83.5, "frames": 27, "atlas": "4096x64"}

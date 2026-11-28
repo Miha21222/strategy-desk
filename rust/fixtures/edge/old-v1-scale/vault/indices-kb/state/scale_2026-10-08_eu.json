@@ -1,0 +1,78 @@
+{
+ "region": "eu",
+ "date": "2026-10-08",
+ "asof": "",
+ "sym": "FDAX",
+ "version": "v1",
+ "factors": [
+  {
+   "id": "a",
+   "name": "A",
+   "group": "техника",
+   "weight": 3,
+   "side": "LONG",
+   "strength": 1,
+   "points": 3
+  },
+  {
+   "id": "b",
+   "name": "B",
+   "group": "сессия",
+   "weight": 2,
+   "side": "SHORT",
+   "strength": 0.5,
+   "points": 1
+  },
+  {
+   "id": "c",
+   "name": "C",
+   "group": "сессия",
+   "weight": 1,
+   "side": "",
+   "strength": 0,
+   "points": 0
+  },
+  {
+   "id": "d",
+   "name": "D",
+   "group": "сессия",
+   "weight": 1,
+   "side": "SHORT",
+   "strength": 1,
+   "points": 1,
+   "on": false
+  }
+ ],
+ "result": {
+  "long": 3,
+  "short": 1,
+  "max": 7,
+  "needle": 50,
+  "zone": "сильный лонг",
+  "side": "LONG",
+  "groups": {
+   "техника": {
+    "long": 3,
+    "short": 0,
+    "needle": 100
+   },
+   "сессия": {
+    "long": 0,
+    "short": 1,
+    "needle": -100
+   }
+  }
+ },
+ "after": {
+  "long": 3,
+  "short": 2,
+  "max": 7,
+  "needle": 20,
+  "zone": "лонг",
+  "side": "LONG"
+ },
+ "light": {
+  "color": "red",
+  "label": ""
+ }
+}

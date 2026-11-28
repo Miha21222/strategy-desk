@@ -1,0 +1,2155 @@
+{
+ "date": "2026-09-14",
+ "eu": {
+  "region": "eu",
+  "scale": {
+   "region": "eu",
+   "date": "2026-09-14",
+   "asof": "2026-09-14 09:35",
+   "sym": "FDAX",
+   "pair": "FESX",
+   "version": "v3.1",
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "Точка A / направление D1–H4",
+     "group": "контекст дня",
+     "share_cfg": 12,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "D1 вчера: сняли максимум прошлого дня и закрылись ниже — точка A для шорта",
+     "share": 12.6,
+     "points": 7.6
+    },
+    {
+     "id": "d1_flow",
+     "name": "D1 — направление (PO3)",
+     "group": "контекст дня",
+     "share_cfg": 6,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "D1: тренд вниз (3 слома подряд)",
+     "share": 6.3,
+     "points": 3.8
+    },
+    {
+     "id": "h4_flow",
+     "name": "Структура H4",
+     "group": "контекст дня",
+     "share_cfg": 6,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "сегодня молчит: сигнал слабый",
+     "share": 6.3,
+     "points": 0
+    },
+    {
+     "id": "dr_zone",
+     "name": "Premium / Discount H4 DR",
+     "group": "контекст дня",
+     "share_cfg": 4,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "цена в верхней половине диапазона H4 — Premium",
+     "share": 4.2,
+     "points": 4.2
+    },
+    {
+     "id": "h1_flow",
+     "name": "Структура H1 (POI)",
+     "group": "контекст дня",
+     "share_cfg": 5,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "сегодня молчит: сигнал слабый",
+     "share": 5.3,
+     "points": 0
+    },
+    {
+     "id": "night_sweep",
+     "name": "Что снял премаркет",
+     "group": "окно открытия",
+     "share_cfg": 14,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "ночь сняла вчерашний максимум и вернулась ниже",
+     "share": 14.7,
+     "points": 8.8
+    },
+    {
+     "id": "m15_flow",
+     "name": "Структура M15 (премаркет)",
+     "group": "окно открытия",
+     "share_cfg": 6,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "M15: последний слом за ночь вниз",
+     "share": 6.3,
+     "points": 6.3
+    },
+    {
+     "id": "room",
+     "name": "Место до цели в окне",
+     "group": "окно открытия",
+     "share_cfg": 12,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.7,
+     "why": "вниз до ликвидности 0.5 ADR, вверх 0.2 ADR",
+     "share": 12.6,
+     "points": 8.8
+    },
+    {
+     "id": "night_move",
+     "name": "Ход премаркета к закрытию Xetra",
+     "group": "окно открытия",
+     "share_cfg": 6,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "сегодня молчит: сигнал слабый",
+     "share": 6.3,
+     "points": 0
+    },
+    {
+     "id": "opens",
+     "name": "Цена к DO / WO",
+     "group": "окно открытия",
+     "share_cfg": 5,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "цена ниже открытий дня и недели",
+     "share": 5.3,
+     "points": 5.3
+    },
+    {
+     "id": "prev_close",
+     "name": "Как закрылась вчерашняя Xetra",
+     "group": "окно открытия",
+     "share_cfg": 4,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "вчера закрылись в нижней четверти дня",
+     "share": 4.2,
+     "points": 4.2
+    },
+    {
+     "id": "m_verdict",
+     "name": "Новостной вердикт агента",
+     "group": "макро",
+     "share_cfg": 7,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "новости толкают открытие вниз",
+     "share": 7.4,
+     "points": 7.4
+    },
+    {
+     "id": "m_peers",
+     "name": "ES / NQ за ночь",
+     "group": "макро",
+     "share_cfg": 3,
+     "on": true,
+     "side": "LONG",
+     "strength": 0.4,
+     "why": "смежный рынок +0.5 %",
+     "share": 3.2,
+     "points": 1.3
+    },
+    {
+     "id": "m_asia",
+     "name": "Азия",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "LONG",
+     "strength": 0.6,
+     "why": "Азия +0.8 %",
+     "share": 1.1,
+     "points": 0.7
+    },
+    {
+     "id": "m_vol",
+     "name": "VSTOXX / VIX",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "индекс страха растёт на 7 %",
+     "share": 1.1,
+     "points": 0.7
+    },
+    {
+     "id": "m_yields",
+     "name": "Доходности Bund / US10Y",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "доходности +7 б.п.",
+     "share": 1.1,
+     "points": 0.4
+    },
+    {
+     "id": "m_dollar",
+     "name": "Евро (EURUSD)",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "доллар крепнет",
+     "share": 1.1,
+     "points": 0.7
+    },
+    {
+     "id": "m_oil",
+     "name": "Нефть Brent",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "нефть +3 %",
+     "share": 1.1,
+     "points": 0.4
+    }
+   ],
+   "result": {
+    "long": 2,
+    "short": 58.6,
+    "undecided": 39.4,
+    "max": 100,
+    "needle": -57,
+    "zone": "сильный шорт",
+    "side": "SHORT",
+    "groups": {
+     "контекст дня": {
+      "share": 34.7,
+      "long": 0,
+      "short": 15.6,
+      "needle": -16
+     },
+     "окно открытия": {
+      "share": 49.4,
+      "long": 0,
+      "short": 33.4,
+      "needle": -33
+     },
+     "макро": {
+      "share": 16.1,
+      "long": 2,
+      "short": 9.6,
+      "needle": -8
+     }
+    }
+   },
+   "light": {
+    "color": "yellow",
+    "label": "🟡 осторожно",
+    "red": [],
+    "yellow": [
+     "фаза ПИЛА (5 из 10 дней в обе стороны) — риск ×0.5, цель до IB1"
+    ],
+    "risk_pct": 0.5
+   },
+   "levels": {
+    "price": 25100,
+    "adr": 285
+   },
+   "plan": {
+    "side": "SHORT",
+    "price": 25100,
+    "adr": 285,
+    "ib_typical_adr": 0.4,
+    "ib_typical_class": "средний",
+    "session": {
+     "entry": "10:30–12:00 (поздний — до 13:00)",
+     "exit": "15:30 при красных новостях США, иначе 16:30",
+     "review_asof": "20:00"
+    },
+    "manipulation_levels": [
+     {
+      "price": 25134.2,
+      "name": "максимум ночи",
+      "adr": 0.12
+     },
+     {
+      "price": 25188.35,
+      "name": "открытие дня",
+      "adr": 0.31
+     }
+    ],
+    "targets": [
+     {
+      "price": 25037.3,
+      "name": "вчерашнее закрытие",
+      "adr": 0.22
+     },
+     {
+      "price": 24963.2,
+      "name": "минимум H4",
+      "adr": 0.48
+     }
+    ],
+    "setups": [
+     {
+      "setup": "Сетап 3 (Европа)",
+      "why": "единственный рабочий; обычный IB — средний (0.37 ADR)",
+      "entry": "лимит на возврат к пробитой границе IB после полнотелой M5 за IB",
+      "stop": "за противоположной границей IB + запас",
+      "target": "IB1",
+      "until": "вход до 12:00, поздний до 13:00"
+     }
+    ],
+    "cancel": "идея шорта отменяется, если две M5 закроются выше «открытие дня» до входа — тогда сделки нет",
+    "summary": "План A — шорт: ждём вынос вверх к «максимум ночи» на открытии и возврат, цель — ближайшая ликвидность в пределах окна."
+   },
+   "discussion": [
+    {
+     "at": "2026-09-14 09:48",
+     "by": "owner",
+     "side": "LONG",
+     "share": 10,
+     "text": "DAX у недельного минимума — шортить в самый низ поздно",
+     "reply": "Частично: минимум недели рядом, но ночь сняла вчерашний максимум и вернулась ниже — шорт, но только до IB1.",
+     "agent_view": "partial"
+    }
+   ],
+   "history": [
+    {
+     "asof": "2026-09-14 09:30",
+     "needle": -57,
+     "after": null
+    },
+    {
+     "asof": "2026-09-14 09:31",
+     "needle": -54,
+     "after": null
+    },
+    {
+     "asof": "2026-09-14 09:32",
+     "needle": -51,
+     "after": null
+    }
+   ],
+   "after": {
+    "long": 11.8,
+    "short": 52.8,
+    "undecided": 35.4,
+    "max": 100,
+    "needle": -41,
+    "zone": "сильный шорт",
+    "side": "SHORT",
+    "groups": {
+     "контекст дня": {
+      "share": 31.3,
+      "long": 0,
+      "short": 14,
+      "needle": -14
+     },
+     "окно открытия": {
+      "share": 44.5,
+      "long": 0,
+      "short": 30.1,
+      "needle": -30
+     },
+     "макро": {
+      "share": 14.6,
+      "long": 1.8,
+      "short": 8.7,
+      "needle": -7
+     },
+     "обсуждение": {
+      "share": 10,
+      "long": 10,
+      "short": 0,
+      "needle": 10
+     }
+    }
+   }
+  },
+  "verdict": {
+   "verdict": "SHORT",
+   "confidence": "medium",
+   "summary": "[демо] Фон за шорт: доходности растут, нефть дорожает, фьючерсы ночью в минусе.",
+   "reasons": [
+    "Фьючерсы ночью в одну сторону с фоном.",
+    "Главный драйвер дня — ставки и доходности.",
+    "Смежные рынки подтверждают."
+   ],
+   "risks": [
+    "15:30 данные США — резкий ход в любую сторону."
+   ],
+   "watch": [
+    "Держится ли ночной экстремум после открытия."
+   ],
+   "sources": [
+    {
+     "title": "Демо-источник: утренняя сводка",
+     "url": "https://www.investing.com/news/",
+     "source": "Investing.com"
+    }
+   ],
+   "plan": [
+    "Вероятнее: открытие снимает ночной максимум и разворачивается вниз — шорт по сетапу 3, цель IB1.",
+    "Манипуляцию ждём у ночного максимума; вход после возврата под уровень.",
+    "Фаза пилы: риск 0.5 %, без сделки до 12:00 — день пропускаем."
+   ],
+   "day_shape": {
+    "forecast": "TWO_SIDED",
+    "prob_two_sided": 0.42,
+    "summary": "Пила и данные США в 15:30 — второй вынос вероятнее обычного.",
+    "windows": [
+     {
+      "window": "10:30–12:00",
+      "expect": "первый вынос за IB"
+     },
+     {
+      "window": "12:00–15:30",
+      "expect": "второй вынос в другую сторону"
+     }
+    ]
+   },
+   "scale_judgment": [
+    {
+     "side": "SHORT",
+     "strength": 0.7,
+     "text": "Нефть выше 100 — давление на открытие, которого нет в технике"
+    }
+   ]
+  },
+  "collect": {
+   "asof_eet": "2026-09-14 09:31",
+   "calendar": {
+    "status": "TRADE",
+    "reasons": [],
+    "events": [
+     {
+      "time_eet": "10:00",
+      "title": "Ifo — деловой климат Германии",
+      "impact": "Medium"
+     },
+     {
+      "time_eet": "11:00",
+      "title": "ZEW — настроения",
+      "impact": "Medium"
+     },
+     {
+      "time_eet": "15:30",
+      "title": "Заявки на пособие США",
+      "impact": "Medium"
+     }
+    ]
+   },
+   "markets": [
+    {
+     "label": "FDAX",
+     "chg_pct": -0.4,
+     "main": true
+    },
+    {
+     "label": "FESX",
+     "chg_pct": -0.3,
+     "main": true
+    },
+    {
+     "label": "ES (S&P 500)",
+     "chg_pct": -0.2,
+     "main": false
+    },
+    {
+     "label": "NQ (Nasdaq 100)",
+     "chg_pct": -0.5,
+     "main": false
+    },
+    {
+     "label": "Nikkei 225",
+     "chg_pct": 0.3,
+     "main": false
+    },
+    {
+     "label": "VIX",
+     "chg_pct": 4.1,
+     "main": false
+    },
+    {
+     "label": "US 10Y",
+     "chg_pct": -0.04,
+     "main": false
+    },
+    {
+     "label": "DXY",
+     "chg_pct": 0.2,
+     "main": false
+    },
+    {
+     "label": "Brent",
+     "chg_pct": -1.8,
+     "main": false
+    },
+    {
+     "label": "Золото",
+     "chg_pct": -0.6,
+     "main": false
+    }
+   ],
+   "headlines": {
+    "count": 240,
+    "relevant": 120,
+    "tone_sum": -6,
+    "tags": {
+     "ставки/ЦБ": 30,
+     "энергия": 18
+    }
+   },
+   "tilt": null,
+   "regime": null,
+   "prev_day_check": [],
+   "previous_verdict": null
+  },
+  "note": "Макро-обзоры/2026-09-14 Европа.md",
+  "shots": {
+   "date": "2026-09-14",
+   "region": "eu",
+   "asof": "2026-09-14 09:40",
+   "ok": true,
+   "error": null,
+   "shots": [
+    {
+     "name": "m15",
+     "tf": "M15",
+     "title": "M15 — премаркет и уровни у открытия",
+     "path": "indices-kb/shots/2026-09-14/macro_eu/m15.png",
+     "verify_ok": true,
+     "legend": [
+      {
+       "key": "manip1",
+       "label": "манипуляция: максимум ночи",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "manip2",
+       "label": "манипуляция: открытие дня",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "target1",
+       "label": "цель: вчерашнее закрытие",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "target2",
+       "label": "цель: минимум H4",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "prev_low",
+       "label": "вчерашний минимум",
+       "kind": "level",
+       "color": "#37474f"
+      },
+      {
+       "key": "XO",
+       "label": "открытие Xetra",
+       "kind": "open",
+       "color": "#9e9e9e"
+      }
+     ]
+    },
+    {
+     "name": "h1",
+     "tf": "H1",
+     "title": "H1 — зоны и цели дня",
+     "path": "indices-kb/shots/2026-09-14/macro_eu/h1.png",
+     "verify_ok": true,
+     "legend": [
+      {
+       "key": "manip1",
+       "label": "манипуляция: максимум ночи",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "manip2",
+       "label": "манипуляция: открытие дня",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "target1",
+       "label": "цель: вчерашнее закрытие",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "target2",
+       "label": "цель: минимум H4",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "prev_low",
+       "label": "вчерашний минимум",
+       "kind": "level",
+       "color": "#37474f"
+      }
+     ]
+    }
+   ]
+  },
+  "human": {
+   "date": "2026-09-14",
+   "region": "eu",
+   "side": "SHORT",
+   "at": "2026-09-14 09:28",
+   "before_scale": true
+  },
+  "remember": {
+   "date": "2026-09-14",
+   "region": "eu",
+   "asof": "2026-09-14 09:31",
+   "items": [
+    {
+     "kind": "lesson",
+     "text": "[демо] В пилу на DAX первая манипуляция у открытия дня не держит — ждать вторую.",
+     "why": "те же условия: пила, ночь ≥ 0.8 ADR",
+     "ref": "уроки 08.09",
+     "tags": [
+      "eu",
+      "пила",
+      "ночь ≥ 0.8 ADR"
+     ]
+    },
+    {
+     "kind": "rule",
+     "text": "Понедельник после широкой ночи — цель только IB1, риск ×0.5.",
+     "why": "сегодня понедельник, ночь прошла 0.85 ADR",
+     "ref": "заметка 20, п. 7",
+     "tags": [
+      "eu",
+      "mon",
+      "ночь ≥ 0.8 ADR"
+     ]
+    },
+    {
+     "kind": "similar",
+     "text": "Похожий день — 08.09: стрелка −41, окно пошло вниз на 0.4 ADR, ты тогда сказал «вниз».",
+     "why": "ближайший по факторам из 20 дней",
+     "ref": "08.09 Европа",
+     "tags": [
+      "eu",
+      "пила"
+     ]
+    }
+   ],
+   "conditions": {
+    "region": "eu",
+    "weekday": "mon",
+    "phase": "пила",
+    "night": "wide",
+    "night_adr": 0.85,
+    "light": "yellow",
+    "earnings_giant_prev": false,
+    "tags": [
+     "eu",
+     "пила",
+     "mon",
+     "ночь ≥ 0.8 ADR"
+    ]
+   },
+   "similar": {
+    "date": "2026-09-08",
+    "region": "eu",
+    "distance": 0.14,
+    "needle": -41,
+    "dir": "SHORT",
+    "chg_adr": -0.4,
+    "human_side": "SHORT"
+   },
+   "lesson_candidates": 1,
+   "enough_history": true
+  },
+  "drift": {
+   "date": "2026-09-14",
+   "region": "eu",
+   "days": 20,
+   "enough_data": true,
+   "signals": [
+    {
+     "kind": "phase",
+     "text": "[демо] Фаза сменилась: две недели был тренд, последние 5 дней — пила.",
+     "severity": "warn",
+     "data": {}
+    },
+    {
+     "kind": "factor",
+     "text": "«Место до цели» три дня подряд мимо — раньше угадывало 6 из 10.",
+     "severity": "info",
+     "data": {}
+    }
+   ]
+  }
+ },
+ "us": {
+  "region": "us",
+  "scale": {
+   "region": "us",
+   "date": "2026-09-14",
+   "asof": "2026-09-14 16:05",
+   "sym": "ES",
+   "pair": "NQ",
+   "version": "v3.1",
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "Точка A / BIAS",
+     "group": "контекст дня",
+     "share_cfg": 12,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "D1 вчера: сняли максимум прошлого дня и закрылись ниже — точка A для шорта",
+     "share": 12.6,
+     "points": 12.6
+    },
+    {
+     "id": "d1_flow",
+     "name": "D1 — направление (PO3)",
+     "group": "контекст дня",
+     "share_cfg": 6,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "сегодня молчит: сигнал слабый",
+     "share": 6.3,
+     "points": 0
+    },
+    {
+     "id": "h4_flow",
+     "name": "Структура H4",
+     "group": "контекст дня",
+     "share_cfg": 5,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "сегодня молчит: сигнал слабый",
+     "share": 5.3,
+     "points": 0
+    },
+    {
+     "id": "dr_zone",
+     "name": "Premium / Discount H4 DR",
+     "group": "контекст дня",
+     "share_cfg": 4,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.7,
+     "why": "цена в верхней половине диапазона H4 — Premium",
+     "share": 4.2,
+     "points": 2.9
+    },
+    {
+     "id": "h1_flow",
+     "name": "Структура H1 (POI)",
+     "group": "контекст дня",
+     "share_cfg": 6,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "H1: слом вниз у POI",
+     "share": 6.3,
+     "points": 6.3
+    },
+    {
+     "id": "night_sweep",
+     "name": "Что сняла ночь",
+     "group": "окно открытия",
+     "share_cfg": 11,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "ночь сняла вчерашний максимум и вернулась ниже",
+     "share": 11.6,
+     "points": 4.6
+    },
+    {
+     "id": "m15_flow",
+     "name": "Структура M15 (ночь)",
+     "group": "окно открытия",
+     "share_cfg": 10,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "M15: последний слом за ночь вниз",
+     "share": 10.5,
+     "points": 6.3
+    },
+    {
+     "id": "room",
+     "name": "Место до цели в окне",
+     "group": "окно открытия",
+     "share_cfg": 12,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "вниз до ликвидности 0.5 ADR, вверх 0.2 ADR",
+     "share": 12.6,
+     "points": 5
+    },
+    {
+     "id": "night_move",
+     "name": "Ход ночи к вчерашнему закрытию",
+     "group": "окно открытия",
+     "share_cfg": 6,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "ночь ниже вчерашнего закрытия на 0.3 ADR",
+     "share": 6.3,
+     "points": 2.5
+    },
+    {
+     "id": "opens",
+     "name": "Цена к DO / WO / NYM",
+     "group": "окно открытия",
+     "share_cfg": 5,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "цена ниже открытий дня и недели",
+     "share": 5.3,
+     "points": 2.1
+    },
+    {
+     "id": "prev_close",
+     "name": "Как закрылся вчерашний RTH",
+     "group": "окно открытия",
+     "share_cfg": 3,
+     "on": true,
+     "side": "SHORT",
+     "strength": 1,
+     "why": "вчера закрылись в нижней четверти дня",
+     "share": 3.2,
+     "points": 3.2
+    },
+    {
+     "id": "m_verdict",
+     "name": "Новостной вердикт агента",
+     "group": "макро",
+     "share_cfg": 7,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.7,
+     "why": "новости толкают открытие вниз",
+     "share": 7.4,
+     "points": 5.2
+    },
+    {
+     "id": "m_peers",
+     "name": "Европа к 16:00 (FDAX, FESX)",
+     "group": "макро",
+     "share_cfg": 2,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.7,
+     "why": "смежный рынок −0.5 %",
+     "share": 2.1,
+     "points": 1.5
+    },
+    {
+     "id": "m_vol",
+     "name": "VIX",
+     "group": "макро",
+     "share_cfg": 2,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.6,
+     "why": "индекс страха растёт на 7 %",
+     "share": 2.1,
+     "points": 1.3
+    },
+    {
+     "id": "m_yields",
+     "name": "Доходности US2Y / US10Y",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "SHORT",
+     "strength": 0.4,
+     "why": "доходности +7 б.п.",
+     "share": 1.1,
+     "points": 0.4
+    },
+    {
+     "id": "m_dollar",
+     "name": "Доллар (DXY)",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "LONG",
+     "strength": 1,
+     "why": "доллар слабеет",
+     "share": 1.1,
+     "points": 1.1
+    },
+    {
+     "id": "m_oil",
+     "name": "Нефть",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "",
+     "strength": 0,
+     "why": "сегодня молчит: сигнал слабый",
+     "share": 1.1,
+     "points": 0
+    },
+    {
+     "id": "m_tone",
+     "name": "Тон заголовков",
+     "group": "макро",
+     "share_cfg": 1,
+     "on": true,
+     "side": "LONG",
+     "strength": 1,
+     "why": "тон заголовков +6",
+     "share": 1.1,
+     "points": 1.1
+    }
+   ],
+   "result": {
+    "long": 2.2,
+    "short": 53.9,
+    "undecided": 43.9,
+    "max": 100,
+    "needle": -52,
+    "zone": "сильный шорт",
+    "side": "SHORT",
+    "groups": {
+     "контекст дня": {
+      "share": 34.7,
+      "long": 0,
+      "short": 21.8,
+      "needle": -22
+     },
+     "окно открытия": {
+      "share": 49.5,
+      "long": 0,
+      "short": 23.7,
+      "needle": -24
+     },
+     "макро": {
+      "share": 16,
+      "long": 2.2,
+      "short": 8.4,
+      "needle": -6
+     }
+    }
+   },
+   "light": {
+    "color": "green",
+    "label": "🟢 торгуем",
+    "red": [],
+    "yellow": [],
+    "risk_pct": 1
+   },
+   "levels": {
+    "price": 7800,
+    "adr": 58
+   },
+   "plan": {
+    "side": "SHORT",
+    "price": 7800,
+    "adr": 58,
+    "ib_typical_adr": 0.4,
+    "ib_typical_class": "средний",
+    "session": {
+     "entry": "16:30–18:30",
+     "setup1_until": "17:30",
+     "exit": "18:30 (крайний срок 22:00)",
+     "review_asof": "20:00"
+    },
+    "manipulation_levels": [
+     {
+      "price": 7806.96,
+      "name": "максимум ночи",
+      "adr": 0.12
+     },
+     {
+      "price": 7817.98,
+      "name": "открытие дня",
+      "adr": 0.31
+     }
+    ],
+    "targets": [
+     {
+      "price": 7787.24,
+      "name": "вчерашнее закрытие",
+      "adr": 0.22
+     },
+     {
+      "price": 7772.16,
+      "name": "минимум H4",
+      "adr": 0.48
+     }
+    ],
+    "setups": [
+     {
+      "setup": "Сетап 1",
+      "why": "уровень в 0.12 ADR от цены — первая 5-минутка вероятно его снимет",
+      "entry": "лимит на возврат к краю первой 5-минутки после поглощения",
+      "stop": "за экстремумом манипуляции + запас 0.02%",
+      "target": "ближайшее из: край ночи, PDH/PDL, IB1",
+      "until": "лимит до 17:30"
+     },
+     {
+      "setup": "Сетап 2",
+      "why": "обычный IB последних 20 дней — средний (0.42 ADR)",
+      "entry": "лимит на середину IB после двух M5 за IB 17:00+",
+      "stop": "за противоположной границей IB + запас",
+      "target": "IB1 (или PDH/PDL рядом)",
+      "until": "лимит до 18:30"
+     }
+    ],
+    "cancel": "идея шорта отменяется, если две M5 закроются выше «открытие дня» до входа — тогда сделки нет",
+    "summary": "План A — шорт: ждём вынос вверх к «максимум ночи» на открытии и возврат, цель — ближайшая ликвидность в пределах окна."
+   },
+   "discussion": [],
+   "history": [
+    {
+     "asof": "2026-09-14 016:30",
+     "needle": -52,
+     "after": null
+    }
+   ]
+  },
+  "verdict": {
+   "verdict": "SHORT",
+   "confidence": "low",
+   "summary": "[демо] Фон слабо за шорт: Европа в минусе, доллар крепнет.",
+   "reasons": [
+    "Фьючерсы ночью в одну сторону с фоном.",
+    "Главный драйвер дня — ставки и доходности.",
+    "Смежные рынки подтверждают."
+   ],
+   "risks": [
+    "15:30 данные США — резкий ход в любую сторону."
+   ],
+   "watch": [
+    "Держится ли ночной экстремум после открытия."
+   ],
+   "sources": [
+    {
+     "title": "Демо-источник: утренняя сводка",
+     "url": "https://www.investing.com/news/",
+     "source": "Investing.com"
+    }
+   ],
+   "plan": [
+    "Скорее вниз, но уверенность низкая — работаем только сетап 2 после закрытия IB.",
+    "Цель IB1, риск 1 %."
+   ]
+  },
+  "collect": {
+   "asof_eet": "2026-09-14 16:01",
+   "calendar": {
+    "status": "TRADE",
+    "reasons": [],
+    "events": [
+     {
+      "time_eet": "17:00",
+      "title": "Запасы нефти",
+      "impact": "Medium"
+     },
+     {
+      "time_eet": "21:00",
+      "title": "Выступление ФРС",
+      "impact": "Medium"
+     }
+    ]
+   },
+   "markets": [
+    {
+     "label": "FDAX",
+     "chg_pct": -0.4,
+     "main": true
+    },
+    {
+     "label": "FESX",
+     "chg_pct": -0.3,
+     "main": true
+    },
+    {
+     "label": "ES (S&P 500)",
+     "chg_pct": -0.2,
+     "main": false
+    },
+    {
+     "label": "NQ (Nasdaq 100)",
+     "chg_pct": -0.5,
+     "main": false
+    },
+    {
+     "label": "Nikkei 225",
+     "chg_pct": 0.3,
+     "main": false
+    },
+    {
+     "label": "VIX",
+     "chg_pct": 4.1,
+     "main": false
+    },
+    {
+     "label": "US 10Y",
+     "chg_pct": -0.04,
+     "main": false
+    },
+    {
+     "label": "DXY",
+     "chg_pct": 0.2,
+     "main": false
+    },
+    {
+     "label": "Brent",
+     "chg_pct": -1.8,
+     "main": false
+    },
+    {
+     "label": "Золото",
+     "chg_pct": -0.6,
+     "main": false
+    }
+   ],
+   "headlines": {
+    "count": 240,
+    "relevant": 120,
+    "tone_sum": -3,
+    "tags": {
+     "ставки/ЦБ": 30,
+     "энергия": 18
+    }
+   },
+   "tilt": null,
+   "regime": null,
+   "prev_day_check": [],
+   "previous_verdict": null
+  },
+  "note": "Макро-обзоры/2026-09-14 США.md",
+  "shots": {
+   "date": "2026-09-14",
+   "region": "us",
+   "asof": "2026-09-14 15:55",
+   "ok": true,
+   "error": null,
+   "shots": [
+    {
+     "name": "m15",
+     "tf": "M15",
+     "title": "M15 — ночь и уровни у открытия",
+     "path": "indices-kb/shots/2026-09-14/macro_us/m15.png",
+     "verify_ok": true,
+     "legend": [
+      {
+       "key": "manip1",
+       "label": "манипуляция: максимум ночи",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "manip2",
+       "label": "манипуляция: открытие дня",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "target1",
+       "label": "цель: вчерашнее закрытие",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "target2",
+       "label": "цель: минимум H4",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "prev_low",
+       "label": "вчерашний минимум",
+       "kind": "level",
+       "color": "#37474f"
+      },
+      {
+       "key": "NYM",
+       "label": "полночь Нью-Йорка",
+       "kind": "open",
+       "color": "#9e9e9e"
+      }
+     ]
+    },
+    {
+     "name": "h1",
+     "tf": "H1",
+     "title": "H1 — зоны и цели дня",
+     "path": "indices-kb/shots/2026-09-14/macro_us/h1.png",
+     "verify_ok": true,
+     "legend": [
+      {
+       "key": "manip1",
+       "label": "манипуляция: максимум ночи",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "manip2",
+       "label": "манипуляция: открытие дня",
+       "kind": "manip",
+       "color": "#d32f2f"
+      },
+      {
+       "key": "target1",
+       "label": "цель: вчерашнее закрытие",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "target2",
+       "label": "цель: минимум H4",
+       "kind": "target",
+       "color": "#1e8e3e"
+      },
+      {
+       "key": "prev_low",
+       "label": "вчерашний минимум",
+       "kind": "level",
+       "color": "#37474f"
+      }
+     ]
+    }
+   ]
+  },
+  "human": {
+   "date": "2026-09-14",
+   "region": "us",
+   "side": "LONG",
+   "at": "2026-09-14 16:03",
+   "before_scale": false
+  },
+  "remember": {
+   "date": "2026-09-14",
+   "region": "us",
+   "asof": "2026-09-14 16:01",
+   "items": [
+    {
+     "kind": "lesson",
+     "text": "[демо] Уровень ближе 0.1 ADR — не цель, а шум.",
+     "why": "те же условия: вялая ночь на ES",
+     "ref": "уроки 10.09",
+     "tags": [
+      "us",
+      "пила"
+     ]
+    },
+    {
+     "kind": "rule",
+     "text": "Сетап 1 только до 17:30 — после закрытия IB ждать сетап 2.",
+     "why": "сегодня светофор зелёный, ночь обычная",
+     "ref": "заметка 20, п. 4",
+     "tags": [
+      "us"
+     ]
+    }
+   ],
+   "conditions": {
+    "region": "us",
+    "weekday": "mon",
+    "phase": "пила",
+    "night": "wide",
+    "night_adr": 0.85,
+    "light": "yellow",
+    "earnings_giant_prev": false,
+    "tags": [
+     "us",
+     "пила",
+     "mon",
+     "ночь ≥ 0.8 ADR"
+    ]
+   },
+   "similar": null,
+   "lesson_candidates": 1,
+   "enough_history": true
+  },
+  "drift": {
+   "date": "2026-09-14",
+   "region": "us",
+   "days": 20,
+   "enough_data": true,
+   "signals": []
+  }
+ },
+ "review": {
+  "mech": {
+   "date": "2026-09-14",
+   "asof": "2026-09-14 20:01",
+   "regions": {
+    "eu": {
+     "facts": {
+      "sym": "FDAX",
+      "date": "2026-09-14",
+      "dir": "SHORT",
+      "chg_adr": -0.42,
+      "first_break": "down",
+      "ib_adr": 0.36,
+      "partial": false
+     },
+     "score": {
+      "needle_hit": "1",
+      "after_hit": "1",
+      "plan_hit": "да",
+      "manip_swept": true
+     },
+     "factors": [
+      {
+       "factor": "bias_a",
+       "group": "контекст дня",
+       "share": 12.6,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "d1_flow",
+       "group": "контекст дня",
+       "share": 6.3,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "h4_flow",
+       "group": "контекст дня",
+       "share": 6.3,
+       "side": "",
+       "strength": 0,
+       "dir": "SHORT",
+       "hit": ""
+      },
+      {
+       "factor": "dr_zone",
+       "group": "контекст дня",
+       "share": 4.2,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "h1_flow",
+       "group": "контекст дня",
+       "share": 5.3,
+       "side": "",
+       "strength": 0,
+       "dir": "SHORT",
+       "hit": ""
+      },
+      {
+       "factor": "night_sweep",
+       "group": "окно открытия",
+       "share": 14.7,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m15_flow",
+       "group": "окно открытия",
+       "share": 6.3,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "room",
+       "group": "окно открытия",
+       "share": 12.6,
+       "side": "SHORT",
+       "strength": 0.7,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "night_move",
+       "group": "окно открытия",
+       "share": 6.3,
+       "side": "",
+       "strength": 0,
+       "dir": "SHORT",
+       "hit": ""
+      },
+      {
+       "factor": "opens",
+       "group": "окно открытия",
+       "share": 5.3,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "prev_close",
+       "group": "окно открытия",
+       "share": 4.2,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_verdict",
+       "group": "макро",
+       "share": 7.4,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_peers",
+       "group": "макро",
+       "share": 3.2,
+       "side": "LONG",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "0"
+      },
+      {
+       "factor": "m_asia",
+       "group": "макро",
+       "share": 1.1,
+       "side": "LONG",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "0"
+      },
+      {
+       "factor": "m_vol",
+       "group": "макро",
+       "share": 1.1,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_yields",
+       "group": "макро",
+       "share": 1.1,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_dollar",
+       "group": "макро",
+       "share": 1.1,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_oil",
+       "group": "макро",
+       "share": 1.1,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      }
+     ],
+     "discussion": [
+      {
+       "at": "2026-09-14 09:48",
+       "by": "owner",
+       "side": "LONG",
+       "share": 10,
+       "text": "DAX у недельного минимума — шортить в самый низ поздно",
+       "reply": "Частично: минимум недели рядом, но ночь сняла вчерашний максимум и вернулась ниже — шорт, но только до IB1.",
+       "agent_view": "partial"
+      }
+     ],
+     "needle": -57,
+     "after": -41,
+     "zone": "сильный шорт",
+     "light": {
+      "color": "yellow",
+      "label": "🟡 осторожно",
+      "red": [],
+      "yellow": [
+       "фаза ПИЛА (5 из 10 дней в обе стороны) — риск ×0.5, цель до IB1"
+      ],
+      "risk_pct": 0.5
+     }
+    },
+    "us": {
+     "facts": {
+      "sym": "ES",
+      "date": "2026-09-14",
+      "dir": "SHORT",
+      "chg_adr": -0.25,
+      "first_break": "down",
+      "ib_adr": 0.36,
+      "partial": false
+     },
+     "score": {
+      "needle_hit": "1",
+      "after_hit": "",
+      "plan_hit": "пробой без IB1",
+      "manip_swept": true
+     },
+     "factors": [
+      {
+       "factor": "bias_a",
+       "group": "контекст дня",
+       "share": 12.6,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "d1_flow",
+       "group": "контекст дня",
+       "share": 6.3,
+       "side": "",
+       "strength": 0,
+       "dir": "SHORT",
+       "hit": ""
+      },
+      {
+       "factor": "h4_flow",
+       "group": "контекст дня",
+       "share": 5.3,
+       "side": "",
+       "strength": 0,
+       "dir": "SHORT",
+       "hit": ""
+      },
+      {
+       "factor": "dr_zone",
+       "group": "контекст дня",
+       "share": 4.2,
+       "side": "SHORT",
+       "strength": 0.7,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "h1_flow",
+       "group": "контекст дня",
+       "share": 6.3,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "night_sweep",
+       "group": "окно открытия",
+       "share": 11.6,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m15_flow",
+       "group": "окно открытия",
+       "share": 10.5,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "room",
+       "group": "окно открытия",
+       "share": 12.6,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "night_move",
+       "group": "окно открытия",
+       "share": 6.3,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "opens",
+       "group": "окно открытия",
+       "share": 5.3,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "prev_close",
+       "group": "окно открытия",
+       "share": 3.2,
+       "side": "SHORT",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_verdict",
+       "group": "макро",
+       "share": 7.4,
+       "side": "SHORT",
+       "strength": 0.7,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_peers",
+       "group": "макро",
+       "share": 2.1,
+       "side": "SHORT",
+       "strength": 0.7,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_vol",
+       "group": "макро",
+       "share": 2.1,
+       "side": "SHORT",
+       "strength": 0.6,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_yields",
+       "group": "макро",
+       "share": 1.1,
+       "side": "SHORT",
+       "strength": 0.4,
+       "dir": "SHORT",
+       "hit": "1"
+      },
+      {
+       "factor": "m_dollar",
+       "group": "макро",
+       "share": 1.1,
+       "side": "LONG",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "0"
+      },
+      {
+       "factor": "m_oil",
+       "group": "макро",
+       "share": 1.1,
+       "side": "",
+       "strength": 0,
+       "dir": "SHORT",
+       "hit": ""
+      },
+      {
+       "factor": "m_tone",
+       "group": "макро",
+       "share": 1.1,
+       "side": "LONG",
+       "strength": 1,
+       "dir": "SHORT",
+       "hit": "0"
+      }
+     ],
+     "discussion": [],
+     "needle": -52,
+     "after": null,
+     "zone": "сильный шорт",
+     "light": {
+      "color": "green",
+      "label": "🟢 торгуем",
+      "red": [],
+      "yellow": [],
+      "risk_pct": 1
+     }
+    }
+   },
+   "trader": [
+    "[демо] 4 стопа из 5 за две недели — вход до закрытия IB.",
+    "В пилу входишь чаще, чем в тренд, а угадываешь реже."
+   ]
+  },
+  "agent": {
+   "summary": "[демо] Оба окна пошли вниз, как показывала стрелка. Европа дошла до цели, США — пробой без цели.",
+   "regions": {
+    "eu": {
+     "what_worked": "Снятие ночного максимума с отказом дало вход по сетапу 3.",
+     "what_failed": "«Место до цели» голосовало за лонг — уровень был вплотную к цене.",
+     "discussion": "Довод про недельный минимум не подтвердился, но ограничил цель IB1 — это было верно."
+    },
+    "us": {
+     "what_worked": "Направление угадали.",
+     "what_failed": "Цель IB1 не взяли — окно было вялым.",
+     "discussion": "Обсуждения не было."
+    }
+   },
+   "lessons": [
+    "В пилу на DAX первая манипуляция у открытия дня не держит — ждать вторую.",
+    "Уровень ближе 0.1 ADR — не цель, а шум."
+   ],
+   "weight_ideas": [
+    "Ход ночи и «что сняла ночь» — одна история, считать одним фактором?"
+   ]
+  },
+  "note": "Макро-обзоры/2026-09-14 Итог дня.md",
+  "shots": {
+   "eu": {
+    "date": "2026-09-14",
+    "region": "eu",
+    "asof": "2026-09-14 13:00",
+    "ok": true,
+    "error": null,
+    "shots": [
+     {
+      "name": "review_m15",
+      "tf": "M15",
+      "title": "M15 — как прошло окно открытия",
+      "path": "indices-kb/shots/2026-09-14/macro_eu/review_m15.png",
+      "verify_ok": true,
+      "legend": [
+       {
+        "key": "ib",
+        "label": "IB — первые 30 минут",
+        "kind": "fact",
+        "color": "#ef6c00",
+        "style": "solid"
+       },
+       {
+        "key": "ib1_dn",
+        "label": "IB1 вниз",
+        "kind": "fact",
+        "color": "#ef6c00",
+        "style": "dashed"
+       },
+       {
+        "key": "manip1",
+        "label": "манипуляция: максимум премаркета",
+        "kind": "manip",
+        "color": "#d32f2f",
+        "style": "solid"
+       },
+       {
+        "key": "manip2",
+        "label": "открытие дня — не манипуляция: за ним максимум премаркета",
+        "kind": "manip",
+        "color": "#757575",
+        "style": "dashed"
+       },
+       {
+        "key": "t1",
+        "label": "цель: минимум H4 — вне ADR",
+        "kind": "target",
+        "color": "#1e8e3e",
+        "style": "dashed"
+       },
+       {
+        "key": "zone1",
+        "label": "точка A: снятие максимума D1",
+        "kind": "zone",
+        "color": "#5c6bc0",
+        "style": "solid"
+       },
+       {
+        "key": "break",
+        "label": "первый пробой IB вниз — 10:45",
+        "kind": "fact",
+        "color": "#ef6c00",
+        "style": "solid"
+       }
+      ]
+     }
+    ]
+   },
+   "us": null
+  }
+ },
+ "answers": {
+  "date": "2026-09-14",
+  "at": "2026-09-14 20:04",
+  "regions": {
+   "eu": {
+    "trade": "short",
+    "by_rule": "yes"
+   },
+   "us": {
+    "trade": "none"
+   }
+  },
+  "note": "Ждал вторую манипуляцию, как в уроке — сработало; в США не входил: вялое открытие"
+ },
+ "lessons": [
+  "2026-09-18: [демо] После CPI первые 15 минут не входить.",
+  "2026-09-17: [демо] Уровень ближе 0.1 ADR — не цель, а шум.",
+  "2026-09-16: [демо] День квартальной экспирации — по умолчанию пропуск в первые 30 минут.",
+  "2026-09-15: [демо] Если премаркет уже снял цель по направлению — место до цели исчерпано.",
+  "2026-09-14: [демо] В пилу на DAX первая манипуляция у открытия дня не держит — ждать вторую."
+ ],
+ "stats": [
+  {
+   "region": "eu",
+   "factor": "m_vol",
+   "hits": 5,
+   "total": 12
+  },
+  {
+   "region": "us",
+   "factor": "m_dollar",
+   "hits": 4,
+   "total": 11
+  },
+  {
+   "region": "eu",
+   "factor": "m_oil",
+   "hits": 3,
+   "total": 11
+  },
+  {
+   "region": "us",
+   "factor": "room",
+   "hits": 4,
+   "total": 11
+  },
+  {
+   "region": "us",
+   "factor": "dr_zone",
+   "hits": 4,
+   "total": 10
+  },
+  {
+   "region": "us",
+   "factor": "h1_flow",
+   "hits": 7,
+   "total": 10
+  },
+  {
+   "region": "eu",
+   "factor": "m_peers",
+   "hits": 5,
+   "total": 10
+  },
+  {
+   "region": "us",
+   "factor": "m_peers",
+   "hits": 6,
+   "total": 10
+  },
+  {
+   "region": "us",
+   "factor": "m_tone",
+   "hits": 6,
+   "total": 10
+  },
+  {
+   "region": "us",
+   "factor": "m_verdict",
+   "hits": 6,
+   "total": 10
+  },
+  {
+   "region": "us",
+   "factor": "m15_flow",
+   "hits": 6,
+   "total": 10
+  },
+  {
+   "region": "eu",
+   "factor": "night_sweep",
+   "hits": 5,
+   "total": 10
+  },
+  {
+   "region": "eu",
+   "factor": "room",
+   "hits": 2,
+   "total": 10
+  },
+  {
+   "region": "eu",
+   "factor": "bias_a",
+   "hits": 7,
+   "total": 9
+  },
+  {
+   "region": "us",
+   "factor": "bias_a",
+   "hits": 8,
+   "total": 9
+  },
+  {
+   "region": "eu",
+   "factor": "h1_flow",
+   "hits": 7,
+   "total": 9
+  },
+  {
+   "region": "us",
+   "factor": "m_oil",
+   "hits": 5,
+   "total": 9
+  },
+  {
+   "region": "us",
+   "factor": "m_vol",
+   "hits": 2,
+   "total": 9
+  },
+  {
+   "region": "eu",
+   "factor": "m_yields",
+   "hits": 4,
+   "total": 9
+  },
+  {
+   "region": "eu",
+   "factor": "night_move",
+   "hits": 5,
+   "total": 9
+  },
+  {
+   "region": "us",
+   "factor": "night_sweep",
+   "hits": 7,
+   "total": 9
+  },
+  {
+   "region": "eu",
+   "factor": "prev_close",
+   "hits": 6,
+   "total": 9
+  },
+  {
+   "region": "us",
+   "factor": "d1_flow",
+   "hits": 3,
+   "total": 8
+  },
+  {
+   "region": "us",
+   "factor": "h4_flow",
+   "hits": 2,
+   "total": 8
+  },
+  {
+   "region": "eu",
+   "factor": "m_verdict",
+   "hits": 5,
+   "total": 8
+  },
+  {
+   "region": "eu",
+   "factor": "d1_flow",
+   "hits": 7,
+   "total": 7
+  },
+  {
+   "region": "eu",
+   "factor": "dr_zone",
+   "hits": 4,
+   "total": 7
+  },
+  {
+   "region": "eu",
+   "factor": "m_asia",
+   "hits": 3,
+   "total": 7
+  },
+  {
+   "region": "eu",
+   "factor": "m_dollar",
+   "hits": 4,
+   "total": 7
+  },
+  {
+   "region": "us",
+   "factor": "m_yields",
+   "hits": 4,
+   "total": 7
+  },
+  {
+   "region": "eu",
+   "factor": "m15_flow",
+   "hits": 5,
+   "total": 7
+  },
+  {
+   "region": "us",
+   "factor": "night_move",
+   "hits": 2,
+   "total": 7
+  },
+  {
+   "region": "us",
+   "factor": "opens",
+   "hits": 5,
+   "total": 7
+  },
+  {
+   "region": "us",
+   "factor": "prev_close",
+   "hits": 3,
+   "total": 7
+  },
+  {
+   "region": "eu",
+   "factor": "h4_flow",
+   "hits": 2,
+   "total": 6
+  },
+  {
+   "region": "eu",
+   "factor": "opens",
+   "hits": 3,
+   "total": 5
+  }
+ ],
+ "names": {
+  "bias_a": "Точка A / BIAS",
+  "d1_flow": "D1 — направление (PO3)",
+  "h4_flow": "Структура H4",
+  "dr_zone": "Premium / Discount H4 DR",
+  "h1_flow": "Структура H1 (POI)",
+  "night_sweep": "Что сняла ночь",
+  "m15_flow": "Структура M15 (ночь)",
+  "room": "Место до цели в окне",
+  "night_move": "Ход ночи к вчерашнему закрытию",
+  "opens": "Цена к DO / WO / NYM",
+  "prev_close": "Как закрылся вчерашний RTH",
+  "m_verdict": "Новостной вердикт агента",
+  "m_peers": "Европа к 16:00 (FDAX, FESX)",
+  "m_asia": "Азия",
+  "m_vol": "VIX",
+  "m_yields": "Доходности US2Y / US10Y",
+  "m_dollar": "Доллар (DXY)",
+  "m_oil": "Нефть",
+  "m_tone": "Тон заголовков"
+ },
+ "zones": {
+  "neutral": 15,
+  "strong": 40
+ },
+ "week": null,
+ "ideas": {
+  "asof": "2026-09-18 20:10",
+  "items": [
+   {
+    "id": "i1",
+    "date": "2026-09-02",
+    "text": "[демо] После широкой ночи (≥ 0.8 ADR) окно Европы чаще разворачивается против ночи.",
+    "side": "",
+    "region": "eu",
+    "source": "chat",
+    "confirmed": 3,
+    "refuted": 1,
+    "status": "proposed",
+    "backtest": {
+     "days": 30,
+     "hit": 19,
+     "rate": 0.63
+    },
+    "last_check": "2026-09-17"
+   },
+   {
+    "id": "i2",
+    "date": "2026-09-14",
+    "text": "[демо] DAX у недельного минимума — шортить в самый низ поздно.",
+    "side": "LONG",
+    "region": "eu",
+    "source": "discuss",
+    "confirmed": 1,
+    "refuted": 1,
+    "status": "open",
+    "backtest": null,
+    "last_check": "2026-09-14"
+   },
+   {
+    "id": "i3",
+    "date": "2026-09-18",
+    "text": "[демо] В день квартальной экспирации цену держат у страйка — выносы у открытия ложные.",
+    "side": "",
+    "region": "eu",
+    "source": "discuss",
+    "confirmed": 1,
+    "refuted": 0,
+    "status": "open",
+    "backtest": {
+     "days": 60,
+     "hit": 4,
+     "rate": 0.57
+    },
+    "last_check": "2026-09-18"
+   },
+   {
+    "id": "i4",
+    "date": "2026-09-10",
+    "text": "[демо] Ход ночи и «что сняла ночь» — одна история, считать одним фактором.",
+    "side": "",
+    "region": "us",
+    "source": "weight_ideas",
+    "confirmed": 0,
+    "refuted": 2,
+    "status": "dropped",
+    "backtest": null,
+    "last_check": "2026-09-16"
+   },
+   {
+    "id": "i5",
+    "date": "2026-09-05",
+    "text": "[демо] После CPI первые 15 минут не входить.",
+    "side": "",
+    "region": "us",
+    "source": "chat",
+    "confirmed": 4,
+    "refuted": 0,
+    "status": "rule",
+    "backtest": null,
+    "last_check": "2026-09-17"
+   }
+  ]
+ },
+ "trader": [
+  "[демо] 4 стопа из 5 за две недели — вход до закрытия IB.",
+  "В пилу входишь чаще, чем в тренд, а угадываешь реже."
+ ]
+}

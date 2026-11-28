@@ -1,0 +1,40 @@
+# The Rust rewrite (docs/rust/TZ.md). Windows because that is the only target
+# the app ships for; the cloud agents run the same commands on Linux first.
+name: Rust
+
+on:
+  pull_request:
+    branches: [rust]
+    paths: ["rust/**", ".github/workflows/rust.yml"]
+  push:
+    branches: [rust]
+    paths: ["rust/**", ".github/workflows/rust.yml"]
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo fmt --all --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --all --features desk-core/golden
+      - run: cargo build --release -p desk-ui
+      - name: Size of strategy-desk.exe
+        shell: pwsh
+        run: "'{0:N1} MB' -f ((Get-Item target/release/strategy-desk.exe).Length / 1MB)"

@@ -1,0 +1,21 @@
+﻿{
+ "version": "v3.1",
+ "zones": {
+  "neutral": 15,
+  "strong": 40
+ },
+ "regions": {
+  "eu": {
+   "factors": [
+    {
+     "id": "bias_a",
+     "name": "Точка A"
+    },
+    {
+     "id": "room",
+     "name": "Место до цели"
+    }
+   ]
+  }
+ }
+}

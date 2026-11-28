@@ -1,0 +1,365 @@
+{
+ "case": "fake_tools",
+ "about": "fake-claude: text with a tool call after every text block (several tool uses, results ok and failed).",
+ "source": "rust/fixtures/tools/chat/chat-fold.ts — the old drivers/claude.ts translate + agent.ts startChat (executed), app.tsx chat:event fold (transcribed). Regenerate with rust/fixtures/tools/capture-chat.sh.",
+ "streams": [
+  {
+   "file": "rust/fixtures/chat/streams/fake_tools.jsonl",
+   "sha256": "8e305a6b2ffdac0a6220b43ce7846429029e0b71598709e377fa2c80e067da0e"
+  }
+ ],
+ "kind": "macro",
+ "user_turns": [
+  "/macro-review eu 2026-11-25"
+ ],
+ "skipped_non_json_lines": 0,
+ "specs": [
+  {
+   "resume": null,
+   "text": "/macro-review eu 2026-11-25",
+   "cwd_is_vault": true,
+   "profile": "macro",
+   "engine": "claude",
+   "prompt_file": "prompt/macro-review.md",
+   "prompt_sha256": "0d4115c459352df2cdd6f6f99f8ac0a50440bdcd3443c103b26d04697313c836",
+   "env_keys": [
+    "MACRO_VAULT",
+    "PYTHONIOENCODING",
+    "TV_CDP_URL"
+   ]
+  }
+ ],
+ "chat": {
+  "title": "Обзор дня 25.11",
+  "session_id": "75862bbd-b574-4e1b-ad86-5bd93b95f3ba",
+  "cost_usd": 0.01238,
+  "tokens": {
+   "in": 26000,
+   "out": 27
+  }
+ },
+ "persisted_transcript": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "the Европы \n\n```text\nscale 25100 → 25040\n```\n сняла argument. ниже; стрелка `scale.py` ",
+   "tools": [
+    {
+     "id": "toolu_fake_227703",
+     "name": "Bash",
+     "input": "{\"command\":\"python indices-kb/tools/scale.py review --date 2026-11-26\",\"description\":\"Evening review\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_372466",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_483745",
+     "name": "Read",
+     "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-26_eu.json\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_899824",
+     "name": "Skill",
+     "input": "{\"skill\":\"macro-review\",\"args\":\"--window eu\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_940968",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_214271",
+     "name": "Skill",
+     "input": "{\"skill\":\"macro-review\",\"args\":\"--window eu\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_496360",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_324777",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_813982",
+     "name": "Read",
+     "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-26_eu.json\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_419556",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    }
+   ],
+   "thinking": false
+  }
+ ],
+ "screen": [
+  {
+   "role": "user",
+   "text": "/macro-review eu 2026-11-25"
+  },
+  {
+   "role": "assistant",
+   "text": "the Европы \n\n```text\nscale 25100 → 25040\n```\n сняла argument. ниже; стрелка `scale.py` ",
+   "live": false,
+   "thinking": false,
+   "tools": [
+    {
+     "id": "toolu_fake_227703",
+     "name": "Bash",
+     "input": "{\"command\":\"python indices-kb/tools/scale.py review --date 2026-11-26\",\"description\":\"Evening review\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_372466",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_483745",
+     "name": "Read",
+     "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-26_eu.json\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_899824",
+     "name": "Skill",
+     "input": "{\"skill\":\"macro-review\",\"args\":\"--window eu\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_940968",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_214271",
+     "name": "Skill",
+     "input": "{\"skill\":\"macro-review\",\"args\":\"--window eu\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_496360",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_324777",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_813982",
+     "name": "Read",
+     "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-26_eu.json\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    },
+    {
+     "id": "toolu_fake_419556",
+     "name": "Write",
+     "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}",
+     "ok": true,
+     "result": "ok: wrote indices-kb/state/review.json (synthetic)"
+    }
+   ]
+  }
+ ],
+ "events": [
+  {
+   "kind": "init",
+   "init": {
+    "model": "claude-fake",
+    "engineVersion": "0.0.0-fake",
+    "mcpServers": [],
+    "toolCount": 7,
+    "sessionId": "75862bbd-b574-4e1b-ad86-5bd93b95f3ba"
+   }
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_227703",
+   "name": "Bash",
+   "input": "{\"command\":\"python indices-kb/tools/scale.py review --date 2026-11-26\",\"description\":\"Evening review\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_227703",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_372466",
+   "name": "Write",
+   "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_372466",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_483745",
+   "name": "Read",
+   "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-26_eu.json\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_483745",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_899824",
+   "name": "Skill",
+   "input": "{\"skill\":\"macro-review\",\"args\":\"--window eu\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_899824",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_940968",
+   "name": "Write",
+   "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_940968",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_214271",
+   "name": "Skill",
+   "input": "{\"skill\":\"macro-review\",\"args\":\"--window eu\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_214271",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_496360",
+   "name": "Write",
+   "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_496360",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_324777",
+   "name": "Write",
+   "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_324777",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_813982",
+   "name": "Read",
+   "input": "{\"file_path\":\"indices-kb/state/scale_2026-11-26_eu.json\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_813982",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "tool",
+   "id": "toolu_fake_419556",
+   "name": "Write",
+   "input": "{\"file_path\":\"indices-kb/state/review_2026-11-26_agent.json\",\"content\":\"{}\"}"
+  },
+  {
+   "kind": "tool-result",
+   "id": "toolu_fake_419556",
+   "ok": true,
+   "text": "ok: wrote indices-kb/state/review.json (synthetic)"
+  },
+  {
+   "kind": "text",
+   "delta": "the Европы \n\n```text\nscale 25100 → 25040\n```\n "
+  },
+  {
+   "kind": "text",
+   "delta": "сняла argument. "
+  },
+  {
+   "kind": "text",
+   "delta": "ниже; стрелка `scale.py` "
+  },
+  {
+   "kind": "done",
+   "tokens": {
+    "in": 1200,
+    "out": 27,
+    "cacheRead": 24000,
+    "cacheWrite": 800
+   },
+   "costUsd": 0.01238,
+   "sessionId": "75862bbd-b574-4e1b-ad86-5bd93b95f3ba",
+   "turns": 3,
+   "stopped": false
+  }
+ ]
+}

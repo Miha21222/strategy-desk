@@ -1,0 +1,2 @@
+# Fixtures are byte-exact inputs (BOMs, CRLF, half files): git must not touch line endings.
+* -text

@@ -1,0 +1,366 @@
+{
+    "schema":  "desk-perf/1",
+    "representative":  true,
+    "label":  "rust",
+    "created_at":  "2026-11-25T17:18:09Z",
+    "date":  "2026-11-25",
+    "machine":  {
+                    "os":  "Майкрософт Windows 11 Домашняя 10.0.26300 (build 26300)",
+                    "cpu":  "13th Gen Intel(R) Core(TM) i9-13900H",
+                    "logical_cpus":  20,
+                    "ram_gb":  15.6,
+                    "power":  "ac",
+                    "power_plan":  "Высокая производительность",
+                    "noise":  [
+                                  "cpu busy before start: 12.2 %",
+                                  "WARNING: machine busy before the run (\u003e 10 % CPU), numbers will be noisy"
+                              ]
+                },
+    "build":  {
+                  "kind":  "rust",
+                  "version":  null,
+                  "commit":  "b8d06cb",
+                  "exe":  "strategy-desk.exe",
+                  "profile":  "release"
+              },
+    "harness":  {
+                    "script":  "scripts/rust/bench.ps1 v1",
+                    "runs":  10,
+                    "cold_method":  "admin",
+                    "idle_seconds":  60,
+                    "settle_seconds":  10
+                },
+    "metrics":  [
+                    {
+                        "id":  "cold_start_ms",
+                        "label":  "Cold start to first frame",
+                        "unit":  "ms",
+                        "samples":  [
+                                        744.711,
+                                        233.511,
+                                        223.262,
+                                        219.946,
+                                        218.71,
+                                        224.726,
+                                        228.694,
+                                        210.781,
+                                        219.738,
+                                        213.809
+                                    ],
+                        "median":  221.604,
+                        "p95":  744.711,
+                        "min":  210.781,
+                        "max":  744.711,
+                        "target":  300,
+                        "stat":  "median",
+                        "value":  221.604,
+                        "status":  "pass",
+                        "method":  "Stopwatch from Process.Start to the {\"first_frame_ms\"} line on stdout (--bench-first-frame); window_ms = same clock to the first visible window; before each launch: admin",
+                        "extra":  {
+                                      "window_ms":  [
+                                                        703.301,
+                                                        206.218,
+                                                        187.371,
+                                                        190.372,
+                                                        193.455,
+                                                        193.048,
+                                                        210.847,
+                                                        196.594,
+                                                        197.889,
+                                                        194.336
+                                                    ],
+                                      "timeouts":  0,
+                                      "self_reported_ms":  [
+                                                               463.4,
+                                                               203.3,
+                                                               191.5,
+                                                               187.9,
+                                                               189.2,
+                                                               182.9,
+                                                               194.5,
+                                                               178.5,
+                                                               188.4,
+                                                               185.2
+                                                           ],
+                                      "flush":  [
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0"
+                                                ]
+                                  }
+                    },
+                    {
+                        "id":  "warm_start_ms",
+                        "label":  "Warm start to first frame",
+                        "unit":  "ms",
+                        "samples":  [
+                                        179.321,
+                                        197.478,
+                                        191.404,
+                                        209.647,
+                                        188.975,
+                                        180.48,
+                                        178.09,
+                                        174.693,
+                                        186.017,
+                                        198.471
+                                    ],
+                        "median":  187.496,
+                        "p95":  209.647,
+                        "min":  174.693,
+                        "max":  209.647,
+                        "target":  150,
+                        "stat":  "median",
+                        "value":  187.496,
+                        "status":  "fail",
+                        "method":  "Stopwatch from Process.Start to the {\"first_frame_ms\"} line on stdout (--bench-first-frame); window_ms = same clock to the first visible window; right after a previous launch of the same exe",
+                        "extra":  {
+                                      "window_ms":  [
+                                                        164.213,
+                                                        170.127,
+                                                        168.186,
+                                                        188.426,
+                                                        171.394,
+                                                        152.733,
+                                                        159.526,
+                                                        153.141,
+                                                        151.959,
+                                                        173.671
+                                                    ],
+                                      "timeouts":  0,
+                                      "self_reported_ms":  [
+                                                               167.4,
+                                                               185.2,
+                                                               179.3,
+                                                               195.8,
+                                                               178.1,
+                                                               171.1,
+                                                               167.2,
+                                                               165,
+                                                               175.7,
+                                                               188
+                                                           ]
+                                  }
+                    },
+                    {
+                        "id":  "idle_working_set_mb",
+                        "label":  "Idle RAM, Working Set",
+                        "unit":  "MB",
+                        "samples":  [
+                                        96.398,
+                                        78.574,
+                                        78.648
+                                    ],
+                        "median":  78.648,
+                        "p95":  96.398,
+                        "min":  78.574,
+                        "max":  96.398,
+                        "target":  80,
+                        "stat":  "median",
+                        "value":  78.648,
+                        "status":  "pass",
+                        "method":  "launch, first visible window, 10 s settle (not counted), then 60 s idle; memory = sum over the process tree at the end, Process.WorkingSet64",
+                        "extra":  {
+                                      "processes":  [
+                                                        1,
+                                                        1,
+                                                        1
+                                                    ]
+                                  }
+                    },
+                    {
+                        "id":  "idle_private_mb",
+                        "label":  "Idle RAM, Private Bytes",
+                        "unit":  "MB",
+                        "samples":  [
+                                        104.926,
+                                        91.004,
+                                        91.266
+                                    ],
+                        "median":  91.266,
+                        "p95":  104.926,
+                        "min":  91.004,
+                        "max":  104.926,
+                        "target":  80,
+                        "stat":  "median",
+                        "value":  91.266,
+                        "status":  "fail",
+                        "method":  "launch, first visible window, 10 s settle (not counted), then 60 s idle; memory = sum over the process tree at the end, Process.PrivateMemorySize64 (= Private Bytes)"
+                    },
+                    {
+                        "id":  "idle_cpu_pct",
+                        "label":  "Idle CPU",
+                        "unit":  "%",
+                        "samples":  [
+                                        0.003,
+                                        0.003,
+                                        0.001
+                                    ],
+                        "median":  0.003,
+                        "p95":  0.003,
+                        "min":  0.001,
+                        "max":  0.003,
+                        "target":  1,
+                        "stat":  "median",
+                        "value":  0.003,
+                        "status":  "pass",
+                        "method":  "TotalProcessorTime of the tree sampled every 1 s over the idle window / wall / logical CPUs (Task Manager scale)"
+                    },
+                    {
+                        "id":  "idle_frames_per_min",
+                        "label":  "Frames per minute when idle",
+                        "unit":  "1/min",
+                        "samples":  [
+                                        12,
+                                        12,
+                                        12
+                                    ],
+                        "median":  12,
+                        "p95":  12,
+                        "min":  12,
+                        "max":  12,
+                        "target":  null,
+                        "stat":  "median",
+                        "value":  12,
+                        "status":  "info",
+                        "method":  "sum of \"frames\" in DESK_FRAME_STATS=1 stderr lines inside the idle window"
+                    },
+                    {
+                        "id":  "frame_p50_ms",
+                        "label":  "Frame p50 while streaming",
+                        "unit":  "ms",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  8,
+                        "stat":  "median",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "not requested (-StreamFrames)"
+                    },
+                    {
+                        "id":  "frame_p95_ms",
+                        "label":  "Frame p95 while streaming",
+                        "unit":  "ms",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  16,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "not requested (-StreamFrames)"
+                    },
+                    {
+                        "id":  "frame_p99_ms",
+                        "label":  "Frame p99 while streaming",
+                        "unit":  "ms",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  33,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "not requested (-StreamFrames)"
+                    },
+                    {
+                        "id":  "exe_mb",
+                        "label":  "exe size",
+                        "unit":  "MB",
+                        "samples":  [
+                                        7.657
+                                    ],
+                        "median":  7.657,
+                        "p95":  7.657,
+                        "min":  7.657,
+                        "max":  7.657,
+                        "target":  15,
+                        "stat":  "max",
+                        "value":  7.657,
+                        "status":  "pass",
+                        "method":  "size of strategy-desk.exe"
+                    },
+                    {
+                        "id":  "install_dir_mb",
+                        "label":  "Installed folder size",
+                        "unit":  "MB",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  null,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "exe is not under %LOCALAPPDATA%\\Programs (a build folder is not an installation)"
+                    },
+                    {
+                        "id":  "installer_mb",
+                        "label":  "Installer size",
+                        "unit":  "MB",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  20,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "no installer found; pass -Installer \u003cpath\u003e"
+                    },
+                    {
+                        "id":  "soak_private_growth_pct",
+                        "label":  "Private Bytes growth over the soak",
+                        "unit":  "%",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  5,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "not requested (-SoakHours 24)"
+                    }
+                ],
+    "notes":  [
+                  "day_load_ms: measured by desk-bench (cargo bench / perf-sample), not by this script",
+                  "watch_latency_ms: measured by desk-bench (cargo bench / perf-sample), not by this script",
+                  "switch_ms: measured by desk-bench (cargo bench / perf-sample), not by this script"
+              ]
+}

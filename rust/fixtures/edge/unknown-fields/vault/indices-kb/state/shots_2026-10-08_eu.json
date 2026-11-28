@@ -1,0 +1,28 @@
+{
+ "date": "2026-10-08",
+ "region": "eu",
+ "asof": "x",
+ "ok": true,
+ "error": null,
+ "renderer": "v2",
+ "shots": [
+  {
+   "name": "h4",
+   "tf": "H4",
+   "title": "H4",
+   "path": "indices-kb/shots/x/h4.png",
+   "verify_ok": null,
+   "dpi": 2,
+   "legend": [
+    {
+     "key": "k",
+     "label": "линия",
+     "kind": "new_kind",
+     "color": "rgb(1,2,3)",
+     "style": "dotted",
+     "width": 2
+    }
+   ]
+  }
+ ]
+}

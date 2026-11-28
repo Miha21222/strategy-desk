@@ -1,0 +1,38 @@
+{
+ "region": "eu",
+ "date": "2026-10-08",
+ "asof": "2026-10-08 09:35",
+ "sym": "FDAX",
+ "version": "v3.1",
+ "factors": "not a list",
+ "result": {
+  "long": 10.0,
+  "short": 40.0,
+  "undecided": "50",
+  "max": 100,
+  "needle": -30,
+  "zone": "шорт",
+  "side": "SHORT",
+  "groups": {
+   "контекст дня": {
+    "share": 40.0,
+    "long": 0.0,
+    "short": 40.0,
+    "needle": -40
+   }
+  }
+ },
+ "light": {
+  "color": "green",
+  "label": "🟢 торгуем",
+  "red": [],
+  "yellow": [],
+  "risk_pct": 1
+ },
+ "levels": {
+  "price": 25000,
+  "adr": 280
+ },
+ "discussion": [],
+ "history": []
+}

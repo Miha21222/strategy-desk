@@ -1,0 +1,14 @@
+{
+ "markets": [
+  {
+   "symbol": "ES",
+   "chg_pct": "0.4",
+   "main": "yes"
+  },
+  {
+   "label": 5
+  }
+ ],
+ "headlines": 0,
+ "verdict": ""
+}

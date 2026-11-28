@@ -1,0 +1,338 @@
+{
+    "schema":  "desk-perf/1",
+    "representative":  true,
+    "label":  "electron 0.2.3.0",
+    "created_at":  "2026-11-25T16:57:03Z",
+    "date":  "2026-11-25",
+    "machine":  {
+                    "os":  "Microsoft Windows 11 Home 10.0.26300 (build 26300)",
+                    "cpu":  "13th Gen Intel(R) Core(TM) i9-13900H",
+                    "logical_cpus":  20,
+                    "ram_gb":  15.6,
+                    "power":  "ac",
+                    "power_plan":  "Высокая производительность",
+                    "noise":  [
+                                  "cpu busy before start: 2.1 %"
+                              ]
+                },
+    "build":  {
+                  "kind":  "electron",
+                  "version":  "0.2.3.0",
+                  "commit":  "electron-0.2.3.0",
+                  "exe":  "Strategy Desk.exe",
+                  "profile":  "release"
+              },
+    "harness":  {
+                    "script":  "scripts/rust/bench.ps1 v1",
+                    "runs":  10,
+                    "cold_method":  "admin",
+                    "idle_seconds":  60,
+                    "settle_seconds":  10
+                },
+    "metrics":  [
+                    {
+                        "id":  "cold_start_ms",
+                        "label":  "Cold start to first frame",
+                        "unit":  "ms",
+                        "samples":  [
+                                        1317.074,
+                                        578.496,
+                                        588.881,
+                                        574.699,
+                                        588.856,
+                                        613.107,
+                                        595.515,
+                                        595.762,
+                                        606.337,
+                                        581.689
+                                    ],
+                        "median":  592.198,
+                        "p95":  1317.074,
+                        "min":  574.699,
+                        "max":  1317.074,
+                        "target":  300,
+                        "stat":  "median",
+                        "value":  592.198,
+                        "status":  "fail",
+                        "method":  "Stopwatch from Process.Start to the first visible top-level window of the process tree (EnumWindows, 1 ms polling); before each launch: admin",
+                        "extra":  {
+                                      "window_ms":  [
+                                                        1317.074,
+                                                        578.496,
+                                                        588.881,
+                                                        574.699,
+                                                        588.856,
+                                                        613.107,
+                                                        595.515,
+                                                        595.762,
+                                                        606.337,
+                                                        581.689
+                                                    ],
+                                      "timeouts":  0,
+                                      "flush":  [
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0",
+                                                    "purge status 0"
+                                                ]
+                                  }
+                    },
+                    {
+                        "id":  "warm_start_ms",
+                        "label":  "Warm start to first frame",
+                        "unit":  "ms",
+                        "samples":  [
+                                        532.394,
+                                        525.532,
+                                        649.885,
+                                        595.515,
+                                        605.334,
+                                        582.788,
+                                        589.517,
+                                        603.96,
+                                        524.371,
+                                        510.69
+                                    ],
+                        "median":  586.153,
+                        "p95":  649.885,
+                        "min":  510.69,
+                        "max":  649.885,
+                        "target":  150,
+                        "stat":  "median",
+                        "value":  586.153,
+                        "status":  "fail",
+                        "method":  "Stopwatch from Process.Start to the first visible top-level window of the process tree (EnumWindows, 1 ms polling); right after a previous launch of the same exe",
+                        "extra":  {
+                                      "window_ms":  [
+                                                        532.394,
+                                                        525.532,
+                                                        649.885,
+                                                        595.515,
+                                                        605.334,
+                                                        582.788,
+                                                        589.517,
+                                                        603.96,
+                                                        524.371,
+                                                        510.69
+                                                    ],
+                                      "timeouts":  0
+                                  }
+                    },
+                    {
+                        "id":  "idle_working_set_mb",
+                        "label":  "Idle RAM, Working Set",
+                        "unit":  "MB",
+                        "samples":  [
+                                        807.094,
+                                        805.082,
+                                        807.77
+                                    ],
+                        "median":  807.094,
+                        "p95":  807.77,
+                        "min":  805.082,
+                        "max":  807.77,
+                        "target":  80,
+                        "stat":  "median",
+                        "value":  807.094,
+                        "status":  "fail",
+                        "method":  "launch, first visible window, 10 s settle (not counted), then 60 s idle; memory = sum over the process tree at the end, Process.WorkingSet64",
+                        "extra":  {
+                                      "processes":  [
+                                                        9,
+                                                        9,
+                                                        9
+                                                    ]
+                                  }
+                    },
+                    {
+                        "id":  "idle_private_mb",
+                        "label":  "Idle RAM, Private Bytes",
+                        "unit":  "MB",
+                        "samples":  [
+                                        1472.316,
+                                        1464.031,
+                                        1471.402
+                                    ],
+                        "median":  1471.402,
+                        "p95":  1472.316,
+                        "min":  1464.031,
+                        "max":  1472.316,
+                        "target":  80,
+                        "stat":  "median",
+                        "value":  1471.402,
+                        "status":  "fail",
+                        "method":  "launch, first visible window, 10 s settle (not counted), then 60 s idle; memory = sum over the process tree at the end, Process.PrivateMemorySize64 (= Private Bytes)"
+                    },
+                    {
+                        "id":  "idle_cpu_pct",
+                        "label":  "Idle CPU",
+                        "unit":  "%",
+                        "samples":  [
+                                        0.044,
+                                        0.067,
+                                        0.053
+                                    ],
+                        "median":  0.053,
+                        "p95":  0.067,
+                        "min":  0.044,
+                        "max":  0.067,
+                        "target":  1,
+                        "stat":  "median",
+                        "value":  0.053,
+                        "status":  "pass",
+                        "method":  "TotalProcessorTime of the tree sampled every 1 s over the idle window / wall / logical CPUs (Task Manager scale)"
+                    },
+                    {
+                        "id":  "idle_frames_per_min",
+                        "label":  "Frames per minute when idle",
+                        "unit":  "1/min",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  null,
+                        "stat":  "median",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "Electron has no frame counter"
+                    },
+                    {
+                        "id":  "frame_p50_ms",
+                        "label":  "Frame p50 while streaming",
+                        "unit":  "ms",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  8,
+                        "stat":  "median",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "Electron has no frame counter"
+                    },
+                    {
+                        "id":  "frame_p95_ms",
+                        "label":  "Frame p95 while streaming",
+                        "unit":  "ms",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  16,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "Electron has no frame counter"
+                    },
+                    {
+                        "id":  "frame_p99_ms",
+                        "label":  "Frame p99 while streaming",
+                        "unit":  "ms",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  33,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "Electron has no frame counter"
+                    },
+                    {
+                        "id":  "exe_mb",
+                        "label":  "exe size",
+                        "unit":  "MB",
+                        "samples":  [
+                                        234.835
+                                    ],
+                        "median":  234.835,
+                        "p95":  234.835,
+                        "min":  234.835,
+                        "max":  234.835,
+                        "target":  15,
+                        "stat":  "max",
+                        "value":  234.835,
+                        "status":  "fail",
+                        "method":  "size of Strategy Desk.exe"
+                    },
+                    {
+                        "id":  "install_dir_mb",
+                        "label":  "Installed folder size",
+                        "unit":  "MB",
+                        "samples":  [
+                                        668.46
+                                    ],
+                        "median":  668.46,
+                        "p95":  668.46,
+                        "min":  668.46,
+                        "max":  668.46,
+                        "target":  null,
+                        "stat":  "max",
+                        "value":  668.46,
+                        "status":  "info",
+                        "method":  "every file under the installation folder"
+                    },
+                    {
+                        "id":  "installer_mb",
+                        "label":  "Installer size",
+                        "unit":  "MB",
+                        "samples":  [
+                                        180.12
+                                    ],
+                        "median":  180.12,
+                        "p95":  180.12,
+                        "min":  180.12,
+                        "max":  180.12,
+                        "target":  20,
+                        "stat":  "max",
+                        "value":  180.12,
+                        "status":  "fail",
+                        "method":  "size of Strategy-Desk-0.2.3-x64.exe"
+                    },
+                    {
+                        "id":  "soak_private_growth_pct",
+                        "label":  "Private Bytes growth over the soak",
+                        "unit":  "%",
+                        "samples":  [
+
+                                    ],
+                        "median":  null,
+                        "p95":  null,
+                        "min":  null,
+                        "max":  null,
+                        "target":  5,
+                        "stat":  "max",
+                        "value":  null,
+                        "status":  "skip",
+                        "method":  "",
+                        "note":  "not requested (-SoakHours 24)"
+                    }
+                ],
+    "notes":  [
+                  "day_load_ms: measured by desk-bench (cargo bench / perf-sample), not by this script",
+                  "watch_latency_ms: measured by desk-bench (cargo bench / perf-sample), not by this script",
+                  "switch_ms: measured by desk-bench (cargo bench / perf-sample), not by this script"
+              ]
+}

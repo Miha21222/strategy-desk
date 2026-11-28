@@ -1,0 +1,7 @@
+{
+ "dates": [
+  "2026-10-08"
+ ],
+ "compare": "strict",
+ "why": "Files written by PowerShell / Windows tools: UTF-8 BOM and CRLF everywhere. JSON readers strip the BOM; the CSV reader strips it; lessons.md is not stripped but JS trim() eats U+FEFF (Rust's trim() does not)."
+}

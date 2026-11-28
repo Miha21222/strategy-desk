@@ -1,0 +1,71 @@
+{
+ "about": "Screenshot helpers. read_shot is readShot(vault, rel) over the golden vault with the data: URL replaced by {\"$shot\": rel, \"bytes\": N} — the shape desk-app hands to the UI instead of base64 (missing / refused / not-a-PNG → null). main_shot gives the index into `shots`.",
+ "source": "Produced by rust/fixtures/tools/capture-helpers.ts from the TS functions named in each table. Do not edit by hand: run rust/fixtures/tools/capture-golden.sh.",
+ "read_shot": [
+  {"rel":"indices-kb/shots/2026-09-14/macro_eu/h1.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_eu/h1.png","bytes":15228}},
+  {"rel":"indices-kb/shots/2026-09-14/macro_eu/m15.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_eu/review_m15.png","bytes":16646}},
+  {"rel":"indices-kb/shots/2026-09-14/macro_eu/review_m15.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_eu/review_m15.png","bytes":16646}},
+  {"rel":"indices-kb/shots/2026-09-14/macro_us/h1.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_us/h1.png","bytes":15280}},
+  {"rel":"indices-kb/shots/2026-09-14/macro_us/m15.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_us/m15.png","bytes":16395}},
+  {"rel":"indices-kb/shots/2026-09-17/macro_us/h1.png","out":{"$shot":"indices-kb/shots/2026-09-17/macro_us/h1.png","bytes":16079}},
+  {"rel":"indices-kb/shots/2026-09-17/macro_us/m15.png","out":{"$shot":"indices-kb/shots/2026-09-17/macro_us/m15.png","bytes":16932}},
+  {"rel":"indices-kb/shots/2026-09-18/macro_eu/h1.png","out":{"$shot":"indices-kb/shots/2026-09-18/macro_eu/h1.png","bytes":14915}},
+  {"rel":"indices-kb/shots/2026-09-18/macro_eu/m15.png","out":{"$shot":"indices-kb/shots/2026-09-18/macro_eu/m15.png","bytes":16057}},
+  {"rel":"indices-kb/shots/2026-09-22/macro_eu/h1.png","out":null},
+  {"rel":"indices-kb/shots/2026-09-22/macro_eu/m15.png","out":{"$shot":"indices-kb/shots/2026-09-22/macro_eu/m15.png","bytes":16397}},
+  {"rel":"indices-kb/shots/2026-10-26/macro_eu/h1.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_eu/h1.png","bytes":15228}},
+  {"rel":"indices-kb/shots/2026-10-26/macro_eu/m15.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_eu/review_m15.png","bytes":16646}},
+  {"rel":"indices-kb/shots/2026-10-26/macro_eu/review_m15.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_eu/review_m15.png","bytes":16646}},
+  {"rel":"indices-kb/shots/2026-10-26/macro_us/h1.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_us/h1.png","bytes":15280}},
+  {"rel":"indices-kb/shots/2026-10-26/macro_us/m15.png","out":{"$shot":"indices-kb/shots/2026-10-26/macro_us/m15.png","bytes":16395}},
+  {"rel":"indices-kb/shots/2026-09-14/macro_eu/missing.png","out":null},
+  {"rel":"indices-kb/shots/../README.md","out":null},
+  {"rel":"indices-kb/state/ideas.json","out":null},
+  {"rel":"README.md","out":null}
+ ],
+ "main_shot": [
+  {"shots":[{"name":"h1","tf":"H1","title":"","path":"indices-kb/shots/x/h1.png","legend":[]},{"name":"m15","tf":"M15","title":"","path":"indices-kb/shots/x/m15.png","legend":[]}],"out":1},
+  {"shots":[{"name":"h1","tf":"H1","title":"","path":"indices-kb/shots/x/h1.png","legend":[]}],"out":0},
+  {"shots":[],"out":null},
+  {"shots":[{"name":"x","tf":"m15","title":"","path":"indices-kb/shots/x/x.png","legend":[]},{"name":"M15","tf":"H1","title":"","path":"indices-kb/shots/x/M15.png","legend":[]}],"out":0},
+  {"shots":[{"name":"a","tf":"H1","title":"","path":"indices-kb/shots/x/a.png","legend":[]},{"name":"M15","tf":"","title":"","path":"indices-kb/shots/x/M15.png","legend":[]}],"out":1}
+ ],
+ "shot_tab_label": [
+  {"shot":{"tf":"M15","title":"M15 — ночь и уровни у открытия","name":"m15"},"out":"M15 · ночь и уровни у открытия"},
+  {"shot":{"tf":"H1","title":"зоны дня","name":"h1"},"out":"H1 · зоны дня"},
+  {"shot":{"tf":"","title":"","name":"h4"},"out":"H4"},
+  {"shot":{"tf":"m15","title":"M15: ночь","name":"x"},"out":"m15 · ночь"},
+  {"shot":{"tf":"H1","title":"H1","name":"h1"},"out":"H1"},
+  {"shot":{"tf":"","title":"только заголовок","name":""},"out":"только заголовок"},
+  {"shot":{"tf":" H4 ","title":" H4 · – - :x ","name":"h4"},"out":"H4 · x"},
+  {"shot":{"tf":"H1","title":"H10 большой","name":"h1"},"out":"H1 · 0 большой"}
+ ],
+ "shots_error_text": [
+  {"error":"dry-run","out":{"known":"dry-run","text":""}},
+  {"error":"dry_run: no TV","out":{"known":"dry-run","text":""}},
+  {"error":"DRY RUN","out":{"known":"dry-run","text":""}},
+  {"error":"dryrun","out":{"known":"dry-run","text":""}},
+  {"error":"dry-running","out":{"known":null,"text":"dry-running"}},
+  {"error":null,"out":{"known":"none","text":""}},
+  {"error":"","out":{"known":"none","text":""}},
+  {"error":"   ","out":{"known":"none","text":""}},
+  {"error":"TradingView не запущен","out":{"known":null,"text":"TradingView не запущен"}},
+  {"error":"нет шкалы с планом: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","out":{"known":null,"text":"нет шкалы с планом: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"}},
+  {"error":"строка\nс\tпереносом","out":{"known":null,"text":"строка с переносом"}},
+  {"error":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","out":{"known":null,"text":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}},
+  {"error":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","out":{"known":null,"text":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"}},
+  {"error":"яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя","out":{"known":null,"text":"яяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяяя…"}}
+ ],
+ "legend_color": [
+  {"item":{"color":"#1e8e3e","kind":"target"},"out":"#1e8e3e"},
+  {"item":{"color":"red; background:url(x)","kind":"manip"},"out":"#d32f2f"},
+  {"item":{"color":"","kind":"weird"},"out":"#37474f"},
+  {"item":{"color":"#ABC","kind":"level"},"out":"#ABC"},
+  {"item":{"color":"#abcd","kind":"zone"},"out":"#5c6bc0"},
+  {"item":{"color":"#11223344","kind":"fact"},"out":"#11223344"},
+  {"item":{"color":" #112233 ","kind":"open"},"out":"#112233"},
+  {"item":{"color":"rgb(1,2,3)","kind":"open"},"out":"#9e9e9e"},
+  {"item":{"color":5,"kind":"target"},"out":"#1e8e3e"},
+  {"item":{"color":null,"kind":null},"out":"#37474f"}
+ ]
+}

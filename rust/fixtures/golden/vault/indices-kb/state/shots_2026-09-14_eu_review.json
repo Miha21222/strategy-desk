@@ -1,0 +1,67 @@
+{
+ "date": "2026-09-14",
+ "region": "eu",
+ "asof": "2026-09-14 13:00",
+ "ok": true,
+ "error": null,
+ "shots": [
+  {
+   "name": "review_m15",
+   "tf": "M15",
+   "title": "M15 — как прошло окно открытия",
+   "path": "indices-kb/shots/2026-09-14/macro_eu/review_m15.png",
+   "verify_ok": true,
+   "legend": [
+    {
+     "key": "ib",
+     "label": "IB — первые 30 минут",
+     "kind": "fact",
+     "color": "#ef6c00",
+     "style": "solid"
+    },
+    {
+     "key": "ib1_dn",
+     "label": "IB1 вниз",
+     "kind": "fact",
+     "color": "#ef6c00",
+     "style": "dashed"
+    },
+    {
+     "key": "manip1",
+     "label": "манипуляция: максимум премаркета",
+     "kind": "manip",
+     "color": "#d32f2f",
+     "style": "solid"
+    },
+    {
+     "key": "manip2",
+     "label": "открытие дня — не манипуляция: за ним максимум премаркета",
+     "kind": "manip",
+     "color": "#757575",
+     "style": "dashed"
+    },
+    {
+     "key": "t1",
+     "label": "цель: минимум H4 — вне ADR",
+     "kind": "target",
+     "color": "#1e8e3e",
+     "style": "dashed"
+    },
+    {
+     "key": "zone1",
+     "label": "точка A: снятие максимума D1",
+     "kind": "zone",
+     "color": "#5c6bc0",
+     "style": "solid"
+    },
+    {
+     "key": "break",
+     "label": "первый пробой IB вниз — 10:45",
+     "kind": "fact",
+     "color": "#ef6c00",
+     "style": "solid"
+    }
+   ]
+  }
+ ]
+}

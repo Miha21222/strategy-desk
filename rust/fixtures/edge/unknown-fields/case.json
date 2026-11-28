@@ -1,0 +1,7 @@
+{
+ "dates": [
+  "2026-10-08"
+ ],
+ "compare": "strict",
+ "why": "A newer skill adds fields. Nothing may fail. TS quirk: files the desk passes through raw (scale, verdict, review, review_agent, collect.calendar, collect.regime) keep the unknown fields in the day JSON; the normalized ones (human_read, day_answers, remember, drift, week, ideas, shots) drop them. Unknown state files (regime_*, foo_*) are not read at all."
+}

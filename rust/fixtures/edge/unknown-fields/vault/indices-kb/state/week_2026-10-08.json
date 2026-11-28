@@ -1,0 +1,17 @@
+{
+ "week_start": "2026-10-05",
+ "week_end": "2026-10-08",
+ "days": 4,
+ "enough_data": false,
+ "lines": [
+  "строка"
+ ],
+ "stats": {
+  "a": 1
+ },
+ "trader": [],
+ "share_proposal": null,
+ "ib_stats": {
+  "hit": 7
+ }
+}

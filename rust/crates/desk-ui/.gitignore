@@ -1,0 +1,4 @@
+# egui_kittest writes these next to a failing snapshot.
+snapshots/*.new.png
+snapshots/*.diff.png
+snapshots/*.old.png

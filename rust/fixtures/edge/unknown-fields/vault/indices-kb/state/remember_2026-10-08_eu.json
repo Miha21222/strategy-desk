@@ -1,0 +1,25 @@
+{
+ "date": "2026-10-08",
+ "region": "eu",
+ "asof": "x",
+ "items": [
+  {
+   "kind": "lesson",
+   "text": "урок",
+   "why": "",
+   "ref": "",
+   "tags": [],
+   "score": 9
+  }
+ ],
+ "conditions": {
+  "tags": [
+   "eu"
+  ],
+  "new_cond": "x"
+ },
+ "similar": null,
+ "lesson_candidates": 1,
+ "enough_history": true,
+ "new": 1
+}

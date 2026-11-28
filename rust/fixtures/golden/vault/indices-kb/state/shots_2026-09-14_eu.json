@@ -1,0 +1,93 @@
+{
+ "date": "2026-09-14",
+ "region": "eu",
+ "asof": "2026-09-14 09:40",
+ "ok": true,
+ "error": null,
+ "shots": [
+  {
+   "name": "m15",
+   "tf": "M15",
+   "title": "M15 — премаркет и уровни у открытия",
+   "path": "indices-kb/shots/2026-09-14/macro_eu/m15.png",
+   "verify_ok": true,
+   "legend": [
+    {
+     "key": "manip1",
+     "label": "манипуляция: максимум ночи",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "manip2",
+     "label": "манипуляция: открытие дня",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "target1",
+     "label": "цель: вчерашнее закрытие",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "target2",
+     "label": "цель: минимум H4",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "prev_low",
+     "label": "вчерашний минимум",
+     "kind": "level",
+     "color": "#37474f"
+    },
+    {
+     "key": "XO",
+     "label": "открытие Xetra",
+     "kind": "open",
+     "color": "#9e9e9e"
+    }
+   ]
+  },
+  {
+   "name": "h1",
+   "tf": "H1",
+   "title": "H1 — зоны и цели дня",
+   "path": "indices-kb/shots/2026-09-14/macro_eu/h1.png",
+   "verify_ok": true,
+   "legend": [
+    {
+     "key": "manip1",
+     "label": "манипуляция: максимум ночи",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "manip2",
+     "label": "манипуляция: открытие дня",
+     "kind": "manip",
+     "color": "#d32f2f"
+    },
+    {
+     "key": "target1",
+     "label": "цель: вчерашнее закрытие",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "target2",
+     "label": "цель: минимум H4",
+     "kind": "target",
+     "color": "#1e8e3e"
+    },
+    {
+     "key": "prev_low",
+     "label": "вчерашний минимум",
+     "kind": "level",
+     "color": "#37474f"
+    }
+   ]
+  }
+ ]
+}

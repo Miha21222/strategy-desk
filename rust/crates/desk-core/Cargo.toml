@@ -1,0 +1,19 @@
+[package]
+name = "desk-core"
+description = "Pure domain logic of Strategy Desk: vault contract types, normalize*, zones, gauge geometry, window states, CSV stats. No I/O except parsing bytes handed in."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+chrono.workspace = true
+chrono-tz.workspace = true
+thiserror.workspace = true
+
+[features]
+# QA's golden tests (rust/crates/desk-core/tests/golden_*.rs) compile only with
+# this on, so they can be written against CONTRACTS.md before the API lands.
+golden = []
