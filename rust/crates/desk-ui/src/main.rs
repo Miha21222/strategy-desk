@@ -1,4 +1,4 @@
-//! strategy-desk.exe entry point. `strategy-desk run --window eu|us` is the
+//! strategy-desk.exe entry point. `strategy-desk run --window eu|us|review` is the
 //! headless path the Task Scheduler uses; no arguments opens the window.
 
 use std::process::ExitCode;
@@ -20,12 +20,17 @@ fn main() -> ExitCode {
                 ExitCode::FAILURE
             }
         },
-        Ok(Cli::Run { window }) => {
-            eprintln!(
-                "strategy-desk run --window {}: not implemented yet",
-                window.as_str()
-            );
-            ExitCode::from(2)
+        Ok(Cli::Run { window, date }) => {
+            let secrets = desk_app::secrets::KeyringStore::new();
+            let code = desk_app::run::run(desk_app::run::RunArgs {
+                window,
+                date,
+                now: chrono::Utc::now(),
+                data_dir: None,
+                secrets: &secrets,
+                claude: Default::default(),
+            });
+            ExitCode::from(u8::try_from(code).unwrap_or(1))
         }
         Ok(Cli::Help) => {
             println!("{USAGE}");

@@ -8,26 +8,15 @@
 //! strategy-desk --bench-first-frame     open, print {"first_frame_ms":…} after the first frame, exit 0
 //! strategy-desk --bench-data-ready      open, wait for the day, print {"first_frame_ms","data_ready_ms",…}, exit 0
 //! strategy-desk --bench-switch N        N day switches, print {"switch_ms":[…]}, exit 0
-//! strategy-desk run --window eu|us      headless scheduled review (stage 6; exits 2 for now)
+//! strategy-desk run --window eu|us|review [--date YYYY-MM-DD]
+//!                                       headless scheduled review (desk_app::run)
 //! ```
 
 use std::ffi::OsString;
+
+use chrono::NaiveDate;
+use desk_core::windows::WindowId;
 use std::path::PathBuf;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Region {
-    Eu,
-    Us,
-}
-
-impl Region {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Eu => "eu",
-            Self::Us => "us",
-        }
-    }
-}
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WindowOpts {
@@ -45,14 +34,18 @@ pub struct WindowOpts {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Cli {
     Window(WindowOpts),
-    Run { window: Region },
+    /// `--date` set = a run by hand for that day (skips the «is it my minute» check).
+    Run {
+        window: WindowId,
+        date: Option<NaiveDate>,
+    },
     Help,
 }
 
 pub const USAGE: &str = "\
 usage: strategy-desk [--vault DIR] [--demo] [--now TIME] [--bench-first-frame | --bench-data-ready]
                      [--bench-switch N]
-       strategy-desk run --window eu|us
+       strategy-desk run --window eu|us|review [--date YYYY-MM-DD]
 
   --vault DIR          the Trading Strategy Assistant folder (else env DESK_VAULT)
   --demo               open the demo vault with the clock at its «today» (2026-10-26 10:15)
@@ -61,7 +54,8 @@ usage: strategy-desk [--vault DIR] [--demo] [--now TIME] [--bench-first-frame | 
   --bench-data-ready   wait until the day is drawn, print {\"first_frame_ms\", \"data_ready_ms\",
                        \"private_mb\", \"ws_mb\"} and exit
   --bench-switch N     switch the day N times, print {\"switch_ms\": […]} and exit
-  run --window eu|us   run the scheduled review without a window (not implemented yet)
+  run --window W       run the scheduled review without a window (W = eu | us | review);
+                       --date D runs it by hand for that day; log in <data>/logs/run-D-W.log
 
 env: DESK_FRAME_STATS=1 logs frame time p50/p95/p99 to stderr every 10 s;
      DESK_STARTUP_TRACE=1 prints one JSON line per start-up phase to stderr;
@@ -83,23 +77,16 @@ where
 
     if it.peek() == Some(&"run") {
         it.next();
-        let mut window = None;
-        while let Some(a) = it.next() {
-            let value = match a {
-                "--window" => it.next().ok_or("--window needs eu or us")?,
-                _ if a.starts_with("--window=") => &a["--window=".len()..],
-                "-h" | "--help" => return Ok(Cli::Help),
-                other => return Err(format!("unknown argument for run: {other}")),
-            };
-            window = Some(match value {
-                "eu" => Region::Eu,
-                "us" => Region::Us,
-                other => return Err(format!("--window must be eu or us, not {other:?}")),
-            });
+        let rest: Vec<String> = it.map(str::to_owned).collect();
+        if rest.iter().any(|a| a == "-h" || a == "--help") {
+            return Ok(Cli::Help);
         }
-        return window
-            .map(|window| Cli::Run { window })
-            .ok_or_else(|| "run needs --window eu|us".to_owned());
+        // `--window=us` → `--window us`: the scheduler writes the spaced form.
+        let rest = rest.into_iter().flat_map(|a| match a.split_once('=') {
+            Some((k, v)) if k.starts_with("--") => vec![k.to_owned(), v.to_owned()],
+            _ => vec![a],
+        });
+        return desk_app::run::parse_args(rest).map(|(window, date)| Cli::Run { window, date });
     }
 
     let mut opts = WindowOpts::default();
@@ -188,11 +175,25 @@ mod tests {
     fn run_window_both_spellings() {
         assert_eq!(
             p(&["run", "--window", "eu"]),
-            Ok(Cli::Run { window: Region::Eu })
+            Ok(Cli::Run {
+                window: WindowId::Eu,
+                date: None
+            })
         );
         assert_eq!(
             p(&["run", "--window=us"]),
-            Ok(Cli::Run { window: Region::Us })
+            Ok(Cli::Run {
+                window: WindowId::Us,
+                date: None
+            })
+        );
+        // What the Task Scheduler registers for the evening, and a run by hand.
+        assert_eq!(
+            p(&["run", "--window", "review", "--date", "2026-11-27"]),
+            Ok(Cli::Run {
+                window: WindowId::Review,
+                date: NaiveDate::from_ymd_opt(2026, 11, 27)
+            })
         );
     }
 
